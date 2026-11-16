@@ -6,4 +6,4 @@
 
 JSON Schema는 `../../schemas/registry-v1.schema.json`, 설계·개발·검증은 `../../docs/work-items/T-010.md`에서 관리한다. 구조 검사는 T-010, 참조·선택 모드 검사는 T-020에서 제공한다. 그래프 순서·실행 검증은 후속 작업이다.
 
-저장소 루트에서 `python injector.py validate --project examples/registry`로 T-020의 구조·참조 검증을 실행할 수 있다. 실제 실행 파일 존재·DNS·그래프 순환·기동은 검증하지 않는다.
+저장소 루트에서 `python injector.py validate --project examples/registry`로 T-020의 구조·참조 검증을 실행할 수 있다. `python injector.py plan --project examples/registry --profile local-real`은 T-040의 DFS 순서·순환 검사를 수행한다. 실제 실행 파일 존재·DNS·기동은 검사하지 않는다.

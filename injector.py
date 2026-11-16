@@ -1,4 +1,4 @@
-"""Small, standard-library-only POC runner. No IDE plugin required."""
+"""Injector CLI for the demo runner and runtime registry inspection."""
 import argparse
 import json
 import os
@@ -84,16 +84,22 @@ def main():
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")
     args = parser.parse_args()
-    if args.command in ("validate", "resolve"):
+    if args.command in ("validate", "resolve") or (args.command == "plan" and args.project is not None):
         if args.project is None or args.infra or args.main_docker:
             parser.error("registry inspection requires --project and does not accept execution options")
         if args.command == "resolve" and (not args.node or not args.profile):
             parser.error("resolve requires --node and --profile")
-        if args.command == "validate" and args.node:
+        if args.command == "plan" and not args.profile:
+            parser.error("registry plan requires --profile")
+        if args.command != "resolve" and args.node:
             parser.error("--node is supported only with resolve")
         from injector_core.registry import RegistryError, load_registry
         try:
             data = load_registry(args.project, args.profile)
+            if args.command == "plan":
+                from injector_core.planning import build_plan
+                print(json.dumps(build_plan(data, args.profile), indent=2))
+                return
             if args.command == "resolve":
                 from injector_core.resolution import resolve_node
                 print(json.dumps(resolve_node(data, args.profile, args.node).describe(), indent=2))
@@ -105,7 +111,7 @@ def main():
                           "nodes": len(data["nodes"]), "profiles": profiles}, indent=2))
         return
     if args.project is not None or args.node is not None:
-        parser.error("project inspection options require validate or resolve")
+        parser.error("project inspection options require validate, resolve, or plan")
     args.profile = args.profile or "mock"
     if args.profile not in ("mock", "real"):
         parser.error("legacy demo commands support only mock and real profiles")

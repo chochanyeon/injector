@@ -108,7 +108,7 @@ python -m unittest discover -s tests -v
 
 구체적인 검증 절차와 결과는 [POC 검증 기록](docs/validation-history.md)에 있다.
 
-현재 샘플 앱은 인프라 접속값을 전달받지만 DB·Kafka·Redis를 직접 사용하지 않는다. 해당 인프라는 기동과 기본 동작만 검증했다. 임의의 기존 프로젝트 등록, 의존성 그래프, 세션별 격리, 자동 정리·복구 기능도 아직 없다. 실행 구성과 포트가 고정되어 있으므로 동시에 하나의 POC 환경을 사용한다.
+현재 샘플 앱은 인프라 접속값을 전달받지만 DB·Kafka·Redis를 직접 사용하지 않는다. 해당 인프라는 기동과 기본 동작만 검증했다. 일반 등록의 실제 기동, 세션별 격리, 자동 정리·복구 기능은 아직 없다. 실행 가능한 기존 데모는 구성과 포트가 고정되어 있으므로 동시에 하나의 POC 환경을 사용한다.
 
 작업별 설계·구현·완료 기준·검증 결과는 [작업 인덱스](docs/index.md)에서 확인한다. [공통 설계](docs/design.md)와 [전체 현황](docs/status.md)은 여러 작업에 걸친 배경 자료다. 이번 POC의 Python·JSON·Compose·실행 구성 생성 방식은 검증용 선택이며, 제품의 최종 기술 스택을 확정하지 않는다.
 
@@ -131,7 +131,16 @@ python injector.py resolve --project examples/registry --profile local-real --no
 
 `resolve`는 `fromEnv` 참조를 실제 프로세스 환경에서 읽으므로 필요한 환경변수가 있어야 한다. 출력에서는 모든 설정값을 가리고 키와 출처만 보여준다. 주소 해석·설정 합성은 [T-030](docs/work-items/T-030.md)에 기록하며, 앱 실행에 연결하는 작업은 후속 단계다.
 
-[등록 예시](examples/registry/README.md)는 모델 설명용이며 실행 앱을 제공하지 않는다. 실제 실행은 기존 `examples/demo/` POC 명령으로 확인한다. 등록 스키마는 [T-010](docs/work-items/T-010.md), 로딩·검증은 [T-020](docs/work-items/T-020.md)에서 관리한다. DFS 순서·일반 등록의 실행은 후속 작업이다.
+선택된 프로필의 전이적 의존성과 DFS 후위 순서를 확인할 수 있다.
+
+```powershell
+python injector.py plan --project examples/registry --profile local-real
+python injector.py plan --project examples/registry --profile local-mock
+```
+
+이 계획 조회에는 환경변수의 실제 비밀값이 필요하지 않다. 공통 의존성은 한 번만 포함하고 순환은 경로와 함께 오류로 보고한다. 설정값 해석은 별도의 `resolve`, 실제 기동은 후속 작업이다. `--project` 없이 실행하는 기존 데모 plan 요약도 유지한다.
+
+[등록 예시](examples/registry/README.md)는 모델 설명용이며 실행 앱을 제공하지 않는다. 실제 실행은 기존 `examples/demo/` POC 명령으로 확인한다. 등록 스키마는 [T-010](docs/work-items/T-010.md), 로딩·검증은 [T-020](docs/work-items/T-020.md), DFS 계획은 [T-040](docs/work-items/T-040.md)에서 관리한다.
 
 ## LLM으로 모노레포 등록 준비
 
