@@ -83,8 +83,11 @@ python -m unittest discover -s tests -v
 - JDK 25에서 Java 17 대상으로 컴파일 통과
 - WireMock 매핑 응답 확인
 - PostgreSQL 쿼리, Redis PING, Kafka 토픽 생성 확인
-- IntelliJ에서 실제 Debug 실행과 브레이크포인트 중단은 아직 미검증
-- 메인 앱을 통한 두 구성의 전체 호출 흐름과 메인 앱 Docker 실행은 아직 미검증
+- IntelliJ IDEA 2025.3.3 / JDK 21에서 `mock`·`real` 모두 Debug 실행, 브레이크포인트 중단·재개 확인
+- IntelliJ 메인 앱 → WireMock / 실제 Catalog 호출 및 VM 옵션·환경변수 주입 확인
+- Docker 메인 앱에서도 `mock`·`real` 모두 내부 서비스 주소로 호출 성공
+
+구체적인 검증 절차와 결과는 [POC 검증 기록](docs/poc-validation.md)에 있다.
 
 현재 샘플 앱은 인프라 접속값을 전달받지만 DB·Kafka·Redis를 직접 사용하지 않는다. 해당 인프라는 기동과 기본 동작만 검증했다. 임의의 기존 프로젝트 등록, 의존성 그래프, 세션별 격리, 자동 정리·복구 기능도 아직 없다. 실행 구성과 포트가 고정되어 있으므로 동시에 하나의 POC 환경을 사용한다.
 

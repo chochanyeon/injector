@@ -93,13 +93,16 @@ def main():
     elif args.command == "generate":
         print(f"Generated {generate(args.profile).relative_to(ROOT)}")
     elif args.command == "up":
-        generated = generate(args.profile)
+        generate(args.profile)
         services = [dependency, *args.infra]
         if args.main_docker:
             services.append("main")
         compose("up", "-d", "--build", "--wait", "--wait-timeout", "180", *services,
                 profile=args.profile)
-        print(f"Ready. IntelliJ configuration: {generated.stem}; endpoint: http://localhost:18080/demo")
+        if args.main_docker:
+            print("Main app ready: http://localhost:18080/demo")
+        else:
+            print(f"Dependencies ready. Start Injector-{args.profile} with Debug in IntelliJ.")
     elif args.command == "down":
         compose("down")
     elif args.command == "run":
