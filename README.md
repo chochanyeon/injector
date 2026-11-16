@@ -121,9 +121,17 @@ python injector.py validate --project examples/registry
 python injector.py validate --project examples/registry --profile local-real
 ```
 
-프로필을 생략하면 모든 프로필을 검사한다. `--project`는 상대·절대 디렉터리 경로를 받으며 현재는 `validate`에만 사용할 수 있다. 검증은 구조·노드·의존성·선택 모드·접속점 참조를 확인하고, 프로세스 기동이나 설정 파일 생성을 하지 않는다. 비밀값 참조도 이 단계에서 실제 값으로 읽지 않는다.
+프로필을 생략하면 모든 프로필을 검사한다. `--project`는 상대·절대 디렉터리 경로를 받는다. 검증은 구조·노드·의존성·선택 모드·접속점 참조를 확인하고, 프로세스 기동이나 설정 파일 생성을 하지 않는다. 비밀값 참조도 이 단계에서 실제 값으로 읽지 않는다.
 
-[등록 예시](examples/registry/README.md)는 모델 설명용이며 실행 앱을 제공하지 않는다. 실제 실행은 기존 `examples/demo/` POC 명령으로 확인한다. 등록 스키마는 [T-010](docs/work-items/T-010.md), 로딩·검증은 [T-020](docs/work-items/T-020.md)에서 관리한다. 주소 해석·DFS 순서·일반 등록의 실행은 후속 작업이다.
+접속 정보와 설정을 합성하고 값이 가려진 출처를 확인하려면 다음을 실행한다.
+
+```powershell
+python injector.py resolve --project examples/registry --profile local-real --node catalog
+```
+
+`resolve`는 `fromEnv` 참조를 실제 프로세스 환경에서 읽으므로 필요한 환경변수가 있어야 한다. 출력에서는 모든 설정값을 가리고 키와 출처만 보여준다. 주소 해석·설정 합성은 [T-030](docs/work-items/T-030.md)에 기록하며, 앱 실행에 연결하는 작업은 후속 단계다.
+
+[등록 예시](examples/registry/README.md)는 모델 설명용이며 실행 앱을 제공하지 않는다. 실제 실행은 기존 `examples/demo/` POC 명령으로 확인한다. 등록 스키마는 [T-010](docs/work-items/T-010.md), 로딩·검증은 [T-020](docs/work-items/T-020.md)에서 관리한다. DFS 순서·일반 등록의 실행은 후속 작업이다.
 
 ## LLM으로 모노레포 등록 준비
 

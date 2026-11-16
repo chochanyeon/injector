@@ -77,26 +77,35 @@ def compile_java():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate"))
+    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve"))
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
-    parser.add_argument("--project", type=Path, help="project directory containing registry.json (validate only)")
+    parser.add_argument("--project", type=Path, help="project directory containing registry.json")
+    parser.add_argument("--node", help="node to resolve (resolve only)")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")
     args = parser.parse_args()
-    if args.command == "validate":
+    if args.command in ("validate", "resolve"):
         if args.project is None or args.infra or args.main_docker:
-            parser.error("validate requires --project and does not accept execution options")
+            parser.error("registry inspection requires --project and does not accept execution options")
+        if args.command == "resolve" and (not args.node or not args.profile):
+            parser.error("resolve requires --node and --profile")
+        if args.command == "validate" and args.node:
+            parser.error("--node is supported only with resolve")
         from injector_core.registry import RegistryError, load_registry
         try:
             data = load_registry(args.project, args.profile)
+            if args.command == "resolve":
+                from injector_core.resolution import resolve_node
+                print(json.dumps(resolve_node(data, args.profile, args.node).describe(), indent=2))
+                return
         except RegistryError as error:
             parser.exit(1, f"Invalid registry: {error}\n")
         profiles = [args.profile] if args.profile else list(data["profiles"])
         print(json.dumps({"status": "valid", "schemaVersion": data["schemaVersion"],
                           "nodes": len(data["nodes"]), "profiles": profiles}, indent=2))
         return
-    if args.project is not None:
-        parser.error("--project is currently supported only with validate")
+    if args.project is not None or args.node is not None:
+        parser.error("project inspection options require validate or resolve")
     args.profile = args.profile or "mock"
     if args.profile not in ("mock", "real"):
         parser.error("legacy demo commands support only mock and real profiles")
