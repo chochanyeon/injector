@@ -2,6 +2,15 @@
   "project": "injector-poc",
   "module": "injector-poc",
   "mainClass": "poc.Main",
+  "vaultMock": {
+    "service": "vault-mock",
+    "containerAddress": "http://vault-mock:8080",
+    "env": {
+      "VAULT_ADDR": "http://localhost:18083",
+      "VAULT_PATH": "secret/data/injector-demo",
+      "VAULT_TOKEN": "local-demo-token"
+    }
+  },
   "env": {
     "APP_PORT": "18080",
     "DEMO_MESSAGE": "environment injected",

@@ -1,0 +1,13 @@
+{
+  "priority": 10,
+  "request": {
+    "method": "ANY",
+    "urlPattern": "/v1/.*",
+    "headers": {"X-Vault-Token": {"equalTo": "local-demo-token"}}
+  },
+  "response": {
+    "status": 404,
+    "headers": {"Content-Type": "application/json"},
+    "jsonBody": {"errors": ["unsupported local Vault mock request"]}
+  }
+}

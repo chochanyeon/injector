@@ -1,4 +1,6 @@
 import json
+import contextlib
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +11,32 @@ import injector
 
 
 class ConfigurationTest(unittest.TestCase):
+    def test_vault_mock_is_opt_in_and_uses_runtime_specific_addresses(self):
+        _, _, normal, _ = injector.resolve("mock")
+        self.assertNotIn("VAULT_ADDR", normal)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(injector, "DEMO", root):
+                path = injector.generate("mock", with_vault=True)
+            run = ET.parse(path).getroot().find("configuration")
+            env = {item.attrib["name"]: item.attrib["value"] for item in run.find("envs")}
+            self.assertEqual(env["VAULT_ADDR"], "http://localhost:18083")
+            main = json.loads((root / ".local/compose-mock.json").read_text(encoding="utf-8"))["services"]["main"]
+            self.assertEqual(main["environment"]["VAULT_ADDR"], "http://vault-mock:8080")
+            self.assertEqual(env["VAULT_PATH"], "secret/data/injector-demo")
+
+    def test_up_with_vault_starts_the_mock_service(self):
+        with patch("sys.argv", ["injector.py", "up", "--with-vault"]), \
+                patch.object(injector, "generate") as generate, patch.object(injector, "compose") as compose, \
+                contextlib.redirect_stdout(io.StringIO()):
+            injector.main()
+        generate.assert_called_once_with("mock", True)
+        self.assertIn("vault-mock", compose.call_args.args)
+        output = io.StringIO()
+        with patch("sys.argv", ["injector.py", "plan", "--with-vault"]), contextlib.redirect_stdout(output):
+            injector.main()
+        self.assertEqual(json.loads(output.getvalue())["auxiliaryServices"], ["vault-mock"])
+
     def test_profiles_switch_dependency_and_keep_common_values(self):
         for profile, dependency, port in [("mock", "wiremock", "18081"), ("real", "catalog", "18082")]:
             with self.subTest(profile=profile):

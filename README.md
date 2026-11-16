@@ -112,6 +112,17 @@ python -m unittest discover -s tests -v
 
 작업별 설계·구현·완료 기준·검증 결과는 [작업 인덱스](docs/index.md)에서 확인한다. [공통 설계](docs/design.md)와 [전체 현황](docs/status.md)은 여러 작업에 걸친 배경 자료다. 이번 POC의 Python·JSON·Compose·실행 구성 생성 방식은 검증용 선택이며, 제품의 최종 기술 스택을 확정하지 않는다.
 
+## Vault API를 로컬 값으로 대체
+
+```powershell
+python injector.py up --profile mock --with-vault
+python injector.py vault-demo
+```
+
+별도 WireMock 컨테이너가 Vault KV v2 조회 API로 로컬 값을 반환한다. 실제 Vault 서버·회사 인증 연동은 사용하지 않는다. 설정 소비 데모 앱은 응답의 값을 읽어 메시지와 기능 플래그를 사용한다.
+
+값은 [Vault 대역 데이터](examples/demo/docker/vault-mock/__files/injector-demo.json)의 `data.data`에서 바꾼다. 앱마다 요청 경로와 응답 키를 맞추는 방법·현재 지원 범위는 [Vault 대역 가이드](examples/demo/docker/vault-mock/README.md), 설계·개발·검증은 [T-130](docs/work-items/T-130.md)에 있다. 기존 Java 앱에는 Vault 주소 등이 주입되지만, API 소비 검증은 별도 Python 앱이 담당한다.
+
 ## 실행용 앱 등록 검증
 
 버전 `1.0`의 실행용 등록을 프로젝트 루트의 `registry.json`에 두고 검증할 수 있다.

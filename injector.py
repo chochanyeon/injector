@@ -13,17 +13,19 @@ CONFIG = DEMO / "config/project.json"
 INFRA = ("postgres", "redis", "kafka")
 
 
-def resolve(profile):
+def resolve(profile, with_vault=False):
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     selected = config["profiles"][profile]
     env = {**config["env"], **selected["env"]}
+    if with_vault:
+        env.update(config["vaultMock"]["env"])
     # VM options remain ordered; the sample profiles define distinct -D keys.
     options = config["vmOptions"] + selected["vmOptions"]
     return config, selected["dependency"], env, options
 
 
-def generate(profile):
-    config, dependency, env, options = resolve(profile)
+def generate(profile, with_vault=False):
+    config, dependency, env, options = resolve(profile, with_vault)
     component = ET.Element("component", name="ProjectRunConfigurationManager")
     run = ET.SubElement(component, "configuration", default="false",
                         name=f"Injector-{profile}", type="Application", factoryName="Application")
@@ -51,6 +53,8 @@ def generate(profile):
                      "DB_URL": "jdbc:postgresql://postgres:5432/demo",
                      "REDIS_HOST": "redis", "REDIS_PORT": "6379",
                      "KAFKA_BOOTSTRAP_SERVERS": "kafka:9092"}
+    if with_vault:
+        container_env["VAULT_ADDR"] = config["vaultMock"]["containerAddress"]
     override = {"services": {"main": {"environment": container_env,
                                       "command": options + [config["mainClass"]]}}}
     local = DEMO / ".local"
@@ -77,15 +81,16 @@ def compile_java():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve"))
+    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "vault-demo"))
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
     parser.add_argument("--project", type=Path, help="project directory containing registry.json")
     parser.add_argument("--node", help="node to resolve (resolve only)")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")
+    parser.add_argument("--with-vault", action="store_true", help="include the local Vault API mock in demo setup")
     args = parser.parse_args()
     if args.command in ("validate", "resolve") or (args.command == "plan" and args.project is not None):
-        if args.project is None or args.infra or args.main_docker:
+        if args.project is None or args.infra or args.main_docker or args.with_vault:
             parser.error("registry inspection requires --project and does not accept execution options")
         if args.command == "resolve" and (not args.node or not args.profile):
             parser.error("resolve requires --node and --profile")
@@ -115,7 +120,10 @@ def main():
     args.profile = args.profile or "mock"
     if args.profile not in ("mock", "real"):
         parser.error("legacy demo commands support only mock and real profiles")
-    config, dependency, env, options = resolve(args.profile)
+    with_vault = args.with_vault or args.command == "vault-demo"
+    if args.with_vault and args.command not in ("plan", "generate", "up", "run", "vault-demo"):
+        parser.error("--with-vault is supported only with demo plan, generate, up, run, and vault-demo")
+    config, dependency, env, options = resolve(args.profile, with_vault)
     if args.main_docker and args.command != "up":
         parser.error("--main-docker is supported only with up")
     if args.infra and args.command not in ("plan", "up"):
@@ -123,12 +131,15 @@ def main():
     if args.command == "plan":
         print(json.dumps({"project": config["project"], "profile": args.profile,
                           "dependency": dependency, "infrastructure": args.infra,
+                          "auxiliaryServices": [config["vaultMock"]["service"]] if with_vault else [],
                           "environmentKeys": sorted(env), "vmOptionCount": len(options)}, indent=2))
     elif args.command == "generate":
-        print(f"Generated {generate(args.profile).relative_to(ROOT)}")
+        print(f"Generated {generate(args.profile, with_vault).relative_to(ROOT)}")
     elif args.command == "up":
-        generate(args.profile)
+        generate(args.profile, with_vault)
         services = [dependency, *args.infra]
+        if with_vault:
+            services.append(config["vaultMock"]["service"])
         if args.main_docker:
             services.append("main")
         compose("up", "-d", "--build", "--wait", "--wait-timeout", "180", *services,
@@ -139,6 +150,9 @@ def main():
             print(f"Dependencies ready. Start Injector-{args.profile} with Debug in IntelliJ.")
     elif args.command == "down":
         compose("down")
+    elif args.command == "vault-demo":
+        subprocess.run([sys.executable, str(DEMO / "vault_client.py")],
+                       env={**os.environ, **env}, cwd=DEMO, check=True)
     elif args.command == "run":
         classes = compile_java()
         subprocess.run(["java", *options, "-cp", str(classes), config["mainClass"]],

@@ -151,6 +151,7 @@ class RegistryTest(unittest.TestCase):
 
     def test_cli_rejects_execution_options_and_legacy_project_switch(self):
         for arguments in (["validate", "--project", str(self.project), "--main-docker"],
+                          ["validate", "--project", str(self.project), "--with-vault"],
                           ["validate"], ["up", "--project", str(self.project)]):
             with self.subTest(arguments=arguments), patch("sys.argv", ["injector.py", *arguments]), \
                     contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as result:

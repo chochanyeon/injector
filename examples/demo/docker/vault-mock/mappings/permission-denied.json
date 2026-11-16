@@ -1,0 +1,9 @@
+{
+  "priority": 20,
+  "request": {"method": "ANY", "urlPattern": "/v1/.*"},
+  "response": {
+    "status": 403,
+    "headers": {"Content-Type": "application/json"},
+    "jsonBody": {"errors": ["permission denied"]}
+  }
+}
