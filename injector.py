@@ -8,7 +8,8 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parent
-CONFIG = ROOT / "config/project.json"
+DEMO = ROOT / "examples/demo"
+CONFIG = DEMO / "config/project.json"
 INFRA = ("postgres", "redis", "kafka")
 
 
@@ -39,7 +40,7 @@ def generate(profile):
     method = ET.SubElement(run, "method", v="2")
     ET.SubElement(method, "option", name="Make", enabled="true")
     ET.indent(component)
-    destination = ROOT / ".run" / f"Injector-{profile}.run.xml"
+    destination = DEMO / ".run" / f"Injector-{profile}.run.xml"
     destination.parent.mkdir(exist_ok=True)
     ET.ElementTree(component).write(destination, encoding="utf-8", xml_declaration=True)
 
@@ -52,25 +53,25 @@ def generate(profile):
                      "KAFKA_BOOTSTRAP_SERVERS": "kafka:9092"}
     override = {"services": {"main": {"environment": container_env,
                                       "command": options + [config["mainClass"]]}}}
-    local = ROOT / ".local"
+    local = DEMO / ".local"
     local.mkdir(exist_ok=True)
     (local / f"compose-{profile}.json").write_text(json.dumps(override, indent=2), encoding="utf-8")
     return destination
 
 
 def compose(*arguments, profile=None):
-    command = ["docker", "compose", "-p", "injector-poc", "-f", str(ROOT / "docker/compose.yaml")]
+    command = ["docker", "compose", "-p", "injector-poc", "-f", str(DEMO / "docker/compose.yaml")]
     if profile:
-        command += ["-f", str(ROOT / ".local" / f"compose-{profile}.json")]
-    subprocess.run(command + list(arguments), cwd=ROOT, check=True)
+        command += ["-f", str(DEMO / ".local" / f"compose-{profile}.json")]
+    subprocess.run(command + list(arguments), cwd=DEMO, check=True)
 
 
 def compile_java():
-    destination = ROOT / "target/classes"
+    destination = DEMO / "target/classes"
     destination.mkdir(parents=True, exist_ok=True)
-    sources = sorted((ROOT / "src/main/java").rglob("*.java"))
+    sources = sorted((DEMO / "src/main/java").rglob("*.java"))
     subprocess.run(["javac", "--release", "17", "-encoding", "UTF-8", "-d", str(destination),
-                    *map(str, sources)], check=True, cwd=ROOT)
+                    *map(str, sources)], check=True, cwd=DEMO)
     return destination
 
 
@@ -108,7 +109,7 @@ def main():
     elif args.command == "run":
         classes = compile_java()
         subprocess.run(["java", *options, "-cp", str(classes), config["mainClass"]],
-                       env={**os.environ, **env}, cwd=ROOT, check=True)
+                       env={**os.environ, **env}, cwd=DEMO, check=True)
 
 
 if __name__ == "__main__":

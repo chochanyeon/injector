@@ -26,8 +26,9 @@ class ConfigurationTest(unittest.TestCase):
             root = Path(directory)
             source = root / "project.json"
             source.write_text(json.dumps(config), encoding="utf-8")
-            with patch.object(injector, "ROOT", root), patch.object(injector, "CONFIG", source):
+            with patch.object(injector, "DEMO", root), patch.object(injector, "CONFIG", source):
                 path = injector.generate("mock")
+            self.assertEqual(path, root / ".run/Injector-mock.run.xml")
             run = ET.parse(path).getroot().find("configuration")
             env = {item.attrib["name"]: item.attrib["value"] for item in run.find("envs")}
             self.assertEqual(env["DEMO_MESSAGE"], '한글 & <xml> "quotes"')

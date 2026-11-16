@@ -2,6 +2,8 @@
 
 검증일: 2026-11-16
 
+최초 검증 후 데모 앱을 `examples/demo/`로 분리했다. 아래 명령은 저장소 루트에서 실행하고, IntelliJ는 `examples/demo/pom.xml`을 별도 프로젝트로 연다. Java 소스 경로는 데모 프로젝트 기준이다.
+
 ## 환경
 
 - Windows, Docker Desktop Linux 엔진
@@ -58,3 +60,15 @@ python injector.py up --profile real --main-docker
 ## 해석 범위
 
 이 결과는 샘플 프로젝트에서 설정 주입, API 대역 전환, IntelliJ 디버깅, Docker 실행이 함께 성립함을 보여준다. 기존 업무 프로젝트의 복잡한 설정을 자동 수집하거나, DB·Kafka·Redis를 샘플 앱이 직접 사용하는 것까지 검증한 결과는 아니다. 인프라의 호스트 클라이언트 연결과 데이터 보존 정책도 추가 검증이 필요하다.
+
+## 데모 디렉터리 분리 후 재검증
+
+데모 소스·Maven 설정·환경 설정·Docker 구성을 `examples/demo/`로 옮긴 뒤 다음을 확인했다.
+
+- 설정 테스트 2개 통과, Java 17 대상 컴파일 성공
+- 두 프로필의 실행 구성 XML이 `examples/demo/.run/`에 생성됨
+- Compose 설정 검증 및 이동된 경로에서 Docker 빌드 성공
+- 로컬 JVM과 Docker에서 각각 `mock`·`real` 호출 및 설정 주입 성공
+- 데모 생성 파일·빌드 결과·IDE 설정이 Git에서 제외됨
+
+이동 후 IntelliJ 브레이크포인트 조작은 반복하지 않았다. 앞선 IntelliJ 디버깅 기록은 디렉터리 분리 전 검증 결과다. 이동한 데모는 `examples/demo/pom.xml`을 별도 프로젝트로 열어 실행한다.

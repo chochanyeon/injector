@@ -182,14 +182,16 @@
 - 적용 범위: 현재 샘플 Maven/JVM 프로젝트. 임의의 기존 업무 프로젝트를 등록하는 기능은 아직 없다.
 - 제품 제공 형태, 기존 설정 가져오기, 팀 비밀값 관리 정책은 여전히 미결정이다.
 
+저장소 루트는 Injector 코드·테스트·설계 문서를 관리하는 개발 공간이다. 적용 대상인 Java 데모 앱은 `examples/demo/`의 별도 Maven 프로젝트이며, 소스·`pom.xml`·설정·Docker 구성을 이 디렉터리에 둔다. CLI는 루트의 `injector.py`로 실행하되 현재 POC의 기본 대상은 데모 프로젝트다.
+
 ### 14.2. 원본 설정과 생성 결과
 
-관리의 기준은 생성된 XML이 아니라 프로젝트의 원본 설정인 `config/project.json`이다. 이 파일에 IntelliJ 모듈 이름, 메인 클래스, 공통 VM 옵션·환경변수, 프로필별 VM 옵션·환경변수를 정의한다.
+관리의 기준은 생성된 XML이 아니라 대상 프로젝트의 원본 설정인 `config/project.json`이다. 현재 데모에서는 저장소 기준 `examples/demo/config/project.json`에 해당한다. 이 파일에 IntelliJ 모듈 이름, 메인 클래스, 공통 VM 옵션·환경변수, 프로필별 VM 옵션·환경변수를 정의한다.
 
 ```text
-config/project.json + 선택한 프로필(mock 또는 real)
+examples/demo/config/project.json + 선택한 프로필(mock 또는 real)
   → 공통값과 프로필값 합성
-  → .run/Injector-<프로필>.run.xml 생성
+  → examples/demo/.run/Injector-<프로필>.run.xml 생성
   → IntelliJ가 실행 구성 인식
   → 개발자가 Run / Debug
   → JVM 시작 시 VM 옵션과 환경변수 전달
@@ -203,9 +205,9 @@ IntelliJ의 Run → Edit Configurations에서 생성된 구성의 VM options와 
 
 ### 14.3. 프로젝트 단위 관리와 공유
 
-하나의 프로젝트에 `Injector-mock`, `Injector-real`처럼 여러 프로필의 실행 구성을 둘 수 있다. 현재 POC는 샘플 프로젝트 루트의 `.run/`에 파일을 생성한다.
+하나의 프로젝트에 `Injector-mock`, `Injector-real`처럼 여러 프로필의 실행 구성을 둘 수 있다. 현재 POC는 데모 프로젝트 루트의 `.run/`에 파일을 생성한다. 저장소 기준 경로는 `examples/demo/.run/`이다. IntelliJ에서는 `examples/demo/pom.xml`을 별도 프로젝트로 열어 이 실행 구성을 사용한다.
 
-원본 설정과 생성 도구는 Git으로 공유하고 각 개발자가 실행 구성을 생성하는 방식이다. 실제 설정값이 담기는 `.run/Injector-*.run.xml`과 Docker용 생성 설정이 담기는 `.local/`은 Git에서 제외한다. 개인 비밀값을 별도 저장하거나 주입하는 기능은 아직 없으므로, 원본 설정에도 실제 자격증명을 커밋해서는 안 된다.
+원본 설정과 생성 도구는 Git으로 공유하고 각 개발자가 실행 구성을 생성하는 방식이다. 대상 프로젝트의 실제 설정값이 담기는 `.run/Injector-*.run.xml`과 Docker용 생성 설정이 담기는 `.local/`은 Git에서 제외한다. 데모의 생성 파일과 Java 빌드 결과는 모두 `examples/demo/` 아래에 둔다. 개인 비밀값을 별도 저장하거나 주입하는 기능은 아직 없으므로, 원본 설정에도 실제 자격증명을 커밋해서는 안 된다.
 
 생성된 XML을 직접 수정하면 같은 프로필을 다시 생성할 때 덮어써진다. 유지할 변경은 원본 설정에 반영한다. 도구가 생성한 전용 구성 외의 기존 IntelliJ 실행 구성을 찾아 수정하거나 병합하지 않는다.
 

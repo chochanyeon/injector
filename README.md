@@ -2,12 +2,29 @@
 
 IntelliJ에서 JVM 애플리케이션을 디버깅하면서 VM 옵션·환경변수를 주입하고, 주변 API와 인프라를 로컬에서 준비하는 실험 프로젝트다.
 
+저장소 루트는 Injector 자체의 개발 공간이다. Java 데모 앱과 데모 전용 설정·Docker 구성은 `examples/demo/`에 별도 프로젝트로 보관한다.
+
+```text
+injector/
+├── injector.py          # Injector CLI
+├── tests/               # Injector 테스트
+├── docs/                # 설계·검증 기록
+└── examples/demo/       # Injector를 적용하는 데모 프로젝트
+    ├── pom.xml
+    ├── src/main/java/poc/
+    ├── config/project.json
+    ├── docker/
+    └── .run/            # 생성된 IntelliJ 실행 구성 (Git 제외)
+```
+
+아래 CLI 명령은 저장소 루트에서 실행한다. 현재 POC의 기본 대상은 `examples/demo/`이며, IntelliJ에서는 데모 프로젝트를 별도로 연다.
+
 ## 준비
 
 - JDK 17 이상 (`java`, `javac`를 PATH에 등록)
 - Python 3.10 이상. 추가 패키지는 필요하지 않음
 - Docker Desktop 또는 Docker Engine과 Compose
-- IntelliJ IDEA. 프로젝트의 `pom.xml`을 Maven 프로젝트로 연다.
+- IntelliJ IDEA. `examples/demo/pom.xml`을 Maven 프로젝트로 연다.
 
 ## IntelliJ에서 실행하기
 
@@ -17,11 +34,11 @@ IntelliJ에서 JVM 애플리케이션을 디버깅하면서 VM 옵션·환경변
 python injector.py up --profile mock --infra postgres redis kafka
 ```
 
-이 명령은 WireMock과 선택한 인프라가 준비될 때까지 기다리고, `.run/Injector-mock.run.xml`을 생성한다. 메인 앱은 실행하지 않는다.
+이 명령은 WireMock과 선택한 인프라가 준비될 때까지 기다리고, `examples/demo/.run/Injector-mock.run.xml`을 생성한다. 메인 앱은 실행하지 않는다.
 
-1. IntelliJ에서 `pom.xml`을 프로젝트로 열고 JDK 17 이상을 선택한다.
+1. IntelliJ에서 `examples/demo/pom.xml`을 별도 프로젝트로 열고 JDK 17 이상을 선택한다.
 2. Maven 프로젝트 가져오기가 끝나면 `Injector-mock` 실행 구성을 선택한다.
-3. `src/main/java/poc/Main.java`의 `body = ...` 줄에 브레이크포인트를 설정한다.
+3. 데모 프로젝트의 `src/main/java/poc/Main.java`에서 `body = ...` 줄에 브레이크포인트를 설정한다.
 4. Debug로 실행한다.
 5. `http://localhost:18080/demo`를 호출한다.
 
@@ -51,7 +68,7 @@ python injector.py up --profile mock --main-docker
 
 ## 설정과 명령
 
-설정 파일은 `config/project.json`이다. 공통 환경변수에 프로필별 값을 덮어쓰고, VM 옵션은 공통 옵션 뒤에 프로필 옵션을 붙인다. 복잡한 충돌 해결·비밀값 저장 기능은 아직 없다.
+설정 파일은 `examples/demo/config/project.json`이다. 공통 환경변수에 프로필별 값을 덮어쓰고, VM 옵션은 공통 옵션 뒤에 프로필 옵션을 붙인다. 복잡한 충돌 해결·비밀값 저장 기능은 아직 없다.
 
 ```powershell
 python injector.py plan --profile real --infra redis
@@ -60,7 +77,7 @@ python injector.py down
 python -m unittest discover -s tests -v
 ```
 
-`plan`은 값 대신 환경변수 키를 출력한다. `generate`는 컨테이너 기동 없이 IntelliJ 실행 구성과 Docker용 설정을 생성한다. 생성 파일에는 설정값이 포함되므로 `.run/Injector-*.run.xml`과 `.local/`은 Git에서 제외한다. 저장소에 들어 있는 DB 비밀번호는 로컬 데모용 고정값이며 실제 자격증명을 넣어 커밋하면 안 된다.
+`plan`은 값 대신 환경변수 키를 출력한다. `generate`는 컨테이너 기동 없이 IntelliJ 실행 구성과 Docker용 설정을 생성한다. 생성 파일에는 설정값이 포함되므로 데모 프로젝트의 `.run/Injector-*.run.xml`과 `.local/`은 Git에서 제외한다. 저장소에 들어 있는 DB 비밀번호는 로컬 데모용 고정값이며 실제 자격증명을 넣어 커밋하면 안 된다.
 
 `down`은 `injector-poc` Compose 프로젝트의 컨테이너와 네트워크를 제거한다. 볼륨은 삭제하지 않지만 현재는 이미지의 익명 볼륨을 사용하므로, 이후 `up`에서 데이터 재연결을 보장하지 않는다. 데이터 보존·초기화 정책은 후속 설계 대상이다.
 
