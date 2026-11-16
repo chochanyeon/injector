@@ -4,4 +4,6 @@
 
 `apps/orders`, `compose.yaml`, `/health` 등은 모델 예시를 위한 값이다. 실제 실행 파일이나 구현을 제공하지 않으므로 서비스 실행용 데모로 사용하지 않는다. 실행 가능한 기존 데모는 `../demo/`에 있다.
 
-JSON Schema는 `../../schemas/registry-v1.schema.json`, 설계·개발·검증은 `../../docs/work-items/T-010.md`에서 관리한다. 스키마 검증은 자료형과 구조를 확인하고, 참조·선택 모드·그래프 실행 검증은 후속 단계에서 수행한다.
+JSON Schema는 `../../schemas/registry-v1.schema.json`, 설계·개발·검증은 `../../docs/work-items/T-010.md`에서 관리한다. 구조 검사는 T-010, 참조·선택 모드 검사는 T-020에서 제공한다. 그래프 순서·실행 검증은 후속 작업이다.
+
+저장소 루트에서 `python injector.py validate --project examples/registry`로 T-020의 구조·참조 검증을 실행할 수 있다. 실제 실행 파일 존재·DNS·그래프 순환·기동은 검증하지 않는다.

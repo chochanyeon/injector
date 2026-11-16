@@ -112,6 +112,19 @@ python -m unittest discover -s tests -v
 
 작업별 설계·구현·완료 기준·검증 결과는 [작업 인덱스](docs/index.md)에서 확인한다. [공통 설계](docs/design.md)와 [전체 현황](docs/status.md)은 여러 작업에 걸친 배경 자료다. 이번 POC의 Python·JSON·Compose·실행 구성 생성 방식은 검증용 선택이며, 제품의 최종 기술 스택을 확정하지 않는다.
 
+## 실행용 앱 등록 검증
+
+버전 `1.0`의 실행용 등록을 프로젝트 루트의 `registry.json`에 두고 검증할 수 있다.
+
+```powershell
+python injector.py validate --project examples/registry
+python injector.py validate --project examples/registry --profile local-real
+```
+
+프로필을 생략하면 모든 프로필을 검사한다. `--project`는 상대·절대 디렉터리 경로를 받으며 현재는 `validate`에만 사용할 수 있다. 검증은 구조·노드·의존성·선택 모드·접속점 참조를 확인하고, 프로세스 기동이나 설정 파일 생성을 하지 않는다. 비밀값 참조도 이 단계에서 실제 값으로 읽지 않는다.
+
+[등록 예시](examples/registry/README.md)는 모델 설명용이며 실행 앱을 제공하지 않는다. 실제 실행은 기존 `examples/demo/` POC 명령으로 확인한다. 등록 스키마는 [T-010](docs/work-items/T-010.md), 로딩·검증은 [T-020](docs/work-items/T-020.md)에서 관리한다. 주소 해석·DFS 순서·일반 등록의 실행은 후속 작업이다.
+
 ## LLM으로 모노레포 등록 준비
 
 [등록 스킬](skills/injector-register-monorepo/SKILL.md)과 [등록 프로토콜](skills/injector-register-monorepo/references/registration-protocol.md)을 준비했다. 스킬 기능이 없는 LLM에도 이 문서를 제공해 사용할 수 있다.

@@ -4,7 +4,7 @@
 
 ## 1. 현재 단계
 
-**단일 데모 프로젝트의 실행 POC가 동작하는 단계다. 실행용 등록 스키마 v1.0을 추가했다. 등록 로더·주소 해석·DFS 실행 엔진은 아직 없다.** Python·JSON·Compose는 POC의 선택이며 제품 기술 스택은 미확정이다.
+**단일 데모 프로젝트의 실행 POC가 동작하는 단계다. 실행용 등록 스키마 v1.0을 추가했다. 외부 프로젝트의 등록 검증 CLI도 추가했다. 주소 해석·DFS 실행 엔진은 아직 없다.** Python·JSON·Compose는 POC의 선택이며 제품 기술 스택은 미확정이다.
 
 저장소 루트는 Injector 개발 공간이다. Java 데모와 데모 전용 설정·Docker·생성 파일은 `examples/demo/`에 둔다. 루트에서 `python injector.py ...`를 실행하며, IntelliJ에서는 `examples/demo/pom.xml`을 별도 프로젝트로 연다.
 
@@ -21,7 +21,7 @@
 | `down` | 부분 구현 | 고정 Compose 프로젝트의 컨테이너·네트워크 제거. 세션 소유권·복구 관리 아님 | `injector.py:compose` |
 | LLM 등록 지원 | 완료 | 조사 스킬·프로토콜·예시 제공. 실제 모노레포 조사와 자동 import는 미수행 | `skills/injector-register-monorepo/` |
 | 실행용 등록 스키마 | 완료 | JSON Schema v1.0과 다중 앱·공통 의존성 예시. 실행 엔진 아님 | T-010 |
-| 앱 등록 로딩·외부 프로젝트 지정 | 미착수 | 기존 실행 경로는 데모에 고정 | T-020 |
+| 앱 등록 로딩·외부 프로젝트 지정 | 완료(검증) | --project의 registry.json 구조·참조·경로 검사. 실제 실행은 데모에 고정 | T-020 |
 | 접속점·호스트·포트·주입 참조 해석 | 미착수 | 데모 주소를 코드에서 직접 변환하는 수준 | T-030 |
 | DFS·공통 의존성·순환 검출 | 미착수 | 설계만 존재 | T-040 |
 | 일반화된 실행·준비 상태 확인 | 미착수 | Compose 외 실행별 수명 관리 없음 | T-050 |
@@ -38,6 +38,9 @@
 |---|---|
 | [injector.py](../injector.py) | 현재 POC의 설정 해석·XML 생성·Compose 호출·Java 실행 |
 | [tests/test_injector.py](../tests/test_injector.py) | 설정 합성과 생성 결과 검사 2개 |
+| [schemas/registry-v1.schema.json](../schemas/registry-v1.schema.json) | 실행용 등록 v1.0의 구조 계약 |
+| [injector_core/registry.py](../injector_core/registry.py) | 임의 프로젝트의 등록 로딩·참조 검증 |
+| [tests/test_registry.py](../tests/test_registry.py) | 로더·검증 CLI 검사 15개 |
 | [examples/demo/config/project.json](../examples/demo/config/project.json) | 데모 전용 설정 |
 | [examples/demo/src/main/java/poc](../examples/demo/src/main/java/poc/) | 메인 앱과 Catalog |
 | [examples/demo/docker](../examples/demo/docker/) | Compose, 앱 Dockerfile, WireMock 매핑 |
@@ -47,7 +50,7 @@
 
 ## 4. 검증 수준
 
-- 자동 검증: 설정 2개·실행 스키마 8개, 총 10개. 그래프·세션·로더 테스트는 아직 없다.
+- 자동 검증: 설정 2개·실행 스키마 8개·로더/CLI 15개, 총 25개. 그래프·세션 테스트는 아직 없다.
 - 수동 통합 검증: 로컬 JVM·Docker에서 mock/real 호출과 주입, 인프라 기본 동작 확인.
 - IntelliJ: 디렉터리 분리 전에 두 프로필의 Debug와 브레이크포인트 중단·재개 확인. 분리 후 XML 경로·모듈만 재확인.
 - 스킬: 형식 검사, 예시 JSON 파싱·참조 무결성 확인. 실제 업무 모노레포 적용 검증은 아직 없다.
@@ -56,10 +59,10 @@
 
 ## 5. 현재 인계
 
-- 진행 중 구현: 없음. 설계·개발·검증을 작업별 문서로 통합해 관리한다.
-- 다음 작업: **[T-020 등록 로딩·검증·대상 프로젝트 지정](work-items/T-020.md)**.
+- 진행 중 구현: 없음. T-010·T-020을 검증하고 작업별로 저장했다.
+- 다음 작업: **[T-030 접속 정보 해석과 설정 주입](work-items/T-030.md)**.
 - 입력: 설계 R-08~R-11, 15~16절, 등록 프로토콜 v0.1, 현재 데모 설정.
-- 첫 산출물: 실행용 등록 로더와 프로젝트별 검증 CLI. 조사 초안 자동 승격·서비스 기동은 하지 않는다.
+- 첫 산출물: 선택된 노드의 호출자별 주소·설정 합성 결과와 출처 정보. 미해결 값·주입 충돌을 처리한다.
 - 다음 작업에 필요한 사용자 입력: 현재 없음. 실제 업무 모노레포가 제공되기 전까지 로컬 fixture로 모델을 검증할 수 있다.
 - 남은 제품 결정: D-01~D-09는 공통 설계의 미결정 표를 참고한다. 필요한 결정은 해당 T-ID에서 이유를 기록하고 처리한다.
 - 런타임 상태: 이 문서에 기동 상태를 고정 기록하지 않는다. 재개 시 확인한다.

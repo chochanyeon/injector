@@ -77,11 +77,29 @@ def compile_java():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run"))
-    parser.add_argument("--profile", choices=("mock", "real"), default="mock")
+    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate"))
+    parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
+    parser.add_argument("--project", type=Path, help="project directory containing registry.json (validate only)")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")
     args = parser.parse_args()
+    if args.command == "validate":
+        if args.project is None or args.infra or args.main_docker:
+            parser.error("validate requires --project and does not accept execution options")
+        from injector_core.registry import RegistryError, load_registry
+        try:
+            data = load_registry(args.project, args.profile)
+        except RegistryError as error:
+            parser.exit(1, f"Invalid registry: {error}\n")
+        profiles = [args.profile] if args.profile else list(data["profiles"])
+        print(json.dumps({"status": "valid", "schemaVersion": data["schemaVersion"],
+                          "nodes": len(data["nodes"]), "profiles": profiles}, indent=2))
+        return
+    if args.project is not None:
+        parser.error("--project is currently supported only with validate")
+    args.profile = args.profile or "mock"
+    if args.profile not in ("mock", "real"):
+        parser.error("legacy demo commands support only mock and real profiles")
     config, dependency, env, options = resolve(args.profile)
     if args.main_docker and args.command != "up":
         parser.error("--main-docker is supported only with up")
