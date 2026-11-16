@@ -52,7 +52,7 @@
 
 도구가 맡을 책임의 후보는 실행 설정 해석·검증, 의존성 준비, 연결 주소 반영, IntelliJ 연동, 상태 확인, 세션 종료 및 정리다.
 
-IntelliJ 플러그인, 독립 실행 도구, CLI, 로컬 UI 중 어느 형태로 제공할지는 미결정이다. 환경을 준비하는 주체와 IntelliJ에서 디버그를 시작하는 주체도 아직 정하지 않는다.
+제품의 최종 제공 형태는 미결정이다. 현재 POC는 CLI가 설정 생성과 의존성 준비를 맡고, 개발자가 IntelliJ에서 메인 앱의 Debug를 시작한다. 별도 IntelliJ 플러그인은 필요하지 않다. 구체적인 POC 동작은 14절에 기록한다.
 
 모의 대체는 의존성의 종류와 통신 방식에 맞춰 정의한다. WireMock을 모든 종류의 의존성을 대체하는 공통 엔진으로 확정하지 않는다. DB·Kafka·Redis까지 모의 대체할 필요가 있는지, 필요한 경우 어떤 방식으로 제공할지는 별도 검토한다.
 
@@ -169,4 +169,56 @@ IntelliJ 플러그인, 독립 실행 도구, CLI, 로컬 UI 중 어느 형태로
 
 결정이 내려지면 해당 D-ID와 연결해 배경, 검토한 선택지, 선택 결과, 이유, 제약, 관련 R-ID를 기록한다. 변경 시 이전 결정을 대체하는 이유를 남긴다.
 
-현재 확정된 기술·아키텍처 결정은 없다. IntelliJ 디버깅, Docker 실행, WireMock 활용, 인프라 기동은 요구 방향이며 구체적인 구현 구조는 열려 있다.
+제품의 최종 기술·아키텍처는 미확정이다. IntelliJ 디버깅, Docker 실행, WireMock 활용, 인프라 기동이라는 요구 방향을 검증하기 위한 POC 선택은 아래와 같다.
+
+## 14. 현재 POC의 설정 관리 및 IntelliJ 연동
+
+### 14.1. 선택과 적용 범위
+
+- 관련 미결정 사항: D-01, D-03, D-07
+- 관련 요구사항: R-01, R-02
+- POC 선택: Python CLI가 원본 설정을 읽어 IntelliJ Application 실행 구성 XML을 생성한다.
+- 선택 이유: 별도 IDE 플러그인 없이 설정 주입과 로컬 디버깅 흐름을 검증할 수 있다.
+- 적용 범위: 현재 샘플 Maven/JVM 프로젝트. 임의의 기존 업무 프로젝트를 등록하는 기능은 아직 없다.
+- 제품 제공 형태, 기존 설정 가져오기, 팀 비밀값 관리 정책은 여전히 미결정이다.
+
+### 14.2. 원본 설정과 생성 결과
+
+관리의 기준은 생성된 XML이 아니라 프로젝트의 원본 설정인 `config/project.json`이다. 이 파일에 IntelliJ 모듈 이름, 메인 클래스, 공통 VM 옵션·환경변수, 프로필별 VM 옵션·환경변수를 정의한다.
+
+```text
+config/project.json + 선택한 프로필(mock 또는 real)
+  → 공통값과 프로필값 합성
+  → .run/Injector-<프로필>.run.xml 생성
+  → IntelliJ가 실행 구성 인식
+  → 개발자가 Run / Debug
+  → JVM 시작 시 VM 옵션과 환경변수 전달
+```
+
+환경변수는 공통값에 프로필별 값을 덮어쓴다. VM 옵션은 공통 배열 뒤에 프로필 배열을 붙인다. 동일한 `-D` 키의 중복을 도구가 해석하거나 충돌을 해결하지는 않는다.
+
+예를 들어 공통 옵션이 `-Xmx256m`, `-Dfile.encoding=UTF-8`이고 mock 옵션이 `-Dinjector.profile=mock`이면, 세 옵션을 합쳐 XML의 `VM_PARAMETERS` 항목에 기록한다. 각 환경변수는 같은 XML의 `envs` 아래 `env` 항목에 기록한다.
+
+IntelliJ의 Run → Edit Configurations에서 생성된 구성의 VM options와 Environment variables를 확인할 수 있다. 메인 앱은 VM 시스템 속성을 `System.getProperty("injector.profile")`로, 환경변수를 `System.getenv("DEMO_MESSAGE")`로 읽는다. 이미 실행 중인 JVM의 설정을 변경하는 기능은 아니다.
+
+### 14.3. 프로젝트 단위 관리와 공유
+
+하나의 프로젝트에 `Injector-mock`, `Injector-real`처럼 여러 프로필의 실행 구성을 둘 수 있다. 현재 POC는 샘플 프로젝트 루트의 `.run/`에 파일을 생성한다.
+
+원본 설정과 생성 도구는 Git으로 공유하고 각 개발자가 실행 구성을 생성하는 방식이다. 실제 설정값이 담기는 `.run/Injector-*.run.xml`과 Docker용 생성 설정이 담기는 `.local/`은 Git에서 제외한다. 개인 비밀값을 별도 저장하거나 주입하는 기능은 아직 없으므로, 원본 설정에도 실제 자격증명을 커밋해서는 안 된다.
+
+생성된 XML을 직접 수정하면 같은 프로필을 다시 생성할 때 덮어써진다. 유지할 변경은 원본 설정에 반영한다. 도구가 생성한 전용 구성 외의 기존 IntelliJ 실행 구성을 찾아 수정하거나 병합하지 않는다.
+
+기존 업무 프로젝트로 확장할 때는 대상 프로젝트의 경로·모듈·메인 클래스 등을 지정하고 해당 프로젝트의 `.run/`에 생성하는 방식을 검토한다. 이는 확장 방향이며 현재 구현된 기능으로 취급하지 않는다.
+
+### 14.4. 명령별 책임과 검증
+
+| 명령 또는 조작 | 책임 |
+|---|---|
+| `python injector.py generate --profile mock` | 실행 구성과 Docker용 설정 생성. 인프라·메인 앱은 실행하지 않음 |
+| `python injector.py up --profile mock` | 설정 생성 후 선택한 의존성 준비. 메인 앱은 IntelliJ에서 직접 실행 |
+| IntelliJ의 `Injector-mock` Debug | 생성된 설정을 사용해 메인 JVM 실행 및 디버거 연결 |
+| `python injector.py run --profile mock` | 같은 합성 결과를 Java 명령 인자와 자식 프로세스 환경변수로 전달 |
+| `python injector.py up --profile mock --main-docker` | 같은 합성 결과를 Docker 설정에 반영하고 내부 서비스 주소로 변환해 실행 |
+
+현재 검증에서는 IntelliJ IDEA 2025.3.3 / JDK 21에서 두 프로필의 Debug 실행과 브레이크포인트 중단·재개, VM 옵션·환경변수 주입을 확인했다. Docker에서도 두 프로필의 API 호출을 확인했다. 실행 절차는 [README](../README.md), 검증 범위와 결과는 [POC 검증 기록](poc-validation.md)에 기록한다.
