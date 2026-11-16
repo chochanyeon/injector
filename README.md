@@ -128,7 +128,7 @@ python injector.py vault-demo --vault-service payments
 
 ## 실행용 앱 등록 검증
 
-버전 `1.0`의 실행용 등록을 프로젝트 루트의 `registry.json`에 두고 검증할 수 있다.
+버전 `1.0` 또는 `1.1`의 실행용 등록을 프로젝트 루트의 `registry.json`에 두고 검증할 수 있다. Spring YAML용 설정은 1.1에서 지원한다.
 
 ```powershell
 python injector.py validate --project examples/registry
@@ -156,9 +156,23 @@ python injector.py plan --project examples/registry --profile local-mock
 
 [등록 예시](examples/registry/README.md)는 모델 설명용이며 실행 앱을 제공하지 않는다. 실제 실행은 기존 `examples/demo/` POC 명령으로 확인한다. 등록 스키마는 [T-010](docs/work-items/T-010.md), 로딩·검증은 [T-020](docs/work-items/T-020.md), DFS 계획은 [T-040](docs/work-items/T-040.md)에서 관리한다.
 
+## Spring YAML과 VM 전용 값 생성
+
+`vmOptions`는 JVM 플래그, `vmProperties`는 System.getProperty로 읽는 -D 값, v1.1의 `springProperties`는 Spring이 읽을 YAML 값이다. 서비스 정의의 기본값·실행 모드·프로필 override에서 관리한다.
+
+```powershell
+python injector.py render --project examples/spring-config --profile local --node spring-probe
+```
+
+원본 YAML을 수정하지 않고 `.local/injector/<profile>/<node>/spring-overrides.yml`과 해당 앱의 `.run/Injector-<profile>-<node>.run.xml`을 생성한다. XML에는 기존 VM 전용 값과 생성 파일을 가리키는 `spring.config.additional-location`을 함께 넣는다. render는 앱을 실행하지 않는다.
+
+현재 IntelliJ 타입만 지원한다. Spring의 fromEnv 참조는 `${ENV_NAME}`으로 남겨 앱 환경에서 읽고, env/VM 속성의 비밀값 참조를 XML에 복사하는 작업은 거부한다. 등록된 YAML·VM·env 키 충돌과 기존 additional-location도 확인한다. 자세한 범위는 [T-140](docs/work-items/T-140.md), 실제 예제는 [Spring 설정 검증 앱](examples/spring-config/README.md)에 있다.
+
 ## LLM으로 모노레포 등록 준비
 
 [등록 스킬](skills/injector-register-monorepo/SKILL.md)과 [등록 프로토콜](skills/injector-register-monorepo/references/registration-protocol.md)을 준비했다. 스킬 기능이 없는 LLM에도 이 문서를 제공해 사용할 수 있다.
+
+검토된 실행용 registry를 작성·수정하는 요청에는 [AI 실행 등록 관리 가이드](skills/injector-register-monorepo/references/runtime-registry-guide.md)를 사용한다. 앱의 읽는 코드·YAML profile·VM 옵션을 추적해 채널을 구분하고, 실제 스키마 확인 → 변경 → validate/plan/resolve/render 검증 순서로 관리하도록 했다. LLM 초안 자동 변환 엔진은 아직 없다.
 
 예시 요청:
 

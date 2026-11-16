@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.1",
+  "defaults": {
+    "vmOptions": ["-Xmx256m"]
+  },
+  "nodes": [
+    {
+      "id": "spring-probe",
+      "kind": "application",
+      "variants": {
+        "real": {
+          "execution": {
+            "type": "intellij",
+            "projectPath": ".",
+            "module": "spring-config-probe",
+            "mainClass": "example.ConfigProbe"
+          },
+          "endpoints": {
+            "http": {
+              "protocol": "http",
+              "bind": {"host": "127.0.0.1", "port": 18090},
+              "addresses": {
+                "host": {"host": "127.0.0.1", "port": 18090, "scheme": "http", "path": "/"}
+              }
+            }
+          },
+          "dependencies": [],
+          "readiness": {"type": "http", "endpoint": "http", "path": "/probe", "timeoutSeconds": 30},
+          "vmProperties": {
+            "spring.profiles.active": "local",
+            "probe.vm-only": "value-from-vm-property"
+          },
+          "springProperties": {
+            "server.address": "127.0.0.1",
+            "server.port": 18090,
+            "probe.message": "value-from-generated-yaml",
+            "probe.labels": ["local-a", "local-b"],
+            "probe.secret": {"fromEnv": "PROBE_SECRET"}
+          }
+        }
+      }
+    }
+  ],
+  "profiles": {
+    "local": {"targets": ["spring-probe"], "selections": {"spring-probe": "real"}}
+  }
+}

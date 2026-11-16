@@ -1,19 +1,20 @@
 ---
 name: injector-register-monorepo
-description: Analyze a monorepo to draft Injector application registrations, endpoints, configuration injection rules, and transitive dependencies with source evidence. Use when onboarding existing applications into Injector; this workflow prepares registration drafts rather than launching services.
+description: Analyze monorepos for Injector onboarding and maintain reviewed runtime registries with source evidence, endpoints, dependencies, and Spring or JVM injection rules. Use for application registration and registry updates; this workflow does not launch services.
 ---
 
 # Injector 모노레포 등록
 
 모노레포의 기존 실행 정보를 조사해 사람이 검토할 수 있는 앱 등록 초안을 만든다. Injector는 앱·인프라의 접속 정보를 관리하고, 대상 앱의 의존성을 DFS 후위 순서로 준비한 뒤 설정을 주입해 실행하는 도구를 지향한다.
 
-작업 전에 [등록 프로토콜](references/registration-protocol.md)을 읽는다. 출력 형식은 [예시 JSON](assets/registration-draft.example.json)을 참고한다. 예시의 앱·주소·포트는 가상이며 실제 프로젝트의 기본값이 아니다.
+최초 조사·미확인 값 정리는 [등록 프로토콜](references/registration-protocol.md)을 읽고 [예시 JSON](assets/registration-draft.example.json)을 참고한다. 사용자가 실행용 registry 작성·갱신을 요청하면 [실행 등록 관리 가이드](references/runtime-registry-guide.md)를 읽는다. 예시의 앱·주소·포트는 가상이며 실제 프로젝트의 기본값이 아니다.
 
 ## 작업 경계
 
 - 요청한 모노레포와 대상 앱에서 시작한다. 모든 디렉터리를 무조건 읽지 말고 빌드·실행 설정을 먼저 찾아 탐색 범위를 좁힌다.
 - 소스 파일을 읽어 근거를 모은다. 분석 목적으로 앱·빌드 스크립트·컨테이너를 실행하거나 hosts/DNS를 변경할 필요는 없다.
 - 현재 Injector POC의 `project.json`은 다중 앱 등록 스키마가 아니다. 이 스킬의 JSON은 조사 결과를 전달하는 초안 형식이며 CLI가 읽거나 실행하는 설정이라고 설명하지 않는다.
+- 검토용 초안과 실행용 registry.json을 구분한다. 실행 등록 모드에서는 Injector 저장소의 실제 schemas와 CLI를 확인하고 지원하는 필드만 사용한다. 미확인 값을 실행용 설정에 추측으로 채우지 않는다.
 
 ## 조사와 결과 작성
 

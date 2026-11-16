@@ -1,0 +1,4 @@
+probe:
+  message: original-base
+  labels:
+    - base-label

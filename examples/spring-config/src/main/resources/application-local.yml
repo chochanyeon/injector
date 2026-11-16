@@ -1,0 +1,4 @@
+probe:
+  message: original-profile
+  labels:
+    - profile-label

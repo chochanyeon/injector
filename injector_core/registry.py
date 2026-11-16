@@ -7,6 +7,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match
 
 SCHEMA_PATH = Path(__file__).resolve().parents[1] / "schemas/registry-v1.schema.json"
+SCHEMA_PATHS = {"1.0": SCHEMA_PATH, "1.1": SCHEMA_PATH.with_name("registry-v1.1.schema.json")}
 
 
 class RegistryError(ValueError):
@@ -123,7 +124,10 @@ def load_registry(project, profile=None):
     except json.JSONDecodeError as error:
         raise RegistryError(f"invalid JSON at line {error.lineno}, column {error.colno}") from error
 
-    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    version = data.get("schemaVersion") if isinstance(data, dict) else None
+    if not isinstance(version, str) or version not in SCHEMA_PATHS:
+        raise RegistryError("missing or unsupported schemaVersion")
+    schema = json.loads(SCHEMA_PATHS[version].read_text(encoding="utf-8"))
     error = best_match(Draft202012Validator(schema).iter_errors(data))
     if error is not None:
         pointer = "/" + "/".join(str(part).replace("~", "~0").replace("/", "~1")

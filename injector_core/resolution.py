@@ -16,6 +16,7 @@ class ResolvedSettings:
     vm_options: list = field(repr=False)
     vm_properties: dict = field(repr=False)
     origins: dict = field(repr=False)
+    spring_properties: dict = field(default_factory=dict, repr=False)
 
     def jvm_arguments(self):
         return [*self.vm_options, *(f"-D{key}={value}" for key, value in self.vm_properties.items())]
@@ -26,6 +27,8 @@ class ResolvedSettings:
                         for key in self.env},
                 "vmProperties": {key: {"value": "<redacted>", "source": self.origins["vmProperties"][key]}
                                  for key in self.vm_properties},
+                "springProperties": {key: {"value": "<redacted>", "source": self.origins["springProperties"][key]}
+                                     for key in self.spring_properties},
                 "vmOptions": [{"index": index, "source": source}
                               for index, source in enumerate(self.origins["vmOptions"])]}
 
@@ -74,15 +77,52 @@ def _property_key(key):
         raise RegistryError("invalid VM property key")
 
 
-def resolve_node(data, profile_name, node_id, environ=None):
+def _resolve_value(value, environment, defer):
+    references = []
+    if isinstance(value, dict):
+        if set(value) == {"fromEnv"}:
+            reference = value["fromEnv"]
+            if defer:
+                return "${" + reference + "}", [reference]
+            if reference not in environment:
+                raise RegistryError("required environment reference is unavailable")
+            value = environment[reference]
+            references.append(reference)
+        else:
+            result = {}
+            for key, child in value.items():
+                result[key], names = _resolve_value(child, environment, defer)
+                references.extend(names)
+            return result, references
+    elif isinstance(value, list):
+        result = []
+        for child in value:
+            resolved, names = _resolve_value(child, environment, defer)
+            result.append(resolved)
+            references.extend(names)
+        return result, references
+    if isinstance(value, str) and "\x00" in value:
+        raise RegistryError("setting contains a null character")
+    return value, references
+
+
+def _spring_leaves(value, prefix):
+    if isinstance(value, dict) and value:
+        return [name for key, child in value.items() for name in _spring_leaves(child, f"{prefix}.{key}")]
+    if isinstance(value, list) and value:
+        return [name for index, child in enumerate(value) for name in _spring_leaves(child, f"{prefix}[{index}]")]
+    return [prefix]
+
+
+def resolve_node(data, profile_name, node_id, environ=None, defer_spring_env=False):
     """Accept a validated registry and return actual values plus provenance."""
     if profile_name not in data["profiles"]:
         raise RegistryError(f"unknown profile: {profile_name}")
     nodes = {node["id"]: node for node in data["nodes"]}
     profile = data["profiles"][profile_name]
     name, variant = selected_variant(nodes, profile, node_id)
-    origins = {"env": {}, "vmProperties": {}, "vmOptions": []}
-    maps = {"env": {}, "vmProperties": {}}
+    origins = {"env": {}, "vmProperties": {}, "springProperties": {}, "vmOptions": []}
+    maps = {"env": {}, "vmProperties": {}, "springProperties": {}}
     options = []
     layers = [(data.get("defaults", {}), "defaults"),
               (variant, f"nodes/{node_id}/variants/{name}"),
@@ -90,7 +130,7 @@ def resolve_node(data, profile_name, node_id, environ=None):
     for layer, location in layers:
         for channel in maps:
             for key, value in layer.get(channel, {}).items():
-                if channel == "vmProperties":
+                if channel in ("vmProperties", "springProperties"):
                     _property_key(key)
                 maps[channel][key] = value
                 origins[channel][key] = f"{location}/{channel}/{key}"
@@ -101,9 +141,9 @@ def resolve_node(data, profile_name, node_id, environ=None):
             origins["vmOptions"].append(f"{location}/vmOptions/{index}")
 
     for index, rule in enumerate(variant.get("injections", [])):
-        channel = "env" if rule["channel"] == "environment" else "vmProperties"
+        channel = {"environment": "env", "vmProperty": "vmProperties", "springProperty": "springProperties"}[rule["channel"]]
         key = rule["key"]
-        if channel == "vmProperties":
+        if channel in ("vmProperties", "springProperties"):
             _property_key(key)
         if key in maps[channel]:
             raise RegistryError(f"{node_id}: injection conflicts with an existing {channel} key")
@@ -118,13 +158,17 @@ def resolve_node(data, profile_name, node_id, environ=None):
     environment = os.environ if environ is None else environ
     for channel, values in maps.items():
         for key, value in values.items():
-            if isinstance(value, dict):
-                reference = value["fromEnv"]
-                if reference not in environment:
-                    raise RegistryError(f"{node_id}: required environment reference is unavailable")
-                value = environment[reference]
-                origins[channel][key] += f" via environment/{reference}"
-            if "\x00" in value:
-                raise RegistryError(f"{node_id}: setting contains a null character")
-            values[key] = value
-    return ResolvedSettings(node_id, name, maps["env"], options, maps["vmProperties"], origins)
+            values[key], references = _resolve_value(value, environment, defer_spring_env and channel == "springProperties")
+            if references:
+                origins[channel][key] += " via " + ", ".join(f"environment/{reference}" for reference in references)
+    spring_keys = list(maps["springProperties"])
+    leaves = [leaf for key in spring_keys for leaf in _spring_leaves(maps["springProperties"][key], key)]
+    if len(leaves) != len(set(leaves)):
+        raise RegistryError("overlapping Spring property keys")
+    for key in spring_keys:
+        if any(other != key and (other.startswith(key + ".") or other.startswith(key + "[")) for other in spring_keys):
+            raise RegistryError("overlapping Spring property keys")
+        for leaf in _spring_leaves(maps["springProperties"][key], key):
+            if leaf in maps["vmProperties"] or leaf.replace(".", "_").replace("-", "").upper() in maps["env"]:
+                raise RegistryError("Spring property conflicts with a VM property or environment key")
+    return ResolvedSettings(node_id, name, maps["env"], options, maps["vmProperties"], origins, maps["springProperties"])

@@ -86,27 +86,31 @@ def compile_java():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "vault-demo"))
+    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render", "vault-demo"))
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
     parser.add_argument("--project", type=Path, help="project directory containing registry.json")
-    parser.add_argument("--node", help="node to resolve (resolve only)")
+    parser.add_argument("--node", help="node to resolve or render")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")
     parser.add_argument("--with-vault", action="store_true", help="include the local Vault API mock in demo setup")
     parser.add_argument("--vault-service", help="service name for the local Vault secret path; enables the Vault mock")
     args = parser.parse_args()
-    if args.command in ("validate", "resolve") or (args.command == "plan" and args.project is not None):
+    if args.command in ("validate", "resolve", "render") or (args.command == "plan" and args.project is not None):
         if args.project is None or args.infra or args.main_docker or args.with_vault or args.vault_service is not None:
-            parser.error("registry inspection requires --project and does not accept execution options")
-        if args.command == "resolve" and (not args.node or not args.profile):
-            parser.error("resolve requires --node and --profile")
+            parser.error("registry commands require --project and do not accept demo execution options")
+        if args.command in ("resolve", "render") and (not args.node or not args.profile):
+            parser.error("resolve and render require --node and --profile")
         if args.command == "plan" and not args.profile:
             parser.error("registry plan requires --profile")
-        if args.command != "resolve" and args.node:
-            parser.error("--node is supported only with resolve")
+        if args.command not in ("resolve", "render") and args.node:
+            parser.error("--node is supported only with resolve or render")
         from injector_core.registry import RegistryError, load_registry
         try:
             data = load_registry(args.project, args.profile)
+            if args.command == "render":
+                from injector_core.rendering import render_node
+                print(json.dumps(render_node(data, args.project, args.profile, args.node).describe(), indent=2))
+                return
             if args.command == "plan":
                 from injector_core.planning import build_plan
                 print(json.dumps(build_plan(data, args.profile), indent=2))
@@ -122,7 +126,7 @@ def main():
                           "nodes": len(data["nodes"]), "profiles": profiles}, indent=2))
         return
     if args.project is not None or args.node is not None:
-        parser.error("project inspection options require validate, resolve, or plan")
+        parser.error("project options require validate, resolve, render, or plan")
     args.profile = args.profile or "mock"
     if args.profile not in ("mock", "real"):
         parser.error("legacy demo commands support only mock and real profiles")
