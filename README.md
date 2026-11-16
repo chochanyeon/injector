@@ -110,6 +110,21 @@ python -m unittest discover -s tests -v
 
 전체 설계 방향과 미결정 사항은 [설계 문서](docs/design.md)에 있다. 이번 POC의 Python·JSON·Compose·실행 구성 생성 방식은 검증용 선택이며, 제품의 최종 기술 스택을 확정하지 않는다.
 
+## LLM으로 모노레포 등록 준비
+
+[등록 스킬](skills/injector-register-monorepo/SKILL.md)과 [등록 프로토콜](skills/injector-register-monorepo/references/registration-protocol.md)을 준비했다. 스킬 기능이 없는 LLM에도 이 문서를 제공해 사용할 수 있다.
+
+예시 요청:
+
+```text
+skills/injector-register-monorepo/SKILL.md를 읽고,
+<모노레포 경로>의 <대상 앱>을 local 프로필로 조사해 줘.
+앱별 접속 정보와 전이적 의존성, 설정 주입 위치를 근거와 함께 정리하고,
+등록 JSON 초안과 미확인 사항 보고서를 만들어 줘.
+```
+
+기본 산출물은 조사 대상 모노레포의 `injector-onboarding/registration-draft.json`과 `findings.md`다. 기존 앱 실행, hosts/DNS 변경, 실제 등록 적용까지 수행하는 작업은 아니다. 초안 JSON은 현재 CLI가 읽는 `project.json`과 별도 형식이며 자동 실행되지 않는다.
+
 ## 작업 저장
 
 검증을 마친 작업 단위마다 의미 있는 커밋을 만들고 `https://github.com/chochanyeon/injector`에 푸시한다. 미검증 항목은 검증 완료 항목과 구분해 기록한다.

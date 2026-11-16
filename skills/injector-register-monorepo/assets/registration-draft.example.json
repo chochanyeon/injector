@@ -1,0 +1,83 @@
+{
+  "draftVersion": "0.1",
+  "status": "draft",
+  "scope": {"targets": ["orders"], "profile": "local", "mode": "real"},
+  "nodes": [
+    {
+      "id": "orders",
+      "kind": "application",
+      "repoPath": "apps/orders",
+      "execution": {
+        "mode": "intellij",
+        "workingDirectory": "apps/orders",
+        "command": null,
+        "mainClass": null,
+        "vmOptions": null,
+        "environment": null
+      },
+      "endpoints": null,
+      "readiness": null
+    },
+    {
+      "id": "catalog",
+      "kind": "application",
+      "repoPath": "apps/catalog",
+      "execution": null,
+      "endpoints": [
+        {
+          "id": "http",
+          "protocol": "http",
+          "bind": {"host": "127.0.0.1", "port": 18082},
+          "addresses": [
+            {"from": "host", "host": "catalog.local.test.com", "port": 18082, "scheme": "http", "path": "/"}
+          ]
+        }
+      ],
+      "readiness": null
+    }
+  ],
+  "dependencies": [
+    {
+      "from": "orders",
+      "to": "catalog",
+      "endpoint": "http",
+      "injections": [
+        {"channel": "environment", "key": "CATALOG_URL", "source": {"node": "catalog", "endpoint": "http", "from": "host"}}
+      ]
+    }
+  ],
+  "nameMappings": [
+    {"hostname": "catalog.local.test.com", "address": "127.0.0.1", "mechanism": null}
+  ],
+  "evidence": [
+    {
+      "field": "/nodes/1/endpoints/0/addresses/0",
+      "status": "proposed",
+      "locations": [],
+      "note": "가상 예시: 로컬 호출 주소 제안. 실제 모노레포에서 조사한 사실이 아님."
+    },
+    {
+      "field": "/dependencies/0",
+      "status": "inferred",
+      "locations": [{"path": "apps/orders/src/main/resources/application-local.yml", "line": 12}],
+      "note": "가상 근거 형식 예시. 실제 산출물에는 존재하는 파일·줄과 의존 대상 식별 근거를 기록한다."
+    }
+  ],
+  "findings": [
+    {
+      "id": "Q-01",
+      "severity": "blocking",
+      "field": "/nodes/1/execution",
+      "message": "예시는 형식 설명용이며 실행 정의·하위 의존성 조사를 생략했다. 실제 등록으로 사용할 수 없다.",
+      "question": "Catalog 실행 방법과 전이적 의존성은 무엇인가?"
+    },
+    {
+      "id": "Q-02",
+      "severity": "blocking",
+      "field": "/nameMappings/0/mechanism",
+      "message": "호스트 이름 해석 방법이 미정이며 실제 등록 작업을 수행하지 않았다.",
+      "question": "호스트 이름 해석을 어떤 방식으로 제공할 것인가?"
+    }
+  ],
+  "startupOrder": null
+}
