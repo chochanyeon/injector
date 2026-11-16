@@ -11,16 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("vault_demo_client", ROOT / "examples/demo/vault_client.py")
 CLIENT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CLIENT)
-BODY = json.loads((ROOT / "examples/demo/docker/vault-mock/__files/injector-demo.json").read_text(encoding="utf-8"))
+BODY = json.loads((ROOT / "examples/demo/docker/vault-mock/__files/orders.json").read_text(encoding="utf-8"))
 
 
 class VaultClientTest(unittest.TestCase):
     def test_reads_kv_v2_envelope_and_sends_token_header(self):
         with patch.object(CLIENT, "urlopen", return_value=io.BytesIO(json.dumps(BODY).encode())) as read:
-            config = CLIENT.load_config("http://localhost:18083/", "/secret/data/injector-demo", "dummy")
+            config = CLIENT.load_config("http://localhost:18083/", "/secret/data/orders", "dummy")
         self.assertEqual(config, BODY["data"]["data"])
         request = read.call_args.args[0]
-        self.assertEqual(request.full_url, "http://localhost:18083/v1/secret/data/injector-demo")
+        self.assertEqual(request.full_url, "http://localhost:18083/v1/secret/data/orders")
         self.assertEqual({key.lower(): value for key, value in request.headers.items()}["x-vault-token"], "dummy")
 
     def test_config_values_control_behavior_without_printing_credentials(self):

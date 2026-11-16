@@ -5,9 +5,10 @@
   "vaultMock": {
     "service": "vault-mock",
     "containerAddress": "http://vault-mock:8080",
+    "mount": "secret",
+    "defaultService": "orders",
     "env": {
       "VAULT_ADDR": "http://localhost:18083",
-      "VAULT_PATH": "secret/data/injector-demo",
       "VAULT_TOKEN": "local-demo-token"
     }
   },

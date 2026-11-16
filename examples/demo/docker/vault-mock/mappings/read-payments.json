@@ -2,12 +2,12 @@
   "priority": 1,
   "request": {
     "method": "GET",
-    "url": "/v1/secret/data/injector-demo",
+    "url": "/v1/secret/data/payments",
     "headers": {"X-Vault-Token": {"equalTo": "local-demo-token"}}
   },
   "response": {
     "status": 200,
     "headers": {"Content-Type": "application/json"},
-    "bodyFileName": "injector-demo.json"
+    "bodyFileName": "payments.json"
   }
 }

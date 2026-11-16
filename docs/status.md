@@ -19,7 +19,7 @@
 | 메인 앱 실행 | 부분 구현 | CLI Java 실행과 Docker 실행. IntelliJ Debug는 개발자가 직접 시작 | `injector.py:main` |
 | `plan` | 완료(계획) | --project 사용 시 DFS 순서·모드·의존성 메타데이터 출력. 실제 기동 없음. 기존 데모 요약도 유지 | T-040 |
 | `down` | 부분 구현 | 고정 Compose 프로젝트의 컨테이너·네트워크 제거. 세션 소유권·복구 관리 아님 | `injector.py:compose` |
-| Vault API 대역 | 완료(데모) | 별도 WireMock KV v2 조회·로컬 값 공급. 고정 토큰만 사용, 회사 Vault/SDK 미연동 | T-130 |
+| Vault API 대역 | 완료(데모) | 별도 WireMock KV v2 조회·서비스 ID별 값 분리. 고정 토큰만 사용, 회사 Vault/SDK 미연동 | T-130, T-131 |
 | LLM 등록 지원 | 완료 | 조사 스킬·프로토콜·예시 제공. 실제 모노레포 조사와 자동 import는 미수행 | `skills/injector-register-monorepo/` |
 | 실행용 등록 스키마 | 완료 | JSON Schema v1.0과 다중 앱·공통 의존성 예시. 실행 엔진 아님 | T-010 |
 | 앱 등록 로딩·외부 프로젝트 지정 | 완료(검증) | --project의 registry.json 구조·참조·경로 검사. 실제 실행은 데모에 고정 | T-020 |
@@ -38,7 +38,7 @@
 | 위치 | 책임 |
 |---|---|
 | [injector.py](../injector.py) | 현재 POC의 설정 해석·XML 생성·Compose 호출·Java 실행 |
-| [tests/test_injector.py](../tests/test_injector.py) | 설정·생성 결과·Vault opt-in 검사 4개 |
+| [tests/test_injector.py](../tests/test_injector.py) | 설정·생성 결과·Vault opt-in/서비스 선택 검사 5개 |
 | [schemas/registry-v1.schema.json](../schemas/registry-v1.schema.json) | 실행용 등록 v1.0의 구조 계약 |
 | [injector_core/registry.py](../injector_core/registry.py) | 임의 프로젝트의 등록 로딩·참조 검증 |
 | [tests/test_registry.py](../tests/test_registry.py) | 로더·검증 CLI 검사 15개 |
@@ -51,7 +51,7 @@
 
 ## 4. 검증 수준
 
-- 자동 검증: 기존 48개에 Vault opt-in 2개·소비 앱 4개·실제 WireMock 통합 4개를 추가해 총 58개. 기본 실행은 통합 4개를 skip한다. 실행 세션 테스트는 아직 없다.
+- 자동 검증: 기존 48개에 Vault opt-in/서비스 선택 3개·소비 앱 4개·실제 WireMock 통합 5개를 추가해 총 60개. 기본 실행은 통합 5개를 skip한다. 실행 세션 테스트는 아직 없다.
 - 수동 통합 검증: 로컬 JVM·Docker에서 mock/real 호출과 주입, 인프라 기본 동작 확인.
 - IntelliJ: 디렉터리 분리 전에 두 프로필의 Debug와 브레이크포인트 중단·재개 확인. 분리 후 XML 경로·모듈만 재확인.
 - 스킬: 형식 검사, 예시 JSON 파싱·참조 무결성 확인. 실제 업무 모노레포 적용 검증은 아직 없다.
@@ -60,7 +60,7 @@
 
 ## 5. 현재 인계
 
-- 진행 중 구현: 없음. T-130의 Vault API 대역 요청을 우선 완료하고 T-050으로 복귀한다.
+- 진행 중 구현: 없음. T-130·T-131의 Vault API 대역·서비스별 값 분리를 완료하고 T-050으로 복귀한다.
 - 다음 작업: **[T-050 실행·준비 상태 확인](work-items/T-050.md)**.
 - 입력: 설계 R-08~R-11, 15~16절, 등록 프로토콜 v0.1, 현재 데모 설정.
 - 첫 산출물: 계획·설정 사전 검증 후 로컬 프로세스·Compose를 순서대로 준비하고 readiness·실패를 확인하는 실행 경로.

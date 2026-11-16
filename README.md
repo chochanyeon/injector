@@ -115,13 +115,16 @@ python -m unittest discover -s tests -v
 ## Vault API를 로컬 값으로 대체
 
 ```powershell
-python injector.py up --profile mock --with-vault
-python injector.py vault-demo
+python injector.py up --profile mock --vault-service orders
+python injector.py vault-demo --vault-service orders
+python injector.py vault-demo --vault-service payments
 ```
 
 별도 WireMock 컨테이너가 Vault KV v2 조회 API로 로컬 값을 반환한다. 실제 Vault 서버·회사 인증 연동은 사용하지 않는다. 설정 소비 데모 앱은 응답의 값을 읽어 메시지와 기능 플래그를 사용한다.
 
-값은 [Vault 대역 데이터](examples/demo/docker/vault-mock/__files/injector-demo.json)의 `data.data`에서 바꾼다. 앱마다 요청 경로와 응답 키를 맞추는 방법·현재 지원 범위는 [Vault 대역 가이드](examples/demo/docker/vault-mock/README.md), 설계·개발·검증은 [T-130](docs/work-items/T-130.md)에 있다. 기존 Java 앱에는 Vault 주소 등이 주입되지만, API 소비 검증은 별도 Python 앱이 담당한다.
+하나의 주소·포트를 공유하고 `/v1/secret/data/orders`, `/v1/secret/data/payments`처럼 서비스 이름으로 경로를 나눈다. 같은 키도 [Orders 데이터](examples/demo/docker/vault-mock/__files/orders.json)와 [Payments 데이터](examples/demo/docker/vault-mock/__files/payments.json)의 `data.data`에 서로 다른 값으로 둔다. --vault-service는 대역 사용을 활성화하며, 생략한 --with-vault의 기본 서비스는 orders다.
+
+앱별 경로·키·값 설정은 [Vault 대역 가이드](examples/demo/docker/vault-mock/README.md), 설계·개발·검증은 [T-131](docs/work-items/T-131.md)에 있다. 기존 Java 앱에는 Vault 주소 등이 주입되지만, API 소비 검증은 별도 Python 앱이 담당한다.
 
 ## 실행용 앱 등록 검증
 

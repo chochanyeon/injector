@@ -5,10 +5,10 @@
   "lease_duration": 0,
   "data": {
     "data": {
-      "message": "Configuration loaded from local Vault API mock",
+      "message": "Orders local configuration",
       "feature_enabled": true,
-      "database_username": "local-demo-user",
-      "database_password": "local-demo-only"
+      "database_username": "orders-local-user",
+      "database_password": "orders-local-only"
     },
     "metadata": {
       "created_time": "2026-11-17T00:00:00Z",

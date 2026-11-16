@@ -14,23 +14,30 @@ class ConfigurationTest(unittest.TestCase):
     def test_vault_mock_is_opt_in_and_uses_runtime_specific_addresses(self):
         _, _, normal, _ = injector.resolve("mock")
         self.assertNotIn("VAULT_ADDR", normal)
+        self.assertEqual(injector.resolve("mock", True)[2]["VAULT_PATH"], "secret/data/orders")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with patch.object(injector, "DEMO", root):
-                path = injector.generate("mock", with_vault=True)
+                path = injector.generate("mock", with_vault=True, vault_service="payments")
             run = ET.parse(path).getroot().find("configuration")
             env = {item.attrib["name"]: item.attrib["value"] for item in run.find("envs")}
             self.assertEqual(env["VAULT_ADDR"], "http://localhost:18083")
             main = json.loads((root / ".local/compose-mock.json").read_text(encoding="utf-8"))["services"]["main"]
             self.assertEqual(main["environment"]["VAULT_ADDR"], "http://vault-mock:8080")
-            self.assertEqual(env["VAULT_PATH"], "secret/data/injector-demo")
+            self.assertEqual(env["VAULT_PATH"], "secret/data/payments")
+            self.assertEqual(main["environment"]["VAULT_PATH"], env["VAULT_PATH"])
+
+    def test_vault_service_name_cannot_be_a_path_or_empty(self):
+        for name in ("", "../orders", "orders/payments", "Orders", "orders?version=1", "orders\n"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                injector.resolve("mock", True, name)
 
     def test_up_with_vault_starts_the_mock_service(self):
         with patch("sys.argv", ["injector.py", "up", "--with-vault"]), \
                 patch.object(injector, "generate") as generate, patch.object(injector, "compose") as compose, \
                 contextlib.redirect_stdout(io.StringIO()):
             injector.main()
-        generate.assert_called_once_with("mock", True)
+        generate.assert_called_once_with("mock", True, None)
         self.assertIn("vault-mock", compose.call_args.args)
         output = io.StringIO()
         with patch("sys.argv", ["injector.py", "plan", "--with-vault"]), contextlib.redirect_stdout(output):
