@@ -1,0 +1,100 @@
+# Injector POC
+
+IntelliJ에서 JVM 애플리케이션을 디버깅하면서 VM 옵션·환경변수를 주입하고, 주변 API와 인프라를 로컬에서 준비하는 실험 프로젝트다.
+
+## 준비
+
+- JDK 17 이상 (`java`, `javac`를 PATH에 등록)
+- Python 3.10 이상. 추가 패키지는 필요하지 않음
+- Docker Desktop 또는 Docker Engine과 Compose
+- IntelliJ IDEA. 프로젝트의 `pom.xml`을 Maven 프로젝트로 연다.
+
+## IntelliJ에서 실행하기
+
+프로젝트 루트에서 다음을 실행한다. 첫 실행에는 컨테이너 이미지를 내려받는다.
+
+```powershell
+python injector.py up --profile mock --infra postgres redis kafka
+```
+
+이 명령은 WireMock과 선택한 인프라가 준비될 때까지 기다리고, `.run/Injector-mock.run.xml`을 생성한다. 메인 앱은 실행하지 않는다.
+
+1. IntelliJ에서 `pom.xml`을 프로젝트로 열고 JDK 17 이상을 선택한다.
+2. Maven 프로젝트 가져오기가 끝나면 `Injector-mock` 실행 구성을 선택한다.
+3. `src/main/java/poc/Main.java`의 `body = ...` 줄에 브레이크포인트를 설정한다.
+4. Debug로 실행한다.
+5. `http://localhost:18080/demo`를 호출한다.
+
+`injector.profile` 시스템 속성, `DEMO_MESSAGE` 환경변수, API 응답을 확인할 수 있다. 응답의 `downstream`은 하위 API가 반환한 JSON을 문자열로 담는다.
+
+실제 샘플 API로 전환하려면 메인 앱 디버깅을 종료하고 다음 명령을 실행한 뒤, IntelliJ에서 `Injector-real` 구성을 Debug로 실행한다.
+
+```powershell
+python injector.py up --profile real --infra postgres redis kafka
+```
+
+`mock`은 WireMock에, `real`은 별도 Java 샘플 앱인 Catalog에 연결한다. 두 의존 앱은 서로 다른 포트를 쓰며, 구성 전환 시 이전 의존 앱을 자동 종료하지 않는다.
+
+## IDE 없이 확인하기
+
+```powershell
+python injector.py run --profile mock
+```
+
+먼저 해당 구성의 `up`을 실행해야 한다. 이 명령은 Java 소스를 컴파일하고 메인 앱을 포그라운드에서 실행한다. 종료는 Ctrl+C다.
+
+메인 앱도 Docker에서 실행할 수 있다. IntelliJ 또는 CLI에서 실행 중인 메인 앱은 먼저 종료한다.
+
+```powershell
+python injector.py up --profile mock --main-docker
+```
+
+## 설정과 명령
+
+설정 파일은 `config/project.json`이다. 공통 환경변수에 프로필별 값을 덮어쓰고, VM 옵션은 공통 옵션 뒤에 프로필 옵션을 붙인다. 복잡한 충돌 해결·비밀값 저장 기능은 아직 없다.
+
+```powershell
+python injector.py plan --profile real --infra redis
+python injector.py generate --profile real
+python injector.py down
+python -m unittest discover -s tests -v
+```
+
+`plan`은 값 대신 환경변수 키를 출력한다. `generate`는 컨테이너 기동 없이 IntelliJ 실행 구성과 Docker용 설정을 생성한다. 생성 파일에는 설정값이 포함되므로 `.run/Injector-*.run.xml`과 `.local/`은 Git에서 제외한다. 저장소에 들어 있는 DB 비밀번호는 로컬 데모용 고정값이며 실제 자격증명을 넣어 커밋하면 안 된다.
+
+`down`은 `injector-poc` Compose 프로젝트의 컨테이너와 네트워크를 제거한다. 볼륨은 삭제하지 않지만 현재는 이미지의 익명 볼륨을 사용하므로, 이후 `up`에서 데이터 재연결을 보장하지 않는다. 데이터 보존·초기화 정책은 후속 설계 대상이다.
+
+## 포트
+
+| 대상 | 호스트 주소 |
+|---|---|
+| 메인 앱 | `localhost:18080/demo` |
+| WireMock | `localhost:18081` |
+| 실제 Catalog | `localhost:18082` |
+| PostgreSQL | `localhost:15432`, DB·사용자 `demo` |
+| Redis | `localhost:16379` |
+| Kafka | `localhost:19092` |
+
+컨테이너에서 다른 컨테이너를 호출할 때는 Compose 서비스 이름과 내부 포트를 사용한다. 포트 공개 범위는 로컬 루프백으로 제한했다. 외부 통신 자체를 차단하는 기능은 없다.
+
+## 현재 검증 상태와 제한
+
+- 설정 합성과 생성 파일의 한글·XML 특수문자·공백 포함 옵션을 검사하는 테스트 2개 통과
+- JDK 25에서 Java 17 대상으로 컴파일 통과
+- WireMock 매핑 응답 확인
+- PostgreSQL 쿼리, Redis PING, Kafka 토픽 생성 확인
+- IntelliJ에서 실제 Debug 실행과 브레이크포인트 중단은 아직 미검증
+- 메인 앱을 통한 두 구성의 전체 호출 흐름과 메인 앱 Docker 실행은 아직 미검증
+
+현재 샘플 앱은 인프라 접속값을 전달받지만 DB·Kafka·Redis를 직접 사용하지 않는다. 해당 인프라는 기동과 기본 동작만 검증했다. 임의의 기존 프로젝트 등록, 의존성 그래프, 세션별 격리, 자동 정리·복구 기능도 아직 없다. 실행 구성과 포트가 고정되어 있으므로 동시에 하나의 POC 환경을 사용한다.
+
+전체 설계 방향과 미결정 사항은 [설계 문서](docs/design.md)에 있다. 이번 POC의 Python·JSON·Compose·실행 구성 생성 방식은 검증용 선택이며, 제품의 최종 기술 스택을 확정하지 않는다.
+
+## 작업 저장
+
+검증을 마친 작업 단위마다 의미 있는 커밋을 만들고 `https://github.com/chochanyeon/injector`에 푸시한다. 미검증 항목은 검증 완료 항목과 구분해 기록한다.
+
+## 참고
+
+- [WireMock Docker 실행](https://wiremock.org/docs/standalone/docker/)
+- [IntelliJ Application 실행 구성](https://www.jetbrains.com/help/idea/run-debug-configuration-java-application.html)

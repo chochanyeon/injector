@@ -1,0 +1,28 @@
+{
+  "project": "injector-poc",
+  "module": "injector-poc",
+  "mainClass": "poc.Main",
+  "env": {
+    "APP_PORT": "18080",
+    "DEMO_MESSAGE": "environment injected",
+    "DB_URL": "jdbc:postgresql://localhost:15432/demo",
+    "DB_USER": "demo",
+    "DB_PASSWORD": "local-demo-only",
+    "REDIS_HOST": "localhost",
+    "REDIS_PORT": "16379",
+    "KAFKA_BOOTSTRAP_SERVERS": "localhost:19092"
+  },
+  "vmOptions": ["-Xmx256m", "-Dfile.encoding=UTF-8"],
+  "profiles": {
+    "mock": {
+      "dependency": "wiremock",
+      "env": {"CATALOG_URL": "http://localhost:18081"},
+      "vmOptions": ["-Dinjector.profile=mock"]
+    },
+    "real": {
+      "dependency": "catalog",
+      "env": {"CATALOG_URL": "http://localhost:18082"},
+      "vmOptions": ["-Dinjector.profile=real"]
+    }
+  }
+}

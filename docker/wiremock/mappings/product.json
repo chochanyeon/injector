@@ -1,0 +1,8 @@
+{
+  "request": {"method": "GET", "url": "/product"},
+  "response": {
+    "status": 200,
+    "headers": {"Content-Type": "application/json"},
+    "jsonBody": {"id": 1, "name": "mock product", "source": "wiremock"}
+  }
+}
