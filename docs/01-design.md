@@ -1,9 +1,11 @@
-# 로컬 개발 환경 관리 도구 설계
+# 01. 로컬 개발 환경 관리 도구 설계
 
 - 문서 상태: 요구사항 정리 초안. 사용자 요청으로 최소 POC 구현 착수
 - 작성일: 2026-11-16
 - 현재 단계: 설계 병행 POC. 제품 기술 스택은 미확정
 - 문서 목적: 복잡한 프로젝트의 실행 설정과 의존성 구성을 명시하고, 이후 설계·구현의 판단 기준으로 사용한다.
+
+문서 순서: [00 인덱스](00-index.md) → 01 설계 → [02 개발 현황](02-status.md) → [03 개발 순서](03-roadmap.md) → [04 검증 기록](04-validation.md). 이 문서는 요구 방향을 설명하며, 현재 구현 여부는 02를 기준으로 확인한다.
 
 ## 1. 문제와 목표
 
@@ -227,7 +229,7 @@ IntelliJ의 Run → Edit Configurations에서 생성된 구성의 VM options와 
 | `python injector.py run --profile mock` | 같은 합성 결과를 Java 명령 인자와 자식 프로세스 환경변수로 전달 |
 | `python injector.py up --profile mock --main-docker` | 같은 합성 결과를 Docker 설정에 반영하고 내부 서비스 주소로 변환해 실행 |
 
-현재 검증에서는 IntelliJ IDEA 2025.3.3 / JDK 21에서 두 프로필의 Debug 실행과 브레이크포인트 중단·재개, VM 옵션·환경변수 주입을 확인했다. Docker에서도 두 프로필의 API 호출을 확인했다. 실행 절차는 [README](../README.md), 검증 범위와 결과는 [POC 검증 기록](poc-validation.md)에 기록한다.
+현재 검증에서는 IntelliJ IDEA 2025.3.3 / JDK 21에서 두 프로필의 Debug 실행과 브레이크포인트 중단·재개, VM 옵션·환경변수 주입을 확인했다. Docker에서도 두 프로필의 API 호출을 확인했다. 실행 절차는 [README](../README.md), 검증 범위와 결과는 [POC 검증 기록](04-validation.md)에 기록한다.
 
 ## 15. 앱 등록 정보와 재귀적 의존성 실행
 

@@ -1,0 +1,68 @@
+# 02. 개발 현황과 인계
+
+최종 갱신: 2026-11-16. [인덱스](00-index.md) · [다음 개발 순서](03-roadmap.md)
+
+## 1. 현재 단계
+
+**단일 데모 프로젝트의 실행 POC가 동작하는 단계다. 앱 등록·주소 관리·DFS 실행 엔진은 아직 없다.** Python·JSON·Compose는 POC의 선택이며 제품 기술 스택은 미확정이다.
+
+저장소 루트는 Injector 개발 공간이다. Java 데모와 데모 전용 설정·Docker·생성 파일은 `examples/demo/`에 둔다. 루트에서 `python injector.py ...`를 실행하며, IntelliJ에서는 `examples/demo/pom.xml`을 별도 프로젝트로 연다.
+
+## 2. 기능별 상태
+
+| 항목 | 상태 | 실제 구현과 제한 | 근거 |
+|---|---|---|---|
+| VM 옵션·환경변수 합성 | 부분 구현 | 공통 env에 프로필 env 덮어쓰기, VM 옵션 배열 연결. 충돌 해결·출처 추적 없음 | `injector.py:resolve` |
+| IntelliJ 주입 | 부분 구현 | 데모의 `.run/Injector-*.run.xml` 생성. 기존 구성 병합·IDE 자동 실행 없음 | `injector.py:generate` |
+| 모의 API·실제 API 전환 | 부분 구현 | mock/real 두 프로필로 WireMock 또는 Catalog 선택. 일반적인 의존성별 선택 아님 | 데모 `config/project.json` |
+| DB·Kafka·Redis 기동 | 부분 구현 | Compose의 고정 서비스 선택 및 healthcheck 대기. 데모 앱의 실제 인프라 사용은 없음 | 데모 `docker/compose.yaml` |
+| 메인 앱 실행 | 부분 구현 | CLI Java 실행과 Docker 실행. IntelliJ Debug는 개발자가 직접 시작 | `injector.py:main` |
+| `plan` | 부분 구현 | 프로필·서비스·env 키 요약 출력. 그래프 실행 계획 기능 아님 | `injector.py:main` |
+| `down` | 부분 구현 | 고정 Compose 프로젝트의 컨테이너·네트워크 제거. 세션 소유권·복구 관리 아님 | `injector.py:compose` |
+| LLM 등록 지원 | 완료 | 조사 스킬·프로토콜·예시 제공. 실제 모노레포 조사와 자동 import는 미수행 | `skills/injector-register-monorepo/` |
+| 앱 등록 저장소·외부 프로젝트 지정 | 미착수 | 경로와 프로필이 데모에 고정 | T-010, T-020 |
+| 접속점·호스트·포트·주입 참조 해석 | 미착수 | 데모 주소를 코드에서 직접 변환하는 수준 | T-030 |
+| DFS·공통 의존성·순환 검출 | 미착수 | 설계만 존재 | T-040 |
+| 일반화된 실행·준비 상태 확인 | 미착수 | Compose 외 실행별 수명 관리 없음 | T-050 |
+| 의존성 전체 준비 후 대상 앱 실행 | 미착수 | 단일 작업으로 연결된 그래프 파이프라인 없음 | T-060 |
+| 사용자 정의 이름 해석 | 미착수 | hosts/DNS 등록·복원 없음 | T-070 |
+| 모드별 하위 그래프 선택 | 미착수 | 두 데모 프로필 전환만 있음 | T-080 |
+| 세션·실패 복구·데이터 정책 | 미착수 | 포트·Compose 프로젝트명 고정, 익명 볼륨 사용 | T-090 |
+
+스킬의 `registration-draft.json`은 검토용 산출물 계약이다. 실행용 설정으로 읽거나 현재 `project.json`에 바로 넣을 수 없다.
+
+## 3. 코드와 자료 위치
+
+| 위치 | 책임 |
+|---|---|
+| [injector.py](../injector.py) | 현재 POC의 설정 해석·XML 생성·Compose 호출·Java 실행 |
+| [tests/test_injector.py](../tests/test_injector.py) | 설정 합성과 생성 결과 검사 2개 |
+| [examples/demo/config/project.json](../examples/demo/config/project.json) | 데모 전용 설정 |
+| [examples/demo/src/main/java/poc](../examples/demo/src/main/java/poc/) | 메인 앱과 Catalog |
+| [examples/demo/docker](../examples/demo/docker/) | Compose, 앱 Dockerfile, WireMock 매핑 |
+| [skills/injector-register-monorepo](../skills/injector-register-monorepo/) | 저장소에서 유지하는 등록 스킬 원본 |
+
+로컬 스킬 폴더에 설치한 사본은 Git에 포함되지 않는다. 스킬 수정 시 저장소 원본을 기준으로 사본을 동기화하고 검증한다.
+
+## 4. 검증 수준
+
+- 자동 검증: 설정 테스트 2개. 그래프·세션·일반 등록 테스트는 아직 없다.
+- 수동 통합 검증: 로컬 JVM·Docker에서 mock/real 호출과 주입, 인프라 기본 동작 확인.
+- IntelliJ: 디렉터리 분리 전에 두 프로필의 Debug와 브레이크포인트 중단·재개 확인. 분리 후 XML 경로·모듈만 재확인.
+- 스킬: 형식 검사, 예시 JSON 파싱·참조 무결성 확인. 실제 업무 모노레포 적용 검증은 아직 없다.
+
+환경과 자세한 절차는 [04. 검증 기록](04-validation.md)을 따른다. 이전 검증을 현재 실행 환경의 정상 동작 보장으로 해석하지 않는다.
+
+## 5. 현재 인계
+
+- 진행 중 구현: 없음. 이번 작업은 개발 문서 체계 정리다.
+- 다음 작업: **T-010 실행용 앱 등록 스키마**. 먼저 설계 산출물을 작성한다.
+- 입력: 설계 R-08~R-11, 15~16절, 등록 프로토콜 v0.1, 현재 데모 설정.
+- 첫 산출물: 버전 있는 실행용 스키마와 다단계·공통 의존성 예시. 검토용 초안과 실행 설정의 경계를 명시한다.
+- 다음 작업에 필요한 사용자 입력: 현재 없음. 실제 업무 모노레포가 제공되기 전까지 로컬 fixture로 모델을 검증할 수 있다.
+- 남은 제품 결정: D-01~D-09는 01의 미결정 표를 참고한다. 필요한 결정은 해당 T-ID에서 이유를 기록하고 처리한다.
+- 런타임 상태: 이 문서에 기동 상태를 고정 기록하지 않는다. 재개 시 확인한다.
+
+## 6. 작업 종료 때 갱신할 인계 항목
+
+진행한 T-ID, 완료한 산출물, 실제 실행한 검증, 미해결 문제, 다음 T-ID와 첫 조치를 남긴다. 작업 도중 중단되면 수정 파일·실패한 명령·재현 방법도 기록한다. 같은 사실을 README·설계에 반복하기보다 이 문서와 검증 기록으로 연결한다.
