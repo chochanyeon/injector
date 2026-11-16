@@ -1,0 +1,262 @@
+{
+  "schemaVersion": "1.0",
+  "defaults": {
+    "vmOptions": [
+      "-Xmx256m"
+    ],
+    "env": {
+      "LOCAL_DEVELOPMENT": "true"
+    }
+  },
+  "nodes": [
+    {
+      "id": "orders",
+      "kind": "application",
+      "variants": {
+        "real": {
+          "execution": {
+            "type": "intellij",
+            "projectPath": "apps/orders",
+            "module": "orders",
+            "mainClass": "example.Orders"
+          },
+          "endpoints": {
+            "http": {
+              "protocol": "http",
+              "bind": {
+                "host": "0.0.0.0",
+                "port": 8080
+              },
+              "addresses": {
+                "host": {
+                  "host": "orders.local.test.com",
+                  "port": 18080,
+                  "scheme": "http",
+                  "path": "/"
+                },
+                "container": {
+                  "host": "orders",
+                  "port": 8080,
+                  "scheme": "http",
+                  "path": "/"
+                }
+              }
+            }
+          },
+          "dependencies": [
+            "catalog",
+            "database"
+          ],
+          "readiness": {
+            "type": "http",
+            "endpoint": "http",
+            "path": "/health",
+            "timeoutSeconds": 30
+          },
+          "injections": [
+            {
+              "channel": "environment",
+              "key": "CATALOG_URL",
+              "source": {
+                "node": "catalog",
+                "endpoint": "http",
+                "context": "host",
+                "component": "url"
+              }
+            },
+            {
+              "channel": "environment",
+              "key": "DB_HOST",
+              "source": {
+                "node": "database",
+                "endpoint": "sql",
+                "context": "host",
+                "component": "host"
+              }
+            }
+          ],
+          "env": {
+            "DB_PASSWORD": {
+              "fromEnv": "LOCAL_DB_PASSWORD"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "catalog",
+      "kind": "application",
+      "variants": {
+        "real": {
+          "execution": {
+            "type": "compose",
+            "file": "compose.yaml",
+            "service": "catalog",
+            "projectName": "registry-example"
+          },
+          "endpoints": {
+            "http": {
+              "protocol": "http",
+              "bind": {
+                "host": "0.0.0.0",
+                "port": 8080
+              },
+              "addresses": {
+                "host": {
+                  "host": "catalog.local.test.com",
+                  "port": 18082,
+                  "scheme": "http",
+                  "path": "/"
+                },
+                "container": {
+                  "host": "catalog",
+                  "port": 8080,
+                  "scheme": "http",
+                  "path": "/"
+                }
+              }
+            }
+          },
+          "dependencies": [
+            "database"
+          ],
+          "readiness": {
+            "type": "http",
+            "endpoint": "http",
+            "path": "/health",
+            "timeoutSeconds": 30
+          },
+          "injections": [
+            {
+              "channel": "environment",
+              "key": "DB_HOST",
+              "source": {
+                "node": "database",
+                "endpoint": "sql",
+                "context": "container",
+                "component": "host"
+              }
+            }
+          ]
+        },
+        "mock": {
+          "execution": {
+            "type": "compose",
+            "file": "compose.yaml",
+            "service": "wiremock",
+            "projectName": "registry-example"
+          },
+          "endpoints": {
+            "http": {
+              "protocol": "http",
+              "bind": {
+                "host": "0.0.0.0",
+                "port": 8080
+              },
+              "addresses": {
+                "host": {
+                  "host": "catalog.local.test.com",
+                  "port": 18081,
+                  "scheme": "http",
+                  "path": "/"
+                },
+                "container": {
+                  "host": "wiremock",
+                  "port": 8080,
+                  "scheme": "http",
+                  "path": "/"
+                }
+              }
+            }
+          },
+          "dependencies": [],
+          "readiness": {
+            "type": "http",
+            "endpoint": "http",
+            "path": "/__admin/health",
+            "timeoutSeconds": 30
+          }
+        }
+      }
+    },
+    {
+      "id": "database",
+      "kind": "infrastructure",
+      "variants": {
+        "real": {
+          "execution": {
+            "type": "compose",
+            "file": "compose.yaml",
+            "service": "database",
+            "projectName": "registry-example"
+          },
+          "endpoints": {
+            "sql": {
+              "protocol": "postgresql",
+              "bind": {
+                "host": "0.0.0.0",
+                "port": 5432
+              },
+              "addresses": {
+                "host": {
+                  "host": "127.0.0.1",
+                  "port": 15432
+                },
+                "container": {
+                  "host": "database",
+                  "port": 5432
+                }
+              }
+            }
+          },
+          "dependencies": [],
+          "readiness": {
+            "type": "compose",
+            "timeoutSeconds": 60
+          }
+        }
+      }
+    }
+  ],
+  "profiles": {
+    "local-real": {
+      "targets": [
+        "orders"
+      ],
+      "selections": {
+        "orders": "real",
+        "catalog": "real",
+        "database": "real"
+      }
+    },
+    "local-mock": {
+      "targets": [
+        "orders"
+      ],
+      "selections": {
+        "orders": "real",
+        "catalog": "mock",
+        "database": "real"
+      },
+      "overrides": {
+        "orders": {
+          "vmProperties": {
+            "injector.profile": "mock"
+          }
+        }
+      }
+    }
+  },
+  "nameMappings": [
+    {
+      "hostname": "orders.local.test.com",
+      "address": "127.0.0.1",
+      "method": "hosts"
+    },
+    {
+      "hostname": "catalog.local.test.com",
+      "address": "127.0.0.1",
+      "method": "hosts"
+    }
+  ]
+}

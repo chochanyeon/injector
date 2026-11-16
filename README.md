@@ -24,7 +24,7 @@ injector/
 ## 준비
 
 - JDK 17 이상 (`java`, `javac`를 PATH에 등록)
-- Python 3.10 이상. 추가 패키지는 필요하지 않음
+- Python 3.10 이상. `python -m pip install -r requirements.txt`로 등록 스키마 검증·테스트 의존성을 설치한다.
 - Docker Desktop 또는 Docker Engine과 Compose
 - IntelliJ IDEA. `examples/demo/pom.xml`을 Maven 프로젝트로 연다.
 
