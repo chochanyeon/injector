@@ -23,7 +23,7 @@
 | [T-070](work-items/T-070.md) | 사용자 정의 호스트 이름 연결 | 완료(macOS·Windows hosts) | 완료 | 부분 검증(관리자 적용 남음) |
 | [T-160](work-items/T-160.md) | macOS와 Windows 실행 환경 지원 | 완료 | 완료 | 부분 검증(Finder·IDE 수동 확인 남음) |
 | [T-170](work-items/T-170.md) | 로컬 registry.json 편집기 | 완료 | 완료 | 부분 검증(브라우저 화면 확인 남음) |
-| [T-180](work-items/T-180.md) | registry 기반 의존성 그래프 | 완료 | 완료 | 부분 검증(브라우저 화면 확인 남음) |
+| [T-180](work-items/T-180.md) | registry 기반 의존성 그래프 | 완료 | 완료 | 부분 검증(작은 화면·대형 그래프 확인 남음) |
 | [T-080](work-items/T-080.md) | 의존성별 실제 실행·모의 대체 | 초안 | 미착수 | 미수행 |
 | [T-090](work-items/T-090.md) | 세션·실패 처리·종료 정책 | 초안 | 미착수 | 미수행 |
 | [T-100](work-items/T-100.md) | LLM 등록 초안의 검증·변환 | 초안 | 미착수 | 미수행 |
