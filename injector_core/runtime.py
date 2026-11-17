@@ -14,6 +14,7 @@ import uuid
 
 import psutil
 
+from .hostnames import check_resolution
 from .planning import build_plan
 from .registry import RegistryError, _validate_references, load_registry
 from .rendering import _artifact_path, render_node
@@ -200,12 +201,13 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None):
     nodes = {node["id"]: node for node in data["nodes"]}
     directory = _directory(root)
     with _lock(directory):
+        selected = [(step["node"], selected_variant(nodes, data["profiles"][profile], step["node"])[1])
+                    for step in plan["steps"]]
+        check_resolution(data, (variant for _, variant in selected), root)
         prepared = []
         compose_keys = set()
         # Resolve every node and validate runners before starting any resources.
-        for step in plan["steps"]:
-            node = step["node"]
-            _, variant = selected_variant(nodes, data["profiles"][profile], node)
+        for node, variant in selected:
             execution = variant["execution"]
             kind = execution["type"]
             settings = resolve_node(data, profile, node, defer_spring_env=kind == "intellij")

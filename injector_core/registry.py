@@ -133,5 +133,8 @@ def load_registry(project, profile=None):
         pointer = "/" + "/".join(str(part).replace("~", "~0").replace("/", "~1")
                                   for part in error.absolute_path)
         raise RegistryError(f"{pointer}: schema {error.validator} check failed")
+    if data.get("nameMappings"):
+        from .hostnames import name_mappings
+        name_mappings(data)
     _validate_references(data, root, profile)
     return data

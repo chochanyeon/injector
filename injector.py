@@ -86,8 +86,8 @@ def compile_java():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render", "vault-demo", "prepare", "stop", "serve"))
-    parser.add_argument("target", nargs="?", help="application ID for prepare")
+    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render", "vault-demo", "prepare", "stop", "serve", "hosts"))
+    parser.add_argument("target", nargs="?", help="application ID for prepare, or preview/apply/remove for hosts")
     parser.add_argument("--mode", choices=("dummy", "real"), help="prepare using a matching registry profile")
     parser.add_argument("--port", type=int, default=18770, help="local UI port (serve only)")
     parser.add_argument("--open", action="store_true", help="open the local UI in a browser")
@@ -99,6 +99,22 @@ def main():
     parser.add_argument("--with-vault", action="store_true", help="include the local Vault API mock in demo setup")
     parser.add_argument("--vault-service", help="service name for the local Vault secret path; enables the Vault mock")
     args = parser.parse_args()
+    if args.command == "hosts":
+        if args.target not in ("preview", "apply", "remove"):
+            parser.error("hosts requires preview, apply, or remove")
+        if args.mode or args.profile or args.infra or args.main_docker or args.with_vault or args.vault_service or args.node or args.open:
+            parser.error("hosts only accepts --project")
+        from injector_core.hostnames import manage_hosts, name_mappings
+        from injector_core.registry import RegistryError, load_registry
+        project = args.project or Path.cwd()
+        try:
+            mappings = {} if args.target == "remove" else name_mappings(load_registry(project))
+            print(json.dumps(manage_hosts(project, mappings, args.target), indent=2))
+        except RegistryError as error:
+            parser.exit(1, f"Injector failed: {error}\n")
+        except OSError:
+            parser.exit(1, "Injector failed: could not read or update the hosts file\n")
+        return
     if args.target and args.command != "prepare":
         parser.error("target is supported only with prepare")
     if args.mode and args.command != "prepare":

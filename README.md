@@ -53,6 +53,24 @@ python injector.py serve --open
 
 현재 일반 실행 경로는 process·Compose·external 의존성, IntelliJ·process·Compose 대상을 지원한다. process의 VM 설정은 `java` 실행 파일에만 주입한다. Spring 외부 YAML 생성은 IntelliJ 대상에 한정한다. Compose는 env 주입을 지원하며 VM 설정은 서비스 자체 JVM 명령으로 정의해야 한다. IntelliJ 의존성은 자동 실행할 수 없으므로 process/Compose variant가 필요하다. 실제 비밀값을 env/vmProperties에서 XML로 저장하는 경로는 거부한다. UI에서 값을 입력·수정하는 편집기는 아직 없다.
 
+## 로컬 호스트 이름 사용하기
+
+registry의 접속점 `addresses.host.host`에 `catalog.local.test.com` 같은 이름을 사용하고, 같은 이름을 `nameMappings`에 등록한다.
+
+```json
+{"hostname": "catalog.local.test.com", "address": "127.0.0.1", "method": "hosts"}
+```
+
+```powershell
+python injector.py hosts preview --project examples/registry
+python injector.py hosts apply --project examples/registry
+python injector.py hosts remove --project examples/registry
+```
+
+`examples/registry`는 선언 형식 예시다. 실제로 실행할 프로젝트의 경로를 사용한다. Windows에서 apply/remove는 관리자 터미널이 필요하다. 미리보기에서 변경할 행을 확인할 수 있다. 같은 주소의 수동 항목은 보존하며, 충돌한 이름은 수정하지 않는다. remove는 해당 프로젝트가 추가한 행만 지운다. 프로젝트를 옮기기 전에는 기존 경로로 remove를 실행한다.
+
+이미 OS에서 이름을 해석한다면 `method: external`을 쓴다. CLI와 화면의 prepare는 선택한 그래프의 등록 이름이 기대 IP로만 해석되는지 확인한다. OS hosts 변경은 위 apply/remove 명령으로 관리한다. Compose 내부 이름은 서비스 이름이나 Compose의 `extra_hosts`로 관리한다.
+
 ## 기존 단일 데모 명령으로 실행하기
 
 프로젝트 루트에서 다음을 실행한다. 첫 실행에는 컨테이너 이미지를 내려받는다.
