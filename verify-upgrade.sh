@@ -35,13 +35,13 @@ while (($#)); do
 done
 
 repo=$(git -C "$repo" rev-parse --show-toplevel)
-git -C "$repo" rev-parse --verify HEAD >&2
+baseline_commit=$(git -C "$repo" rev-parse --verify HEAD)
 [[ -f $repo/gradlew ]] || { echo 'Target repository needs ./gradlew' >&2; exit 1; }
 scratch=$(mktemp -d /tmp/upgrade-verifier.XXXXXXXX)
 mkdir -p "$scratch/tool/src/test/java/upgrade"
 cp -R "$tool_home/src/test/java/upgrade/verifier" "$scratch/tool/src/test/java/upgrade/"
 cp "$tool_home/upgrade-verifier.gradle" "$tool_home/upgrade-verifier.init.gradle" "$scratch/tool/"
-git -C "$repo" worktree add --detach "$scratch/head" HEAD >&2
+git -C "$repo" worktree add --detach "$scratch/head" "$baseline_commit" >&2
 worktree_added=1
 
 task="${project%:}:test"
@@ -54,6 +54,7 @@ run_verifier() {
             -I "$scratch/tool/upgrade-verifier.init.gradle" \
             "${gradle_args[@]}" \
             "-Pverify.project=$project" "-Pverify.tool.home=$scratch/tool" \
+            "-Pverify.receipt.path=$scratch/verified" \
             "-Pverify.mode=$mode" "-Pbaseline.path=$scratch/baseline.json"
     ) >&2
 }
@@ -61,3 +62,7 @@ run_verifier() {
 run_verifier "$scratch/head" record
 [[ -s $scratch/baseline.json ]] || { echo 'Baseline was not generated' >&2; exit 1; }
 run_verifier "$repo" verify
+[[ -s $scratch/verified && $(cat "$scratch/verified") == verified ]] || {
+    echo 'Verification test did not complete the comparison' >&2
+    exit 1
+}

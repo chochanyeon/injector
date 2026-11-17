@@ -42,10 +42,29 @@ run_case() {
 # Upgrade a library used by the GET endpoint without changing its behavior.
 sed 's/commons-codec:1.18.0/commons-codec:1.19.0/' "$repo/build.gradle" > "$sandbox/build.gradle"
 cp "$sandbox/build.gradle" "$repo/build.gradle"
+cat >> "$repo/build.gradle" <<'GRADLE'
+
+// A service's existing tests can resolve a version different from production.
+configurations.testRuntimeClasspath.resolutionStrategy.force 'commons-codec:commons-codec:1.18.0'
+GRADLE
 run_case PASS --console=plain
 grep -q '"group":"commons-codec","artifact":"commons-codec","version":"1.19.0"' \
     "$repo/build/tmp/test/verifier-classpath.json"
-echo 'PASS: uncommitted dependency upgrade, shared injected test, path with spaces, cleanup' >&2
+echo 'PASS: dependency upgrade measured on the application version despite a conflicting test version' >&2
+
+# A skipped test exits zero in Gradle. The script must still require actual comparison.
+cp "$repo/build.gradle" "$sandbox/unskipped.gradle"
+cat >> "$repo/build.gradle" <<'GRADLE'
+
+tasks.named('test') {
+    onlyIf { providers.gradleProperty('verify.mode').orNull != 'verify' }
+}
+GRADLE
+run_case FAIL --console=plain
+grep -q ':test SKIPPED' "$sandbox/stderr"
+grep -q 'Verification test did not complete the comparison' "$sandbox/stderr"
+cp "$sandbox/unskipped.gradle" "$repo/build.gradle"
+echo 'PASS: skipped verification rejected despite Gradle success' >&2
 
 # A real HTTP response change must fail even though it still returns valid JSON / HTTP 200.
 source_file="$repo/src/test/java/upgrade/fixture/SampleApplication.java"

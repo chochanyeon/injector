@@ -18,6 +18,11 @@ java {
 }
 
 ext.set('verify.application', 'upgrade.fixture.SampleApplication')
+sourceSets.main.java {
+    srcDir 'src/test/java'
+    include 'upgrade/fixture/**'
+}
+sourceSets.test.java.exclude 'upgrade/fixture/**'
 if (!providers.gradleProperty('verify.tool.home').isPresent()) {
     apply from: 'upgrade-verifier.gradle'
 }

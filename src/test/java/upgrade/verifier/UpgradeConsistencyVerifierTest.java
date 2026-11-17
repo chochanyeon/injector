@@ -1,6 +1,7 @@
 package upgrade.verifier;
 
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -42,7 +43,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /** Inject this file unchanged into both revisions. No application source changes are needed. */
 public class UpgradeConsistencyVerifierTest {
-    private static final ObjectMapper REPORT = new ObjectMapper();
+    private static final ObjectMapper REPORT = new ObjectMapper()
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS, DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
     private static final String FIXED_INSTANT = "2020-01-02T03:04:05Z";
 
     /** Optional test-only probes for Kafka, persistence, cryptography, etc. Results must be deterministic. */
@@ -78,7 +80,8 @@ public class UpgradeConsistencyVerifierTest {
         try (ConfigurableApplicationContext context = launcher.run(args.toArray(String[]::new))) {
             check(context instanceof WebApplicationContext, "A Spring MVC WebApplicationContext is required");
             ObjectNode fingerprint = REPORT.createObjectNode();
-            fingerprint.set("configuration", configuration(application, packages));
+            JsonNode samples = readSamples();
+            fingerprint.set("configuration", configuration(application, packages, samples));
             fingerprint.set("beans", REPORT.valueToTree(new TreeSet<>(Arrays.asList(context.getBeanDefinitionNames()))));
             SortedMap<String, Mapping> mappings = mappings(context);
             fingerprint.set("endpoints", REPORT.valueToTree(mappings.keySet()));
@@ -87,7 +90,6 @@ public class UpgradeConsistencyVerifierTest {
             ObjectNode dtos = REPORT.createObjectNode();
             SortedSet<String> dtoNames = discoverDtos(packages, mappings.values());
             check(!dtoNames.isEmpty(), "No DTOs discovered; configure verify.dto.classes for your service");
-            JsonNode samples = readSamples();
             for (var mapperEntry : new TreeMap<>(mappers).entrySet()) {
                 ObjectMapper mapper = mapperEntry.getValue();
                 ObjectNode results = dtos.putObject(mapperEntry.getKey());
@@ -97,10 +99,11 @@ public class UpgradeConsistencyVerifierTest {
                         Object sample = samples.has(name)
                                 ? mapper.treeToValue(samples.get(name), type)
                                 : dummy(mapper.constructType(type), mapper, new HashSet<>());
-                        JsonNode before = mapper.readTree(mapper.writeValueAsBytes(sample));
+                        byte[] encoded = mapper.writeValueAsBytes(sample);
+                        JsonNode before = REPORT.readTree(encoded);
                         check(before != null && !before.isNull(), "DTO sample must be non-null: " + name);
-                        Object restored = mapper.readValue(mapper.writeValueAsBytes(sample), type);
-                        JsonNode after = mapper.readTree(mapper.writeValueAsBytes(restored));
+                        Object restored = mapper.readValue(encoded, type);
+                        JsonNode after = REPORT.readTree(mapper.writeValueAsBytes(restored));
                         assertSame(normalized(before), normalized(after), "/roundTrip/" + name);
                         results.set(name, normalized(before));
                     } catch (Exception exception) {
@@ -136,6 +139,10 @@ public class UpgradeConsistencyVerifierTest {
                 }
             }
         }
+        String receipt = System.getProperty("verify.receipt.path", "");
+        if (mode.equals("verify") && !receipt.isBlank()) {
+            Files.writeString(Path.of(receipt), "verified\n", StandardOpenOption.CREATE_NEW);
+        }
     }
 
     private static Class<?> findApplication() throws ClassNotFoundException {
@@ -149,7 +156,7 @@ public class UpgradeConsistencyVerifierTest {
         }
     }
 
-    private static ObjectNode configuration(Class<?> application, String packages) throws Exception {
+    private static ObjectNode configuration(Class<?> application, String packages, JsonNode samples) {
         ObjectNode node = REPORT.createObjectNode();
         node.put("application", application.getName());
         node.put("scanPackages", packages);
@@ -157,7 +164,7 @@ public class UpgradeConsistencyVerifierTest {
                 "verify.ignore.json.pointers", "verify.alignment.groups", "verify.probe.classes")) {
             node.put(key, System.getProperty(key, ""));
         }
-        node.set("dtoSamples", readSamples());
+        node.set("dtoSamples", samples);
         return node;
     }
 

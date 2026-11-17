@@ -25,13 +25,13 @@ bash /path/to/verifier/verify-upgrade.sh \
   '-Pverify.get.paths=/api/catalog/7'
 ```
 
-대상 `build.gradle[.kts]`을 복사하거나 덮어쓰지 않는다. `/tmp`에 HEAD worktree와 검증 파일 스냅샷을 만들고, init script가 **선택한 모듈의 테스트에만** 같은 Java 소스와 테스트 의존성을 주입한다. 아직 커밋하지 않은 검증 코드도 양쪽에 동일하게 들어간다. 대상에 같은 패키지의 검증 코드가 있으면 주입한 스냅샷을 우선한다. Gradle test 캐시와 up-to-date 생략을 비활성화한다. 정상 종료, 오류, INT/TERM 시 worktree와 기준선을 정리한다. SIGKILL / 전원 종료는 trap으로 정리할 수 없다.
+`/tmp`에 HEAD worktree와 검증 파일 스냅샷을 만든다. Init script는 선택한 모듈에 검증 전용 소스 세트를 추가하고, 해당 실행의 `test` 태스크에 연결한다. 양쪽 worktree에서 같은 검증 소스를 사용하며 서비스의 기존 테스트 소스, 리소스, 의존성은 별도로 유지된다. Gradle 캐시와 up-to-date 생략을 비활성화한다. 비교 성공 후 JUnit이 임시 완료 파일을 기록해야 `PASS`를 반환하므로 Gradle의 `SKIPPED`도 검출한다. 정상 종료, 오류, INT/TERM 시 worktree와 임시 파일을 정리한다. SIGKILL과 전원 종료에는 trap이 실행되지 않는다.
 
 현재 디렉터리의 다른 미커밋 변경도 비교에 포함된다. 의존성만 평가하려면 다른 애플리케이션 변경은 분리한다. HEAD에서 참조할 수 없는 로컬 파일 의존성, 미커밋 Gradle Wrapper, worktree 밖의 상대경로 의존성은 HEAD 빌드가 실패할 수 있다.
 
 ## 판정 항목
 
-1. **실제 테스트 런타임 클래스패스**: Gradle Test task의 classpath와 Maven JAR 메타데이터를 검사한다. Gradle이 보통 하나의 버전으로 해결한 선언상의 충돌이 아니라, 실제 존재하는 동일 `groupId:artifactId`의 복수 버전을 거부한다. `files(...)` 및 shaded JAR의 Maven 메타데이터도 확인한다. 좌표를 판별할 수 없는 JAR은 묵인하지 않고 FAIL 처리한다.
+1. **애플리케이션 런타임 의존성** → Gradle의 `runtimeClasspath`와 검증 클래스패스의 의존성 결정을 일치시키고, 해당 런타임 아티팩트 파일이 모두 검증 JVM의 클래스패스에 있는지 확인한다. 동일 `groupId:artifactId`의 복수 버전은 실패 처리한다. `files(...)`와 shaded JAR의 Maven 메타데이터도 확인하며 좌표를 판별할 수 없는 JAR은 FAIL 처리한다.
 2. **전체 Bean / MVC 매핑**: Bean 정의 이름 전체, 경로·HTTP 메서드·params·headers·consumes·produces·custom condition·핸들러 시그니처 전체를 정렬하여 비교한다.
 3. **DTO 왕복**: MVC 매핑과 ClassGraph의 `@RestController`, `@KafkaListener` / `@KafkaHandler` 시그니처에서 애플리케이션 DTO를 찾는다. 각 실제 `ObjectMapper` Bean으로 직렬화 → 역직렬화 → 재직렬화하고 JSON 트리의 보존 및 기준선 일치를 검사한다. 시간과 UUID는 고정값이다. record, 기본 생성자가 있는 POJO, 기본 타입, 시간 타입, enum, 배열·컬렉션 등을 지원한다. 생성할 수 없는 DTO는 명시적인 JSON 샘플을 요구하며 조용히 건너뛰지 않는다.
 4. **GET smoke**: MockMvc로 `/actuator/health`와 설정한 GET 경로들을 호출한다. 2xx와 파싱 가능한 JSON을 요구하고 HTTP 상태와 JSON 트리를 비교한다. Bean으로 등록된 Servlet Filter를 적용한다. 별도 GET 설정이 없으면 params/headers 조건과 경로 변수가 없는 명시적 GET 매핑을 자동 선택한다. health 이외에 최소 한 경로가 필요하다.
@@ -109,7 +109,7 @@ public class DomainProbe implements UpgradeConsistencyVerifierTest.RuntimeProbe 
 
 ## Gradle 구성
 
-다른 서비스의 build 파일 수정은 필요 없다. `upgrade-verifier.init.gradle`이 선택한 모듈에 `upgrade-verifier.gradle`을 적용하며 다음 테스트 전용 의존성을 추가한다.
+`upgrade-verifier.init.gradle`이 선택한 모듈에 `upgrade-verifier.gradle`을 적용하며 검증 소스 세트에 다음 의존성을 추가한다. 서비스가 기존 `src/test/resources`에만 둔 설정을 사용한다면 두 체크아웃에서 공통으로 참조할 외부 설정이나 환경 변수를 준비한다.
 
 * JUnit BOM 5.11.4 / Jupiter / Platform Launcher
 * ClassGraph 4.8.179
@@ -143,7 +143,7 @@ bash src/test/scripts/integration.sh
 
 Windows PowerShell에서는 `./gradlew.bat`과 따옴표로 감싼 `'-Pverify.mode=record'`, 절대 Windows 기준선 경로를 사용한다. 저장소 루트와 `src/test`에만 파일을 두기 위해 데모 Wrapper의 JAR / properties도 루트에 배치했다.
 
-통합 검사는 임시 Git 저장소에서 실제 의존성 업그레이드의 PASS, HTTP 응답 변경의 FAIL, 기준선 생성 실패, 잘못된 저장소 경로, 커스텀 프로브, 멀티 모듈 선택, 이전 검증 코드 대체, 한 줄 출력 / 종료 코드 / worktree 정리를 확인한다.
+통합 검사는 실제 의존성 업그레이드, 서비스 테스트 의존성과의 충돌, 변경 후 테스트가 생략된 경우의 FAIL, HTTP 응답 변경의 FAIL, 기준선 생성 실패, 잘못된 저장소 경로, 커스텀 프로브, 멀티 모듈 선택, 이전 검증 코드 대체, 한 줄 출력, 종료 코드, worktree 정리를 확인한다.
 
 ## 판정의 범위
 
