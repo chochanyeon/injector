@@ -25,19 +25,33 @@ bash /path/to/verifier/verify-upgrade.sh \
   '-Pverify.get.paths=/api/catalog/7'
 ```
 
-`/tmp`에 HEAD worktree와 검증 파일 스냅샷을 만든다. Init script는 선택한 모듈에 검증 전용 소스 세트를 추가하고, 해당 실행의 `test` 태스크에 연결한다. 양쪽 worktree에서 같은 검증 소스를 사용하며 서비스의 기존 테스트 소스, 리소스, 의존성은 별도로 유지된다. Gradle 캐시와 up-to-date 생략을 비활성화한다. 비교 성공 후 JUnit이 임시 완료 파일을 기록해야 `PASS`를 반환하므로 Gradle의 `SKIPPED`도 검출한다. 정상 종료, 오류, INT/TERM 시 worktree와 임시 파일을 정리한다. SIGKILL과 전원 종료에는 trap이 실행되지 않는다.
+## 한 번 실행할 때 일어나는 일
+
+1. **비교 대상 고정.** `--repo`에서 Git 저장소 루트를 찾고 실행 시작 시점의 `HEAD` 커밋을 확인한다. `/tmp/upgrade-verifier.*` 아래에 이 커밋의 detached worktree를 만든다. 검증기의 Gradle 스크립트와 `src/test/java/upgrade/verifier/`도 같은 임시 디렉터리에 복사한다.
+2. **HEAD 기록.** HEAD worktree에서 해당 저장소의 `gradlew`로 선택한 모듈의 `test --tests '*UpgradeConsistencyVerifierTest'`를 `-Pverify.mode=record`로 실행한다. Init script가 임시 스냅샷을 `upgradeVerification` 소스 세트에 연결한다. 이 소스 세트는 앱의 메인 클래스와 의존성을 사용한다. 서비스 자체의 테스트 코드, `src/test/resources`, `testRuntimeOnly`는 검증 소스 세트에 포함되지 않는다. Gradle의 구성 캐시와 빌드 캐시를 끄고 태스크를 다시 실행한다. 런타임 검사와 모든 동작 검사가 완료되면 절대 경로의 임시 `baseline.json`에 결과를 기록한다.
+3. **현재 코드 비교.** 기준선이 생성되면 원래 작업 디렉터리에서 동일한 검증 스냅샷과 같은 기준선 경로로 `-Pverify.mode=verify`를 실행한다. 현재 앱의 클래스패스를 독립적으로 검사하고 같은 방식으로 지문을 만든다. 지문 비교와 Spring 컨텍스트 종료가 성공하면 JUnit이 임시 완료 파일을 기록한다. 기준선 기록이 실패하면 이 단계는 실행되지 않는다.
+4. **정리 후 결과 출력.** 두 실행, 완료 파일 확인, 임시 worktree와 파일 정리가 모두 성공하면 stdout에 `PASS` 한 줄을 출력하고 `0`을 반환한다. 불일치, 빌드·기동 오류, 테스트 생략으로 인한 기준선 또는 완료 파일 누락, 정리 오류는 `FAIL` 한 줄과 종료 코드 `1`로 처리한다. `INT`/`TERM`에도 정리를 실행한다. `SIGKILL`과 전원 종료에는 정리 코드가 실행되지 않는다.
 
 현재 디렉터리의 다른 미커밋 변경도 비교에 포함된다. 의존성만 평가하려면 다른 애플리케이션 변경은 분리한다. HEAD에서 참조할 수 없는 로컬 파일 의존성, 미커밋 Gradle Wrapper, worktree 밖의 상대경로 의존성은 HEAD 빌드가 실패할 수 있다.
 
 ## 판정 항목
 
-1. **애플리케이션 런타임 의존성** → Gradle의 `runtimeClasspath`와 검증 클래스패스의 의존성 결정을 일치시키고, 해당 런타임 아티팩트 파일이 모두 검증 JVM의 클래스패스에 있는지 확인한다. 동일 `groupId:artifactId`의 복수 버전은 실패 처리한다. `files(...)`와 shaded JAR의 Maven 메타데이터도 확인하며 좌표를 판별할 수 없는 JAR은 FAIL 처리한다.
-2. **전체 Bean / MVC 매핑**: Bean 정의 이름 전체, 경로·HTTP 메서드·params·headers·consumes·produces·custom condition·핸들러 시그니처 전체를 정렬하여 비교한다.
-3. **DTO 왕복**: MVC 매핑과 ClassGraph의 `@RestController`, `@KafkaListener` / `@KafkaHandler` 시그니처에서 애플리케이션 DTO를 찾는다. 각 실제 `ObjectMapper` Bean으로 직렬화 → 역직렬화 → 재직렬화하고 JSON 트리의 보존 및 기준선 일치를 검사한다. 시간과 UUID는 고정값이다. record, 기본 생성자가 있는 POJO, 기본 타입, 시간 타입, enum, 배열·컬렉션 등을 지원한다. 생성할 수 없는 DTO는 명시적인 JSON 샘플을 요구하며 조용히 건너뛰지 않는다.
-4. **GET smoke**: MockMvc로 `/actuator/health`와 설정한 GET 경로들을 호출한다. 2xx와 파싱 가능한 JSON을 요구하고 HTTP 상태와 JSON 트리를 비교한다. Bean으로 등록된 Servlet Filter를 적용한다. 별도 GET 설정이 없으면 params/headers 조건과 경로 변수가 없는 명시적 GET 매핑을 자동 선택한다. health 이외에 최소 한 경로가 필요하다.
-5. **선택적인 서비스 프로브**: HTTP/DTO 밖의 도메인 동작도 같은 지문에 추가할 수 있다.
+두 실행 모두 클래스패스를 먼저 검사한다. 그다음 설정한 애플리케이션과 Spring 프로필로 Servlet 컨텍스트를 띄운다. 내장 서버 포트는 `0`으로 요청해 실행 시 배정받는다.
 
-JSON 객체 키 순서는 무시하고 배열 순서·숫자·null과 필드 부재는 구분한다. 첫 불일치 경로를 `AssertionError`로 보고한다. 기준선에는 클래스패스 버전 정보도 남기지만, **버전 자체를 전후 동등성 비교에 넣지는 않는다**.
+| 검사 | 수집하는 값과 실패 조건 |
+| --- | --- |
+| 런타임 JAR | Gradle의 `runtimeClasspath`와 검증 클래스패스의 의존성 결정을 일치시키고, 앱 런타임 아티팩트 파일이 실제 검증 클래스패스에 모두 포함됐는지 확인한다. JAR의 Gradle 좌표와 `META-INF/maven/**/pom.properties`를 검사한다. 좌표를 확인할 수 없는 JAR, 동일 `groupId:artifactId`의 복수 버전, 설정한 정렬 규칙 위반은 그 실행에서 FAIL이다. |
+| Bean 정의 | `getBeanDefinitionNames()`의 전체 이름을 정렬해 비교한다. Bean의 내부 상태는 사용자 정의 프로브로 관찰할 수 있다. |
+| MVC 매핑 | 컨텍스트의 모든 `RequestMappingHandlerMapping`에서 매핑 Bean 이름, 경로, HTTP 메서드, 쿼리·헤더 조건, `consumes`, `produces`, 커스텀 조건의 문자열, 핸들러 메서드 시그니처를 모아 정렬한다. |
+| DTO | 실제 MVC 매핑과 ClassGraph가 찾은 `@RestController`, `@KafkaListener`, `@KafkaHandler` 메서드 시그니처 및 `verify.dto.classes`에서 DTO를 모은다. 앱의 각 `ObjectMapper` Bean에서 샘플을 직렬화·역직렬화·재직렬화한다. 각 실행에서 왕복 전후 JSON이 일치해야 하고, 실행 간에는 Mapper 이름과 DTO 클래스 이름별로 직렬화 결과를 비교한다. 기본 샘플은 리플렉션으로 만들며 시간과 UUID에 고정값을 넣는다. 생성이 어려운 DTO는 `verify.dto.samples`로 샘플을 지정한다. |
+| GET 응답 | MockMvc로 Servlet Filter Bean을 적용하고 `Accept: application/json` 요청을 보낸다. `/actuator/health`와 최소 한 개의 앱 GET 경로가 필요하다. 경로 미지정 시 명시적 GET 매핑에서 쿼리·헤더 조건, 경로 변수, 와일드카드, `/error`, `/actuator`로 시작하는 경로를 제외해 선택한다. 각 경로의 정확한 HTTP 상태 코드와 본문을 비교하며, 동기 응답·2xx·비어 있지 않은 유효한 JSON이 각각 필요하다. |
+| 사용자 정의 프로브 | `verify.probe.classes`에 등록된 클래스에 실제 Spring 컨텍스트를 전달하고, 클래스별로 반환된 JSON을 비교한다. |
+
+`baseline.json`에는 형식 버전 `schema`, JAR 파일명과 버전을 기록한 `runtimeArtifacts`, 비교 대상인 `fingerprint`가 들어간다. `fingerprint`에는 `configuration`, `beans`, `endpoints`, `dtos`, `http`, `probes`가 저장된다. `configuration`에는 애플리케이션 클래스, 탐색 패키지, 검증 옵션과 DTO 샘플 내용이 포함된다. 라이브러리 버전은 각 실행의 혼재 검사에 사용하며 전후 비교에서는 `fingerprint`를 사용한다.
+
+JSON 객체의 키 순서는 무시한다. 키의 추가·삭제, 배열 순서, 숫자 값의 차이, `null`과 필드 부재는 구분한다. 소수는 정밀도를 유지해 읽으며 JSON 값 뒤에 추가 데이터가 있으면 실패한다. `verify.ignore.json.pointers`를 설정하면 지정한 필드나 배열 원소를 DTO·GET 응답·프로브의 본문에서 제거한 후 비교한다. 구조가 다르면 처음 발견한 위치를 `AssertionError`에 표시한다. 예를 들어 데모의 `/api/sample` 응답에서 `name`이 바뀌면 `/fingerprint/http/~1api~1sample/body/name`이 보고된다. JSON Pointer의 `~1`은 경로에 포함된 `/`를 뜻한다.
+
+스크립트가 임시 기준선을 정리하므로 기준선 내용을 보존하려면 아래 수동 실행에 원하는 `baseline.path`를 지정한다. 로그를 분리해 보려면 `2>verify.log`를 붙인다. 변경 후 테스트가 실행됐다면 선택한 모듈의 기본 JUnit XML 경로 `build/test-results/test/TEST-upgrade.verifier.UpgradeConsistencyVerifierTest.xml`에서도 상세 실패 메시지를 확인할 수 있다.
 
 ### 여러 모듈의 버전 정렬
 
@@ -82,7 +96,7 @@ bash verify-upgrade.sh --repo /path/to/service -- \
 }
 ```
 
-기본 생성자가 없는 immutable DTO, 다형성, 복잡한 generic DTO 등은 샘플을 제공한다. 샘플도 애플리케이션의 ObjectMapper로 읽으므로 모듈과 생성자 설정을 실제로 검증한다. JSON을 만들지 못하거나 왕복 과정에서 데이터가 소실되면 FAIL이다. DTO가 하나도 발견되지 않아도 FAIL이므로 별도 패키지 DTO는 탐색 패키지나 클래스 목록을 설정한다.
+기본 생성자가 없는 immutable DTO, 다형성, 복잡한 generic DTO 등은 샘플을 제공한다. 샘플도 애플리케이션의 ObjectMapper로 읽으므로 모듈과 생성자 설정을 실제로 검증한다. JSON을 만들지 못하거나 왕복 결과의 JSON이 달라지면 FAIL이다. DTO가 하나도 발견되지 않아도 FAIL이므로 별도 패키지 DTO는 탐색 패키지나 클래스 목록을 설정한다.
 
 동적 응답은 먼저 테스트 프로필의 고정 시계·고정 데이터로 재현 가능하게 만든다. 꼭 필요한 경우에만 `'-Pverify.ignore.json.pointers=/timestamp,/requestId'`처럼 제외한다. 이 포인터들은 모든 DTO/프로브/HTTP 본문에 동일하게 적용된다. 자동으로 UUID나 타임스탬프를 찾아 삭제하지 않는다. 샘플 내용과 제외 규칙도 지문에 포함되어 검증 설정 변경을 감지한다.
 
@@ -117,12 +131,23 @@ public class DomainProbe implements UpgradeConsistencyVerifierTest.RuntimeProbe 
 
 대상의 Spring / Jackson BOM을 추가하거나 덮어쓰지 않는다. Spring Boot, MVC, Jackson 및 Actuator는 대상 애플리케이션의 것을 사용한다. Actuator가 없거나 health가 다른 관리 포트/경로에만 존재하면 기본 health 검사는 FAIL이다.
 
-수동으로 실행하려면 양쪽 checkout에서 동일한 도구 경로를 사용한다.
+수동으로 실행하려면 자동화 스크립트와 같은 검증 파일 스냅샷을 만든다. `tool`은 이 도구 저장소의 절대 경로다.
+
+```bash
+tool=/path/to/verifier
+snapshot=$(mktemp -d /tmp/verifier-manual.XXXXXXXX)
+mkdir -p "$snapshot/src/test/java/upgrade"
+cp -R "$tool/src/test/java/upgrade/verifier" "$snapshot/src/test/java/upgrade/"
+cp "$tool/upgrade-verifier.init.gradle" "$tool/upgrade-verifier.gradle" "$snapshot/"
+```
+
+HEAD 체크아웃에서 `record`를 실행한다. 변경 후 체크아웃에서는 같은 절대 경로와 옵션으로 `verify`를 실행한다. 멀티 모듈에서는 태스크를 `:services:catalog:test`처럼 지정하고 `-Pverify.project=:services:catalog`를 추가한다. 수동 실행에서 만든 스냅샷과 기준선은 작업이 끝난 후 직접 관리한다.
 
 ```bash
 ./gradlew test --tests '*UpgradeConsistencyVerifierTest' \
-  -I /path/to/verifier/upgrade-verifier.init.gradle \
-  -Pverify.tool.home=/path/to/verifier \
+  --no-configuration-cache \
+  -I "$snapshot/upgrade-verifier.init.gradle" \
+  "-Pverify.tool.home=$snapshot" \
   -Pverify.application=com.example.Application \
   -Pverify.mode=record -Pbaseline.path=/absolute/path/baseline.json
 # 변경 후에는 동일한 인자에 -Pverify.mode=verify 사용
