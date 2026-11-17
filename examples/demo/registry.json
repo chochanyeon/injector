@@ -30,7 +30,8 @@
           },
           "dependencies": [
             "catalog",
-            "redis"
+            "redis",
+            "vault-mock"
           ],
           "readiness": {
             "type": "http",
@@ -77,6 +78,88 @@
                 "endpoint": "main",
                 "context": "host",
                 "component": "port"
+              }
+            },
+            {
+              "channel": "environment",
+              "key": "VAULT_ADDR",
+              "source": {
+                "node": "vault-mock",
+                "endpoint": "main",
+                "context": "host",
+                "component": "url"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "support-console",
+      "kind": "application",
+      "variants": {
+        "ide": {
+          "execution": {
+            "type": "intellij",
+            "projectPath": ".",
+            "module": "injector-poc",
+            "mainClass": "poc.Main"
+          },
+          "endpoints": {
+            "http": {
+              "protocol": "http",
+              "bind": {
+                "host": "127.0.0.1",
+                "port": 19084
+              },
+              "addresses": {
+                "host": {
+                  "host": "127.0.0.1",
+                  "port": 19084,
+                  "scheme": "http"
+                }
+              }
+            }
+          },
+          "dependencies": [
+            "catalog",
+            "vault-mock"
+          ],
+          "readiness": {
+            "type": "http",
+            "endpoint": "http",
+            "path": "/demo",
+            "timeoutSeconds": 30
+          },
+          "env": {
+            "APP_PORT": "19084",
+            "DEMO_MESSAGE": "support console"
+          },
+          "vmOptions": [
+            "-Xmx256m"
+          ],
+          "vmProperties": {
+            "file.encoding": "UTF-8"
+          },
+          "injections": [
+            {
+              "channel": "environment",
+              "key": "CATALOG_URL",
+              "source": {
+                "node": "catalog",
+                "endpoint": "main",
+                "context": "host",
+                "component": "url"
+              }
+            },
+            {
+              "channel": "environment",
+              "key": "VAULT_ADDR",
+              "source": {
+                "node": "vault-mock",
+                "endpoint": "main",
+                "context": "host",
+                "component": "url"
               }
             }
           ]
@@ -142,7 +225,8 @@
             }
           },
           "dependencies": [
-            "redis"
+            "redis",
+            "postgres"
           ],
           "readiness": {
             "type": "compose",
@@ -184,20 +268,97 @@
           }
         }
       }
+    },
+    {
+      "id": "vault-mock",
+      "kind": "infrastructure",
+      "variants": {
+        "local": {
+          "execution": {
+            "type": "compose",
+            "file": "docker/prepare-compose.yaml",
+            "service": "vault-mock",
+            "projectName": "injector-prepare-demo"
+          },
+          "endpoints": {
+            "main": {
+              "protocol": "http",
+              "bind": {
+                "host": "127.0.0.1",
+                "port": 19083
+              },
+              "addresses": {
+                "host": {
+                  "host": "127.0.0.1",
+                  "port": 19083,
+                  "scheme": "http"
+                }
+              }
+            }
+          },
+          "dependencies": [],
+          "readiness": {
+            "type": "compose",
+            "timeoutSeconds": 90
+          }
+        }
+      }
+    },
+    {
+      "id": "postgres",
+      "kind": "infrastructure",
+      "variants": {
+        "local": {
+          "execution": {
+            "type": "compose",
+            "file": "docker/prepare-compose.yaml",
+            "service": "postgres",
+            "projectName": "injector-prepare-demo"
+          },
+          "endpoints": {
+            "main": {
+              "protocol": "tcp",
+              "bind": {
+                "host": "127.0.0.1",
+                "port": 19432
+              },
+              "addresses": {
+                "host": {
+                  "host": "127.0.0.1",
+                  "port": 19432
+                }
+              }
+            }
+          },
+          "dependencies": [],
+          "readiness": {
+            "type": "compose",
+            "timeoutSeconds": 90
+          }
+        }
+      }
     }
   ],
   "profiles": {
     "dummy": {
       "targets": [
-        "platform-service"
+        "platform-service",
+        "support-console"
       ],
       "selections": {
         "platform-service": "ide",
+        "support-console": "ide",
         "catalog": "dummy",
-        "redis": "local"
+        "redis": "local",
+        "vault-mock": "local"
       },
       "overrides": {
         "platform-service": {
+          "vmProperties": {
+            "injector.profile": "dummy"
+          }
+        },
+        "support-console": {
           "vmProperties": {
             "injector.profile": "dummy"
           }
@@ -206,15 +367,24 @@
     },
     "real": {
       "targets": [
-        "platform-service"
+        "platform-service",
+        "support-console"
       ],
       "selections": {
         "platform-service": "ide",
+        "support-console": "ide",
         "catalog": "real",
-        "redis": "local"
+        "redis": "local",
+        "vault-mock": "local",
+        "postgres": "local"
       },
       "overrides": {
         "platform-service": {
+          "vmProperties": {
+            "injector.profile": "real"
+          }
+        },
+        "support-console": {
           "vmProperties": {
             "injector.profile": "real"
           }

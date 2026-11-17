@@ -51,11 +51,13 @@ python -m venv .venv
 
 1. `registry.json`이 있는 프로젝트 폴더를 불러온다. 기본값은 `examples/demo`다.
 2. 프로필(`dummy` 또는 `real`)과 `platform-service`를 선택한다.
-3. 실행 순서 `redis → catalog → platform-service`를 확인하고 **실행 환경 준비**를 누른다.
+3. 실행 순서를 확인하고 **실행 환경 준비**를 누른다. Catalog보다 Redis가 먼저 준비되고, `real`에서는 PostgreSQL도 Catalog 전에 준비된다.
 4. 준비 완료 후 IntelliJ에서 `examples/demo/pom.xml`을 열고 **`Injector-dummy-platform-service`** 또는 **`Injector-real-platform-service`**를 Debug로 실행한다. 앱 응답은 `http://127.0.0.1:19080/demo`에서 확인한다.
 5. 앱은 IDE에서 종료한다. 화면의 **이 프로젝트의 의존성 종료**로 Injector가 만든 프로세스·컨테이너를 종료한다. 브라우저를 닫는 것만으로 의존성이나 화면 서버가 종료되지는 않는다.
 
-프로필을 전환하기 전에는 IDE에서 실행 중인 앱을 종료한다. 다시 준비하면 해당 프로젝트의 이전 Injector 세션 자원을 종료하고 새 설정으로 준비한다. 다른 프로그램의 열린 포트나 이미 존재하는 Compose 서비스는 충돌로 처리한다. 컨테이너 볼륨과 Compose 네트워크는 보존한다. 데모의 Catalog→Redis 의존성은 다단계·공유 그래프 검증용이며 Catalog 코드가 Redis를 조회하는 것은 아니다.
+프로필을 전환하기 전에는 IDE에서 실행 중인 앱을 종료한다. 다시 준비하면 해당 프로젝트의 이전 Injector 세션 자원을 종료하고 새 설정으로 준비한다. 다른 프로그램의 열린 포트나 이미 존재하는 Compose 서비스는 충돌로 처리한다. 컨테이너 볼륨과 Compose 네트워크는 보존한다.
+
+`support-console`도 선택할 수 있다. 같은 Java 메인 클래스를 쓰며 `Injector-<프로필>-support-console`을 Debug로 실행하면 `http://127.0.0.1:19084/demo`에서 응답한다. 두 데모 앱은 Catalog를 실제 호출한다. Redis, PostgreSQL, Vault 대역은 환경 준비와 의존성 그래프를 확인하기 위해 함께 등록했다.
 
 같은 작업을 CLI로도 실행한다. 아래 명령의 `python`은 설치한 환경의 Python을 뜻한다. 가상 환경을 활성화하지 않았다면 macOS는 `.venv/bin/python`, Windows는 `.\.venv\Scripts\python.exe`를 사용한다. `--project`를 생략하면 현재 폴더에서 registry.json을 찾는다.
 
@@ -87,6 +89,8 @@ python injector.py serve --open
 **표시할 앱**에서 하나를 고르거나 그래프의 앱을 클릭하면 하위 의존성만 볼 수 있다. 프로필 변경이나 registry 저장 후 그래프가 갱신된다. **직접 의존성 목록**에서는 같은 연결을 텍스트로 확인할 수 있다.
 
 **의존성 그래프**, **실행 순서**, **진행 기록** 제목을 눌러 각각 접고 펼친다. 준비 상태와 결과는 실행 순서를 접어도 표시된다.
+
+기본 데모에서 **전체 앱**을 고르면 `platform-service`와 `support-console`이 Catalog를 공유하고 두 앱에서 Vault 대역으로도 연결되는 구조를 볼 수 있다. Redis는 `platform-service`와 Catalog에서 연결된다. `dummy`는 5개 노드이며 `real`은 Catalog 아래 PostgreSQL을 추가한 6개 노드다.
 
 ## 로컬 호스트 이름 사용하기
 

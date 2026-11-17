@@ -76,15 +76,24 @@ class WebTests(unittest.TestCase):
 
     def test_dependency_graph_matches_profile_variants(self):
         demo = Path(__file__).resolve().parents[1] / 'examples' / 'demo'
-        for profile in ('dummy', 'real'):
+        for profile, catalog_dependencies in (('dummy', ['redis']), ('real', ['redis', 'postgres'])):
             with self.subTest(profile=profile):
-                query = urlencode({'project': str(demo), 'profile': profile, 'target': 'platform-service'})
+                query = urlencode({'project': str(demo), 'profile': profile})
                 status, response = self.request('/api/graph?' + query)
                 self.assertEqual(status, 200)
-                steps = {step['node']: step for step in json.loads(response)['steps']}
+                graph = json.loads(response)
+                steps = {step['node']: step for step in graph['steps']}
                 self.assertEqual(steps['catalog']['variant'], profile)
-                self.assertEqual(steps['catalog']['dependencies'], ['redis'])
-                self.assertEqual(steps['platform-service']['dependencies'], ['catalog', 'redis'])
+                self.assertEqual(steps['catalog']['dependencies'], catalog_dependencies)
+                self.assertEqual(steps['platform-service']['dependencies'], ['catalog', 'redis', 'vault-mock'])
+                self.assertEqual(steps['support-console']['dependencies'], ['catalog', 'vault-mock'])
+                self.assertEqual(set(steps), {'platform-service', 'support-console', 'catalog', 'vault-mock',
+                                              *catalog_dependencies})
+
+                status, response = self.request('/api/graph?' + query + '&target=support-console')
+                self.assertEqual(status, 200)
+                self.assertEqual(json.loads(response)['order'],
+                                 [*catalog_dependencies, 'catalog', 'vault-mock', 'support-console'])
 
     def test_rejects_foreign_hosts_and_cross_origin_mutations(self):
         self.assertEqual(self.request('/api/info', headers={'Host': 'evil.test'})[0], 403)
