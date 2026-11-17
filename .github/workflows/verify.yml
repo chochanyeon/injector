@@ -1,0 +1,42 @@
+name: Verify
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - name: Verify macOS launcher
+        if: runner.os == 'macOS'
+        shell: sh
+        run: |
+          workspace=$(mktemp -d)
+          trap 'rm -rf "$workspace"' EXIT
+          project="$workspace/Injector workspace"
+          mkdir -p "$project/.venv/bin"
+          cp -p Start-Injector.command "$project/"
+          cat > "$project/.venv/bin/python" <<'EOF'
+          #!/bin/sh
+          test "${PWD##*/}" = 'Injector workspace' &&
+            test "$#" -eq 3 &&
+            test "$1" = 'injector.py' &&
+            test "$2" = 'serve' &&
+            test "$3" = '--open'
+          EOF
+          chmod +x "$project/.venv/bin/python"
+          "$project/Start-Injector.command"

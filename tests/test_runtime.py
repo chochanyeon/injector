@@ -114,12 +114,18 @@ class RuntimeTests(unittest.TestCase):
 
     def test_intellij_target_ready_after_dependencies(self):
         main = self.data['nodes'][0]['variants']['local']
-        main['execution'] = {'type': 'intellij', 'projectPath': '.', 'module': 'probe', 'mainClass': 'example.Main'}
+        app = self.root / 'apps' / 'example app'
+        app.mkdir(parents=True)
+        main['execution'] = {'type': 'intellij', 'projectPath': r'apps\example app', 'module': 'probe', 'mainClass': 'example.Main'}
+        dependency = self.data['nodes'][1]['variants']['local']
+        dependency['execution']['workingDirectory'] = r'apps\example app'
         main['vmProperties'] = {'probe.value': 'hello world'}
         write_registry(self.root, self.data)
         events = []
         result = prepare(self.root, 'main', mode='dummy', emit=events.append)
-        self.assertTrue(Path(result['runConfiguration']).is_file())
+        run_path = Path(result['runConfiguration'])
+        self.assertEqual(run_path.parent, app.resolve() / '.run')
+        self.assertTrue(run_path.is_file())
         self.assertLess(next(i for i,e in enumerate(events) if e.get('phase') == 'ready'),
                         next(i for i,e in enumerate(events) if e.get('phase') == 'debug-ready'))
         self.assertIn('probe.value=hello world', Path(result['runConfiguration']).read_text())

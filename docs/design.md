@@ -253,7 +253,7 @@ IntelliJ의 Run → Edit Configurations에서 생성된 구성의 VM options와 
 | 주입 규칙 | 의존성 주소를 전달할 환경변수 또는 VM 옵션 키 |
 | 준비 기준 | 다음 앱을 시작해도 되는 상태를 확인하는 방법 |
 
-호스트 이름을 설정값에 넣는 동작과 실제 이름 해석을 구성하는 동작은 구분한다. T-070에서 Windows hosts의 미리보기·명시적 적용·프로젝트 항목 복원을 제공한다. prepare는 선택된 host 접속점의 등록 이름 해석을 검사한다. 외부 DNS와 컨테이너 내부 이름은 각 환경에서 관리한다. [T-070](work-items/T-070.md)
+호스트 이름을 설정값에 넣는 동작과 실제 이름 해석을 구성하는 동작은 구분한다. macOS와 Windows에서 hosts의 미리보기·명시적 적용·프로젝트 항목 복원을 제공한다. prepare는 선택된 host 접속점의 등록 이름 해석을 검사한다. 외부 DNS와 컨테이너 내부 이름은 각 환경에서 관리한다. [T-160](work-items/T-160.md)
 
 ### 15.2. DFS 실행 순서
 
@@ -302,6 +302,6 @@ IntelliJ의 Run → Edit Configurations에서 생성된 구성의 VM options와 
 
 prepare app-id --project directory --profile name은 DFS 계획, 전체 설정 사전 검사, 의존성 실행·준비 확인을 연결한다. IntelliJ 대상은 전용 실행 구성을 만들고 개발자가 Debug를 시작한다. mode dummy/real은 등록 프로필 별칭이며 자동 추론된 대역 선택이 아니다. 실제 구현 범위와 제한은 각 작업 문서가 기준이다.
 
-HTML 단독으로는 Docker·로컬 프로세스를 실행할 수 없어 loopback Python HTTP 서버를 둔다. Windows Start-Injector.vbs 더블클릭으로 서버와 브라우저를 연다. 화면과 CLI는 동일한 prepare/stop API를 호출한다. 화면은 프로젝트·프로필·앱을 선택하고 DFS 순서, 단계, 실패, Debug 진입 위치를 보여준다. 설정 편집기와 비밀값 입력은 이번 범위가 아니다.
+HTML 단독으로는 Docker·로컬 프로세스를 실행할 수 없어 loopback Python HTTP 서버를 둔다. macOS는 Start-Injector.command, Windows는 Start-Injector.vbs로 서버와 브라우저를 연다. 화면과 CLI는 동일한 prepare/stop API를 호출한다. 화면은 프로젝트·프로필·앱을 선택하고 DFS 순서, 단계, 실패, Debug 진입 위치를 보여준다. 설정 편집기와 비밀값 입력은 이번 범위가 아니다.
 
 첫 실행 정책은 프로젝트별 단일 세션이다. 재준비는 이전 소유 자원을 종료하고 새로 준비한다. 기존 다른 서비스는 재사용하지 않고 충돌을 알린다. 실패 시 이번 세션 자원을 역순 정리한다. PID 생성 시각과 고유 Docker 라벨로 소유권을 확인하며, 볼륨·네트워크와 사용자가 IDE에서 시작한 앱은 자동 삭제하지 않는다. 다중 세션 공유·장애 복구 확대는 T-090이다.

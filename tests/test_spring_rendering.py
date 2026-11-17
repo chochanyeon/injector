@@ -125,10 +125,10 @@ class SpringRenderingTest(unittest.TestCase):
         with self.assertRaisesRegex(RegistryError, "requires an IntelliJ"):
             self.render(environ={})
         self.variant["execution"] = original
-        for path in ("missing-directory", ".."):
+        for path, expected in (("missing-directory", "existing directory inside"), ("..", "escapes the project root")):
             with self.subTest(path=path):
                 self.variant["execution"]["projectPath"] = path
-                with self.assertRaisesRegex(RegistryError, "existing directory inside"):
+                with self.assertRaisesRegex(RegistryError, expected):
                     self.render(environ={})
         self.assertFalse((self.root / ".local").exists())
 

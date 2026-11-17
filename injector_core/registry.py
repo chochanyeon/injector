@@ -33,6 +33,7 @@ def _project_path(root, value, field):
         raise RegistryError(f"{field}: expected a project-relative path")
     if not (root / relative).resolve().is_relative_to(root):
         raise RegistryError(f"{field}: path escapes the project root")
+    return root / relative
 
 
 def _validate_references(data, root, profile):

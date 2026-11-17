@@ -16,7 +16,7 @@ import psutil
 
 from .hostnames import check_resolution
 from .planning import build_plan
-from .registry import RegistryError, _validate_references, load_registry
+from .registry import RegistryError, _project_path, _validate_references, load_registry
 from .rendering import _artifact_path, render_node
 from .resolution import resolve_node, selected_variant
 
@@ -220,7 +220,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None):
                 if settings.spring_properties:
                     raise RegistryError("runtime Spring YAML currently requires an IntelliJ target")
                 if kind == "process":
-                    working = root / execution["workingDirectory"]
+                    working = _project_path(root, execution["workingDirectory"], "process workingDirectory")
                     if not working.is_dir() or not shutil.which(execution["command"][0]):
                         raise RegistryError("process command or working directory is unavailable")
                     if settings.jvm_arguments() and Path(execution["command"][0]).stem.lower() != "java":
@@ -232,7 +232,8 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None):
                     if key in compose_keys:
                         raise RegistryError("multiple nodes select the same Compose service")
                     compose_keys.add(key)
-                    command = ["compose", "-p", execution["projectName"], "-f", str(root / execution["file"])]
+                    compose_file = _project_path(root, execution["file"], "Compose file")
+                    command = ["compose", "-p", execution["projectName"], "-f", str(compose_file)]
                     config = json.loads(_docker([*command, "config", "--format", "json"]))
                     service = config["services"].get(execution["service"])
                     if not service:
@@ -270,8 +271,9 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None):
                 if kind == "process":
                     command = execution["command"]
                     process = subprocess.Popen([command[0], *settings.jvm_arguments(), *command[1:]],
-                        cwd=root / execution["workingDirectory"], env=environment,
-                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        cwd=_project_path(root, execution["workingDirectory"], "process workingDirectory"), env=environment,
+                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        start_new_session=os.name == "posix",
                         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
                     _processes[process.pid] = process
                     session["resources"].append({"node": node, "type": kind, "pid": process.pid,
@@ -293,7 +295,8 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None):
                         "labels": {"io.injector.session": session["id"], "io.injector.node": node}}}}), encoding="utf-8")
                     session["resources"].append({"node": node, "type": kind})
                     _save(directory, session)
-                    _docker(["compose", "-p", name, "-f", str(root / execution["file"]), "-f", str(override),
+                    compose_file = _project_path(root, execution["file"], "Compose file")
+                    _docker(["compose", "-p", name, "-f", str(compose_file), "-f", str(override),
                              "up", "-d", "--build", "--no-deps", service], env=environment)
                     ids = _containers("io.injector.session=" + session["id"], "io.injector.node=" + node)
                     if len(ids) != 1:

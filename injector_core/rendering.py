@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 
 import yaml
 
-from .registry import RegistryError
+from .registry import RegistryError, _project_path
 from .resolution import ResolvedSettings, _spring_leaves, resolve_node, selected_variant
 
 
@@ -54,8 +54,8 @@ def render_node(data, project, profile_name, node_id, environ=None, *, allow_pla
         raise RegistryError("Spring rendering cannot combine an opaque application JSON override")
 
     root = Path(project).resolve()
-    application = (root / execution["projectPath"]).resolve()
-    if not application.is_relative_to(root) or not application.is_dir():
+    application = _project_path(root, execution["projectPath"], "IntelliJ projectPath").resolve()
+    if not application.is_dir():
         raise RegistryError("IntelliJ projectPath must be an existing directory inside the project")
     yaml_path = root / ".local" / "injector" / profile_name / node_id / "spring-overrides.yml"
     run_path = application / ".run" / f"Injector-{profile_name}-{node_id}.run.xml"

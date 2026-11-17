@@ -1,11 +1,13 @@
-"""Validate local name mappings and manage explicitly owned Windows hosts entries."""
+"""Validate local name mappings and manage explicitly owned hosts entries."""
 from hashlib import sha256
 from ipaddress import ip_address
 import os
 from pathlib import Path
 import re
 import socket
-from tempfile import NamedTemporaryFile
+import subprocess
+import sys
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 
 from .registry import RegistryError
 
@@ -151,26 +153,51 @@ def _replace_windows(path, original, content):
         temporary.unlink(missing_ok=True)
 
 
+def _replace_macos(path, original, content):
+    with TemporaryDirectory(dir=path.parent, prefix="injector-hosts-") as directory:
+        temporary = Path(directory) / "hosts"
+        # macOS cp -p preserves ownership, permissions, flags and ACLs.
+        copied = subprocess.run(["/bin/cp", "-p", str(path), str(temporary)], capture_output=True)
+        if copied.returncode:
+            raise RegistryError("could not copy hosts file and its permissions")
+        temporary.write_bytes(content)
+        if path.is_symlink() or path.read_bytes() != original:
+            raise RegistryError("hosts changed during the operation; retry after reviewing the preview")
+        current, replacement = path.stat(), temporary.stat()
+        if (current.st_mode, current.st_uid, current.st_gid) != (
+                replacement.st_mode, replacement.st_uid, replacement.st_gid):
+            raise RegistryError("could not preserve hosts file ownership and permissions")
+        temporary.replace(path)
+
+
 def manage_hosts(project, mappings, action):
     path = hosts_path()
     if action == "preview":
         _, changes = plan_hosts(path.read_bytes(), mappings, project)
         return {"path": str(path), **changes}
-    if os.name != "nt":
-        raise RegistryError("hosts apply/remove currently support Windows")
-    import msvcrt
+    if os.name != "nt" and sys.platform != "darwin":
+        raise RegistryError("hosts apply/remove currently support macOS and Windows")
 
     try:
         with (path.parent / "injector-hosts.lock").open("a+b") as lock:
             lock.seek(0)
             try:
-                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except OSError as error:
                 raise RegistryError("another Injector hosts operation is running") from error
+            if path.is_symlink():
+                raise RegistryError("hosts file must not be a symbolic link")
             original = path.read_bytes()
             content, changes = plan_hosts(original, mappings, project)
             if content != original:
-                _replace_windows(path, original, content)
+                replace = _replace_windows if os.name == "nt" else _replace_macos
+                replace(path, original, content)
     except PermissionError as error:
-        raise RegistryError("hosts apply/remove requires an Administrator terminal") from error
+        instructions = "an Administrator terminal" if os.name == "nt" else "sudo on macOS"
+        raise RegistryError(f"hosts apply/remove requires {instructions}") from error
     return {"path": str(path), **changes}

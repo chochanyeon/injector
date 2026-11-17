@@ -24,13 +24,30 @@ injector/
 ## 준비
 
 - JDK 17 이상 (`java`, `javac`를 PATH에 등록)
-- Python 3.10 이상. `python -m pip install -r requirements.txt`로 등록 스키마 검증·테스트 의존성을 설치한다.
-- Docker Desktop 또는 Docker Engine과 Compose
+- Python 3.10 이상
+- Docker Desktop과 Compose. 실행 환경을 준비하기 전에 Docker Desktop을 켠다.
 - IntelliJ IDEA. `examples/demo/pom.xml`을 Maven 프로젝트로 연다.
+
+macOS에서 저장소 루트의 가상 환경에 의존성을 설치한다.
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+Windows PowerShell에서는 아래 명령을 실행한다.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
 ## 클릭으로 실행 환경 준비하기
 
-위 준비 항목을 한 번 설치한 뒤 Windows에서 루트의 **`Start-Injector.vbs`를 더블클릭**한다. 터미널 없이 `http://127.0.0.1:18770` 화면이 열린다. 이미 이 저장소의 화면 서버가 실행 중이면 그 화면을 다시 연다. 시작 실패 안내가 나오면 Python 의존성 설치와 포트 점유를 확인한다.
+- **macOS**에서 Finder로 루트의 **`Start-Injector.command`**를 더블클릭한다. Terminal이 서버를 실행하고 기본 브라우저에서 화면을 연다.
+- **Windows**에서 루트의 **`Start-Injector.vbs`**를 더블클릭한다. 기본 브라우저에서 화면을 연다.
+
+두 OS 모두 `http://127.0.0.1:18770`을 사용하고 이미 실행 중이면 같은 서버를 연다. 화면을 사용하는 동안 macOS의 서버 Terminal 창을 열어 둔다. ZIP으로 받아 실행 권한이 빠졌다면 macOS에서 `chmod +x Start-Injector.command`를 한 번 실행한다.
 
 1. `registry.json`이 있는 프로젝트 폴더를 불러온다. 기본값은 `examples/demo`다.
 2. 프로필(`dummy` 또는 `real`)과 `platform-service`를 선택한다.
@@ -40,7 +57,7 @@ injector/
 
 프로필을 전환하기 전에는 IDE에서 실행 중인 앱을 종료한다. 다시 준비하면 해당 프로젝트의 이전 Injector 세션 자원을 종료하고 새 설정으로 준비한다. 다른 프로그램의 열린 포트나 이미 존재하는 Compose 서비스는 충돌로 처리한다. 컨테이너 볼륨과 Compose 네트워크는 보존한다. 데모의 Catalog→Redis 의존성은 다단계·공유 그래프 검증용이며 Catalog 코드가 Redis를 조회하는 것은 아니다.
 
-같은 작업을 CLI로도 실행한다. `--project`를 생략하면 현재 폴더에서 registry.json을 찾는다.
+같은 작업을 CLI로도 실행한다. 아래 명령의 `python`은 설치한 환경의 Python을 뜻한다. 가상 환경을 활성화하지 않았다면 macOS는 `.venv/bin/python`, Windows는 `.\.venv\Scripts\python.exe`를 사용한다. `--project`를 생략하면 현재 폴더에서 registry.json을 찾는다.
 
 ```powershell
 python injector.py prepare platform-service --project examples/demo --mode dummy
@@ -61,13 +78,15 @@ registry의 접속점 `addresses.host.host`에 `catalog.local.test.com` 같은 �
 {"hostname": "catalog.local.test.com", "address": "127.0.0.1", "method": "hosts"}
 ```
 
-```powershell
-python injector.py hosts preview --project examples/registry
-python injector.py hosts apply --project examples/registry
-python injector.py hosts remove --project examples/registry
+```sh
+.venv/bin/python injector.py hosts preview --project examples/registry
+sudo .venv/bin/python injector.py hosts apply --project examples/registry
+sudo .venv/bin/python injector.py hosts remove --project examples/registry
 ```
 
-`examples/registry`는 선언 형식 예시다. 실제로 실행할 프로젝트의 경로를 사용한다. Windows에서 apply/remove는 관리자 터미널이 필요하다. 미리보기에서 변경할 행을 확인할 수 있다. 같은 주소의 수동 항목은 보존하며, 충돌한 이름은 수정하지 않는다. remove는 해당 프로젝트가 추가한 행만 지운다. 프로젝트를 옮기기 전에는 기존 경로로 remove를 실행한다.
+Windows에서는 `.\.venv\Scripts\python.exe`로 같은 하위 명령을 사용한다. `apply`와 `remove`는 관리자 PowerShell에서 실행한다. macOS에서는 `sudo`로 두 명령을 실행한다. 미리보기는 일반 권한에서 사용할 수 있다.
+
+`examples/registry`는 선언 형식 예시다. 실제로 실행할 프로젝트의 경로를 사용한다. 같은 주소의 수동 항목을 보존하고 충돌을 알린다. `remove`는 해당 프로젝트가 추가한 행만 지운다. 프로젝트를 옮기기 전에는 기존 경로로 `remove`를 실행한다.
 
 이미 OS에서 이름을 해석한다면 `method: external`을 쓴다. CLI와 화면의 prepare는 선택한 그래프의 등록 이름이 기대 IP로만 해석되는지 확인한다. OS hosts 변경은 위 apply/remove 명령으로 관리한다. Compose 내부 이름은 서비스 이름이나 Compose의 `extra_hosts`로 관리한다.
 

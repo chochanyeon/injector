@@ -2,6 +2,8 @@ from ipaddress import ip_address
 import json
 from pathlib import Path
 import os
+import stat
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -36,10 +38,12 @@ class HostsTests(unittest.TestCase):
             with self.subTest(content=content), self.assertRaisesRegex(RegistryError, "conflicting hosts"):
                 plan_hosts(content, self.mappings, self.root)
 
-    @unittest.skipUnless(os.name == "nt", "Windows file replacement")
+    @unittest.skipUnless(os.name == "nt" or sys.platform == "darwin", "macOS or Windows")
     def test_preview_apply_and_remove_preserve_original_bytes(self):
         original = b"\xef\xbb\xbf# original\r\n127.0.0.2 another.test"
         self.path.write_bytes(original)
+        if sys.platform == "darwin":
+            self.path.chmod(0o640)
         with patch("injector_core.hostnames.hosts_path", return_value=self.path):
             self.assertEqual(len(manage_hosts(self.root, self.mappings, "preview")["add"]), 1)
             self.assertEqual(self.path.read_bytes(), original)
@@ -50,6 +54,8 @@ class HostsTests(unittest.TestCase):
                 stream.write(b"\r\n# user edited later")
             manage_hosts(self.root, {}, "remove")
         self.assertEqual(self.path.read_bytes(), original + b"\r\n# user edited later")
+        if sys.platform == "darwin":
+            self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o640)
 
     def test_rejects_invalid_mappings_and_case_insensitive_duplicate(self):
         good = {"hostname": self.hostname, "address": "127.0.0.1", "method": "hosts"}
