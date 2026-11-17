@@ -43,6 +43,12 @@ class WebTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn('main', json.loads(body)['profiles']['dummy']['applications'])
 
+    def test_loopback_startup_does_not_need_reverse_dns(self):
+        with patch('socket.getfqdn', side_effect=AssertionError('unexpected DNS lookup')):
+            with make_server(self.temporary.name, 0) as server:
+                self.assertEqual(server.server_name, '127.0.0.1')
+                self.assertGreater(server.server_port, 0)
+
     def test_rejects_foreign_hosts_and_cross_origin_mutations(self):
         self.assertEqual(self.request('/api/info', headers={'Host': 'evil.test'})[0], 403)
         self.assertEqual(self.request('/api/stop', {})[0], 403)

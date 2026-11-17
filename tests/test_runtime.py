@@ -19,8 +19,9 @@ def free_port():
 
 
 def process_variant(port, dependencies=(), delay=0):
-    script = ("import http.server,os,time; "
+    script = ("import http.server,os,socket,time; "
               f"time.sleep({delay}); "
+              "socket.getfqdn=lambda host:host; "
               "handler=http.server.BaseHTTPRequestHandler; "
               "handler.do_GET=lambda s:(s.send_response(200),s.end_headers(),"
               "s.wfile.write(os.environ.get('PROBE_VALUE','ready').encode())); "

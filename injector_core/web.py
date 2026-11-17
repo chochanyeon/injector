@@ -3,6 +3,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import secrets
+from socketserver import TCPServer
 import threading
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import ProxyHandler, build_opener
@@ -12,6 +13,13 @@ from .registry import RegistryError
 from .runtime import prepare, project_info, select_plan, stop
 
 ASSETS = Path(__file__).resolve().parent / "web"
+
+
+class LoopbackHTTPServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # The numeric loopback address needs no reverse DNS lookup.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 class Control:
@@ -131,7 +139,7 @@ def make_server(project, port=18770):
             except (ValueError, RegistryError) as error:
                 self.respond(400, {"error": str(error) if isinstance(error, RegistryError) else "invalid request"})
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return LoopbackHTTPServer(("127.0.0.1", port), Handler)
 
 
 def serve(project, port=18770, open_browser=False):
