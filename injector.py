@@ -87,7 +87,8 @@ def compile_java():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render", "vault-demo", "prepare", "stop", "serve", "hosts"))
-    parser.add_argument("target", nargs="?", help="application ID for prepare, or preview/apply/remove for hosts")
+    parser.add_argument("target", nargs="?", help="application ID for prepare or plan, or preview/apply/remove for hosts")
+    parser.add_argument("--variant", action="append", default=[], metavar="NODE=VARIANT")
     parser.add_argument("--mode", choices=("dummy", "real"), help="prepare using a matching registry profile")
     parser.add_argument("--port", type=int, default=18770, help="local UI port (serve only)")
     parser.add_argument("--open", action="store_true", help="open the local UI in a browser")
@@ -99,6 +100,8 @@ def main():
     parser.add_argument("--with-vault", action="store_true", help="include the local Vault API mock in demo setup")
     parser.add_argument("--vault-service", help="service name for the local Vault secret path; enables the Vault mock")
     args = parser.parse_args()
+    if args.variant and (args.command not in ("prepare", "plan") or not args.target):
+        parser.error("--variant requires prepare or plan with an application ID")
     if args.command == "hosts":
         if args.target not in ("preview", "apply", "remove"):
             parser.error("hosts requires preview, apply, or remove")
@@ -115,8 +118,8 @@ def main():
         except OSError:
             parser.exit(1, "Injector failed: could not read or update the hosts file\n")
         return
-    if args.target and args.command != "prepare":
-        parser.error("target is supported only with prepare")
+    if args.target and args.command != "prepare" and not (args.command == "plan" and args.project):
+        parser.error("target requires prepare or plan with --project")
     if args.mode and args.command != "prepare":
         parser.error("--mode is supported only with prepare")
     if args.command in ("prepare", "stop", "serve"):
@@ -133,9 +136,10 @@ def main():
             else:
                 if not args.target:
                     parser.error("prepare requires an application ID")
-                from injector_core.runtime import prepare
+                from injector_core.runtime import parse_variants, prepare
                 result = prepare(args.project or Path.cwd(), args.target, args.profile, args.mode,
-                                 emit=lambda event: print(json.dumps(event), flush=True))
+                                 emit=lambda event: print(json.dumps(event), flush=True),
+                                 variants=parse_variants(args.variant))
                 print(json.dumps(result, indent=2))
         except (RegistryError, OSError) as error:
             parser.exit(1, f"Injector failed: {error}\n" if isinstance(error, RegistryError) else "Injector failed: local runtime operation failed\n")
@@ -151,6 +155,11 @@ def main():
             parser.error("--node is supported only with resolve or render")
         from injector_core.registry import RegistryError, load_registry
         try:
+            if args.command == "plan" and args.target:
+                from injector_core.runtime import parse_variants, select_plan
+                _, plan = select_plan(args.project, args.target, args.profile, variants=parse_variants(args.variant))
+                print(json.dumps(plan, indent=2))
+                return
             data = load_registry(args.project, args.profile)
             if args.command == "render":
                 from injector_core.rendering import render_node

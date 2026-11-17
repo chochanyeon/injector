@@ -95,6 +95,20 @@ class WebTests(unittest.TestCase):
                 self.assertEqual(json.loads(response)['order'],
                                  [*catalog_dependencies, 'catalog', 'vault-mock', 'support-console'])
 
+        query = urlencode({'project': str(demo), 'profile': 'real', 'target': 'platform-service',
+                           'variant': 'catalog=dummy'})
+        for route in ('plan', 'graph'):
+            status, response = self.request(f'/api/{route}?' + query)
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(response)['order'], ['redis', 'catalog', 'vault-mock', 'platform-service'])
+        self.assertEqual(self.request('/api/plan?' + query + '&variant=catalog=real')[0], 400)
+        query = urlencode({'project': str(demo), 'profile': 'dummy', 'target': 'platform-service',
+                           'variant': 'catalog=real'})
+        status, response = self.request('/api/plan?' + query)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(response)['order'],
+                         ['redis', 'postgres', 'catalog', 'vault-mock', 'platform-service'])
+
     def test_rejects_foreign_hosts_and_cross_origin_mutations(self):
         self.assertEqual(self.request('/api/info', headers={'Host': 'evil.test'})[0], 403)
         self.assertEqual(self.request('/api/stop', {})[0], 403)
@@ -162,11 +176,12 @@ class WebTests(unittest.TestCase):
 
     def test_job_uses_runtime_and_reports_progress(self):
         token = json.loads(self.request('/api/info')[1])['token']
-        def fake(project, target, profile, emit):
+        def fake(project, target, profile, emit, variants):
             emit({'node': target, 'phase': 'ready'})
             return {'status': 'ready'}
         with patch('injector_core.web.prepare', side_effect=fake) as runner:
-            status, _ = self.request('/api/prepare', {'target': 'main', 'profile': 'dummy'}, {'X-Injector-Token': token})
+            status, _ = self.request('/api/prepare', {'target': 'main', 'profile': 'dummy',
+                                                     'variants': {'dependency': 'mock'}}, {'X-Injector-Token': token})
             self.assertEqual(status, 202)
             for _ in range(100):
                 job = json.loads(self.request('/api/job')[1])
@@ -176,6 +191,7 @@ class WebTests(unittest.TestCase):
             self.assertEqual(job['status'], 'succeeded')
             self.assertEqual(job['events'], [{'node': 'main', 'phase': 'ready'}])
             runner.assert_called_once()
+            self.assertEqual(runner.call_args.kwargs['variants'], {'dependency': 'mock'})
 
     def test_errors_do_not_expose_unexpected_exception_values(self):
         token = json.loads(self.request('/api/info')[1])['token']

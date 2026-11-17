@@ -350,7 +350,8 @@
         "support-console": "ide",
         "catalog": "dummy",
         "redis": "local",
-        "vault-mock": "local"
+        "vault-mock": "local",
+        "postgres": "local"
       },
       "overrides": {
         "platform-service": {

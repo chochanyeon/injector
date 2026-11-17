@@ -64,9 +64,13 @@ python -m venv .venv
 ```powershell
 python injector.py prepare platform-service --project examples/demo --mode dummy
 python injector.py prepare platform-service --project examples/demo --mode real
+python injector.py plan platform-service --project examples/demo --profile dummy --variant catalog=real
+python injector.py prepare platform-service --project examples/demo --profile dummy --variant catalog=real
 python injector.py stop --project examples/demo
 python injector.py serve --open
 ```
+
+**노드별 실행·대역 선택**에서 프로필의 variant를 바꾸면 실행 순서와 의존성 그래프가 갱신된다. CLI에서는 `--variant NODE=VARIANT`를 노드마다 한 번씩 지정한다. 선택은 해당 요청에만 적용하고 `registry.json`에 저장하지 않는다. 다른 variant로 새 의존성이 생기면 그 의존성도 프로필의 `selections`에 등록해야 한다. IntelliJ 실행 구성은 같은 프로필·앱 이름으로 다시 생성한다.
 
 업무 프로젝트는 `--profile local-dev`처럼 등록된 프로필을 명시할 수도 있다. `--mode dummy`는 `dummy/local-mock/mock`, `real`은 `real/local-real` 중 **하나만 존재할 때** 해당 프로필을 선택한다. 프로필의 variant 선택이 실제 앱·대역·하위 의존성을 결정한다. 여러 별칭이 있으면 `--profile`을 사용한다.
 

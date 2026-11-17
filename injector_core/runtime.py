@@ -23,6 +23,16 @@ from .resolution import resolve_node, selected_variant
 _processes = {}
 
 
+def parse_variants(entries):
+    variants = {}
+    for entry in entries:
+        node, _, variant = entry.partition("=")
+        if not node or not variant or node in variants:
+            raise RegistryError("use one node=variant entry per node")
+        variants[node] = variant
+    return variants
+
+
 def _applications(data, profile):
     return [node["id"] for node in data["nodes"]
             if node["kind"] == "application" and node["id"] in profile["selections"]]
@@ -30,12 +40,15 @@ def _applications(data, profile):
 
 def project_info(project):
     data = load_registry(project)
+    variants = {node["id"]: list(node["variants"]) for node in data["nodes"] if len(node["variants"]) > 1}
     return {"project": str(Path(project).resolve()), "profiles": {
-        name: {"targets": profile["targets"], "applications": _applications(data, profile)}
+        name: {"targets": profile["targets"], "applications": _applications(data, profile),
+               "variantChoices": {node: {"default": selected, "options": variants[node]}
+                                  for node, selected in profile["selections"].items() if node in variants}}
         for name, profile in data["profiles"].items()}}
 
 
-def select_plan(project, target, profile=None, mode=None):
+def select_plan(project, target, profile=None, mode=None, *, variants=None):
     """Plan one app, or all apps selected by the profile when target is None."""
     if profile and mode:
         raise RegistryError("choose either profile or mode")
@@ -50,6 +63,13 @@ def select_plan(project, target, profile=None, mode=None):
         raise RegistryError("select an existing profile or mode")
     data = deepcopy(data)
     selection = data["profiles"][profile]
+    if variants is not None:
+        if not isinstance(variants, dict) or not all(isinstance(value, str) for value in variants.values()):
+            raise RegistryError("variants must map node IDs to variant names")
+        for node, variant in variants.items():
+            if node not in selection["selections"]:
+                raise RegistryError(f"node {node} has no selection in profile {profile}")
+            selection["selections"][node] = variant
     selection["targets"] = [target] if target is not None else _applications(data, selection)
     _validate_references(data, Path(project).resolve(), profile)
     return data, build_plan(data, profile)
@@ -199,11 +219,11 @@ def _wait(variant, alive, healthy):
     raise RegistryError("readiness timed out")
 
 
-def prepare(project, target, profile=None, mode=None, emit=lambda event: None):
+def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *, variants=None):
     if target is None:
         raise RegistryError("prepare requires an application target")
     root = Path(project).resolve()
-    data, plan = select_plan(root, target, profile, mode)
+    data, plan = select_plan(root, target, profile, mode, variants=variants)
     profile = plan["profile"]
     nodes = {node["id"]: node for node in data["nodes"]}
     directory = _directory(root)

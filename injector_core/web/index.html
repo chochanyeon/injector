@@ -12,6 +12,10 @@
       <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-haspopup="dialog" disabled>registry.json 편집</button>
       <label for="profile">프로필</label><select id="profile" disabled><option>프로젝트를 불러오세요</option></select>
       <label for="target">애플리케이션</label><select id="target" disabled></select>
+      <details id="variant-picker" hidden>
+        <summary>노드별 실행·대역 선택</summary>
+        <fieldset id="variant-options" aria-label="노드별 variant"></fieldset>
+      </details>
       <div class="note">IntelliJ 앱은 준비가 끝나면 IDE에서 <strong>Debug</strong>로 실행하세요.</div>
       <button id="prepare" class="primary" disabled>실행 환경 준비</button>
       <button id="stop" class="secondary stop">이 프로젝트의 의존성 종료</button>

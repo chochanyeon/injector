@@ -11,7 +11,7 @@ import webbrowser
 
 from .registry import RegistryError
 from .registry_editor import MAX_BYTES, RegistryConflict, open_registry, save_registry, validate_registry
-from .runtime import prepare, project_info, select_plan, stop
+from .runtime import parse_variants, prepare, project_info, select_plan, stop
 
 ASSETS = Path(__file__).resolve().parent / "web"
 
@@ -71,7 +71,8 @@ class Control:
         def run():
             try:
                 if action == "prepare":
-                    result = prepare(project, body["target"], profile=body["profile"], emit=emit)
+                    result = prepare(project, body["target"], profile=body["profile"], emit=emit,
+                                     variants=body.get("variants"))
                 else:
                     result = stop(project, emit)
                 with self.lock:
@@ -129,12 +130,11 @@ def make_server(project, port=18770):
                     return self.respond(200, control.snapshot())
                 if url.path == "/api/project":
                     return self.respond(200, project_info(query.get("project", [control.project])[0]))
-                if url.path == "/api/plan":
-                    _, plan = select_plan(query["project"][0], query["target"][0], query["profile"][0])
+                if url.path in ("/api/plan", "/api/graph"):
+                    target = query["target"][0] if url.path == "/api/plan" else query.get("target", [None])[0]
+                    variants = parse_variants(query.get("variant", []))
+                    _, plan = select_plan(query["project"][0], target, query["profile"][0], variants=variants)
                     return self.respond(200, plan)
-                if url.path == "/api/graph":
-                    _, graph = select_plan(query["project"][0], query.get("target", [None])[0], query["profile"][0])
-                    return self.respond(200, graph)
                 assets = {"/": ("index.html", "text/html; charset=utf-8"),
                           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
                           "/graph.js": ("graph.js", "text/javascript; charset=utf-8"),

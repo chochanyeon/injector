@@ -59,6 +59,60 @@ class RuntimeTests(unittest.TestCase):
         stop(self.root)
         self.temporary.cleanup()
 
+    def test_mixed_variants_start_only_selected_dependencies_and_inject_their_addresses(self):
+        from urllib.request import ProxyHandler, build_opener
+
+        main = self.data['nodes'][0]['variants']['local']
+        main['env'] = {}
+        main['dependencies'] = ['catalog', 'payment']
+        main['injections'] = [{
+            'channel': 'environment', 'key': 'PROBE_VALUE',
+            'source': {'node': 'payment', 'endpoint': 'http', 'context': 'host', 'component': 'url'},
+        }]
+        ports = set(node['variants']['local']['endpoints']['http']['bind']['port'] for node in self.data['nodes'])
+
+        def variant(*dependencies):
+            port = free_port()
+            while port in ports:
+                port = free_port()
+            ports.add(port)
+            return process_variant(port, dependencies)
+
+        self.data['nodes'].extend([
+            {'id': 'catalog', 'kind': 'application',
+             'variants': {'real': variant('dependency'), 'mock': variant()}},
+            {'id': 'payment', 'kind': 'application',
+             'variants': {'real': variant('dependency', 'database'), 'mock': variant()}},
+            {'id': 'database', 'kind': 'infrastructure', 'variants': {'local': variant()}},
+        ])
+        self.data['profiles']['dummy']['selections'].update(catalog='real', payment='real', database='local')
+        write_registry(self.root, self.data)
+        original = (self.root / 'registry.json').read_bytes()
+        _, real = select_plan(self.root, 'main', 'dummy')
+        _, mock = select_plan(self.root, 'main', 'dummy', variants={'catalog': 'mock', 'payment': 'mock'})
+        self.assertEqual(real['order'], ['dependency', 'catalog', 'database', 'payment', 'main'])
+        self.assertEqual(mock['order'], ['catalog', 'payment', 'main'])
+        with self.assertRaisesRegex(RegistryError, 'unknown variant'):
+            prepare(self.root, 'main', 'dummy', variants={'payment': 'missing'})
+        self.assertFalse((self.root / '.local/injector/session.json').exists())
+
+        main_port = main['endpoints']['http']['bind']['port']
+        payment = self.data['nodes'][3]
+        for variants, expected, payment_variant in (
+            ({}, real['order'], 'real'),
+            ({'catalog': 'mock', 'payment': 'mock'}, mock['order'], 'mock'),
+            ({'payment': 'mock'}, ['dependency', 'catalog', 'payment', 'main'], 'mock'),
+        ):
+            with self.subTest(variants=variants):
+                events = []
+                result = prepare(self.root, 'main', 'dummy', variants=variants, emit=events.append)
+                self.assertEqual(result['order'], expected)
+                self.assertEqual([event['node'] for event in events if event['phase'] == 'ready'], expected)
+                port = payment['variants'][payment_variant]['endpoints']['http']['bind']['port']
+                with build_opener(ProxyHandler({})).open(f'http://127.0.0.1:{main_port}/') as response:
+                    self.assertEqual(response.read().decode(), f'http://127.0.0.1:{port}/')
+        self.assertEqual((self.root / 'registry.json').read_bytes(), original)
+
     def test_transitive_shared_dependency_order_and_injection(self):
         from urllib.request import ProxyHandler, build_opener
         middle = process_variant(free_port(), ['dependency'])
