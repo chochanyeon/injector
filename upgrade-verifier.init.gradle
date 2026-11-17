@@ -1,0 +1,19 @@
+// Configure under the selected project's evaluation lock (also required by Gradle 9).
+def path = gradle.startParameter.projectProperties.getOrDefault('verify.project', ':')
+def home = gradle.startParameter.projectProperties['verify.tool.home']
+if (!home) throw new GradleException('Missing -Pverify.tool.home')
+gradle.projectsLoaded {
+    if (gradle.rootProject.findProject(path) == null) {
+        throw new GradleException("No Gradle module at verify.project=${path}")
+    }
+}
+gradle.beforeProject { candidate ->
+    if (candidate.path == path) {
+        candidate.afterEvaluate { target ->
+            if (!target.plugins.hasPlugin('java')) {
+                throw new GradleException("verify.project must select a Java service module: ${path}")
+            }
+            target.apply from: new File(home, 'upgrade-verifier.gradle')
+        }
+    }
+}

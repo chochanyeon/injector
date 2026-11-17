@@ -1,0 +1,54 @@
+import groovy.json.JsonOutput
+import org.gradle.api.tasks.testing.Test
+
+// Do not import a Spring BOM: that could alter the very dependencies being checked.
+def spring = configurations.runtimeClasspath.incoming.resolutionResult.allComponents
+        .collect { it.moduleVersion }
+        .find { it?.group == 'org.springframework' && it.name == 'spring-core' }
+if (spring == null) throw new GradleException('The selected module must contain Spring MVC / Spring Boot')
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation "org.springframework:spring-test:${spring.version}"
+    testImplementation 'io.github.classgraph:classgraph:4.8.179'
+}
+
+def injectedHome = providers.gradleProperty('verify.tool.home').orNull
+if (injectedHome) {
+    def injectedSources = new File(injectedHome, 'src/test/java').canonicalFile
+    sourceSets.test.java.srcDir(injectedSources)
+    // A service can already have a committed verifier; run the same snapshot on both sides.
+    sourceSets.test.java.exclude { entry ->
+        entry.path.startsWith('upgrade/verifier/') &&
+                !entry.file.canonicalFile.toPath().startsWith(injectedSources.toPath())
+    }
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    // Mode and baseline are inputs outside normal Gradle test tracking: always execute.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    doFirst {
+        def verifierProperties = project.properties.findAll { k, v -> k.startsWith('verify.') }
+        verifierProperties.each { k, v -> systemProperty k, v.toString() }
+        if (project.hasProperty('baseline.path')) {
+            systemProperty 'baseline.path', project.property('baseline.path').toString()
+        }
+        // Gradle's test worker java.class.path is incomplete; pass the actual task classpath.
+        def coordinates = [:]
+        configurations.testRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+            def id = artifact.moduleVersion.id
+            coordinates[artifact.file.canonicalPath] = [group: id.group, artifact: artifact.name, version: id.version]
+        }
+        def entries = classpath.files.collect { file ->
+            [file: file.canonicalPath] + (coordinates[file.canonicalPath] ?: [:])
+        }
+        def metadata = new File(temporaryDir, 'verifier-classpath.json')
+        metadata.parentFile.mkdirs()
+        metadata.text = JsonOutput.toJson(entries)
+        systemProperty 'verify.classpath.file', metadata.absolutePath
+    }
+}
