@@ -23,16 +23,20 @@ from .resolution import resolve_node, selected_variant
 _processes = {}
 
 
+def _applications(data, profile):
+    return [node["id"] for node in data["nodes"]
+            if node["kind"] == "application" and node["id"] in profile["selections"]]
+
+
 def project_info(project):
     data = load_registry(project)
     return {"project": str(Path(project).resolve()), "profiles": {
-        name: {"targets": profile["targets"], "applications": [
-            node["id"] for node in data["nodes"]
-            if node["kind"] == "application" and node["id"] in profile["selections"]]}
+        name: {"targets": profile["targets"], "applications": _applications(data, profile)}
         for name, profile in data["profiles"].items()}}
 
 
 def select_plan(project, target, profile=None, mode=None):
+    """Plan one app, or all apps selected by the profile when target is None."""
     if profile and mode:
         raise RegistryError("choose either profile or mode")
     data = load_registry(project, profile)
@@ -45,7 +49,8 @@ def select_plan(project, target, profile=None, mode=None):
     if profile not in data["profiles"]:
         raise RegistryError("select an existing profile or mode")
     data = deepcopy(data)
-    data["profiles"][profile]["targets"] = [target]
+    selection = data["profiles"][profile]
+    selection["targets"] = [target] if target is not None else _applications(data, selection)
     _validate_references(data, Path(project).resolve(), profile)
     return data, build_plan(data, profile)
 
@@ -195,6 +200,8 @@ def _wait(variant, alive, healthy):
 
 
 def prepare(project, target, profile=None, mode=None, emit=lambda event: None):
+    if target is None:
+        raise RegistryError("prepare requires an application target")
     root = Path(project).resolve()
     data, plan = select_plan(root, target, profile, mode)
     profile = plan["profile"]

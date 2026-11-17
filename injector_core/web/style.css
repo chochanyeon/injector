@@ -24,3 +24,36 @@
 .registry-status { margin: 8px 0 0; color: #52645a; font-size: 13px; overflow-wrap: anywhere; }
 .registry-status[data-state="error"] { color: #983e3e; }
 .registry-status[data-state="success"] { color: #246c4e; }
+
+.dependency-graph { margin-top: 22px; }
+.graph-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; }
+.graph-heading h2 { margin: 0; }
+.graph-filter { display: flex; align-items: center; gap: 8px; }
+.graph-filter label { margin: 0; white-space: nowrap; }
+.graph-filter select { width: auto; max-width: min(42vw, 320px); padding: 7px; }
+.graph-frame { position: relative; margin-top: 12px; border: 1px solid #dce5de; border-radius: 8px; background: #f8faf7; }
+.graph-viewport { overflow: auto; max-height: 28rem; }
+.graph-columns { display: flex; width: max-content; min-width: 100%; gap: 48px; padding: 22px; }
+.graph-columns.graph-long-links { padding-top: 64px; }
+.graph-column { display: flex; flex-direction: column; justify-content: center; gap: 16px; width: 170px; }
+.graph-node {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  padding: 10px;
+  border: 1px solid #b4cbbd;
+  border-radius: 7px;
+  background: #fff;
+  color: #263c33;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.graph-node[data-kind="infrastructure"] { border-color: #c4cddb; background: #eef3fb; }
+.graph-node.graph-selected { border-color: #235f4d; background: #e5f3eb; }
+button.graph-node { cursor: pointer; }
+button.graph-node:hover { background: #e5f3eb; }
+.graph-node strong { display: block; font-size: 13px; }
+.graph-node span { display: block; color: #52645a; font-size: 11px; margin-top: 4px; }
+#graph-edges { position: absolute; top: 0; left: 0; pointer-events: none; }
+.graph-relations { color: #52645a; font-size: 12px; margin-top: 12px; }
+.graph-relations li { overflow-wrap: anywhere; }

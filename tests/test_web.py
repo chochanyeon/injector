@@ -6,6 +6,7 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 from injector_core.web import make_server
 from test_runtime import fixture
@@ -38,6 +39,7 @@ class WebTests(unittest.TestCase):
     def test_assets_catalog_and_plan(self):
         self.assertEqual(self.request('/')[0], 200)
         self.assertEqual(self.request('/app.js')[0], 200)
+        self.assertEqual(self.request('/graph.js')[0], 200)
         self.assertEqual(self.request('/../registry.json')[0], 404)
         status, body = self.request('/api/project')
         self.assertEqual(status, 200)
@@ -48,6 +50,41 @@ class WebTests(unittest.TestCase):
             with make_server(self.temporary.name, 0) as server:
                 self.assertEqual(server.server_name, '127.0.0.1')
                 self.assertGreater(server.server_port, 0)
+
+    def test_dependency_graph_shows_all_selected_apps_and_shared_nodes(self):
+        path = Path(self.temporary.name) / 'registry.json'
+        data = json.loads(path.read_bytes())
+        sibling = {**data['nodes'][0], 'id': 'sibling'}
+        data['nodes'].extend([sibling, {**sibling, 'id': 'inactive'}])
+        data['profiles']['dummy']['selections']['sibling'] = 'local'
+        path.write_text(json.dumps(data), encoding='utf-8')
+        query = urlencode({'project': self.temporary.name, 'profile': 'dummy'})
+        status, response = self.request('/api/graph?' + query)
+        self.assertEqual(status, 200)
+        graph = json.loads(response)
+        self.assertEqual(graph['targets'], ['main', 'sibling'])
+        self.assertEqual(graph['order'], ['dependency', 'main', 'sibling'])
+        self.assertEqual(
+            {step['node']: step['dependencies'] for step in graph['steps']},
+            {'dependency': [], 'main': ['dependency'], 'sibling': ['dependency']})
+        self.assertNotIn(b'injected value', response)
+        self.assertFalse((path.parent / '.local').exists())
+
+        status, response = self.request('/api/graph?' + query + '&target=sibling')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(response)['order'], ['dependency', 'sibling'])
+
+    def test_dependency_graph_matches_profile_variants(self):
+        demo = Path(__file__).resolve().parents[1] / 'examples' / 'demo'
+        for profile in ('dummy', 'real'):
+            with self.subTest(profile=profile):
+                query = urlencode({'project': str(demo), 'profile': profile, 'target': 'platform-service'})
+                status, response = self.request('/api/graph?' + query)
+                self.assertEqual(status, 200)
+                steps = {step['node']: step for step in json.loads(response)['steps']}
+                self.assertEqual(steps['catalog']['variant'], profile)
+                self.assertEqual(steps['catalog']['dependencies'], ['redis'])
+                self.assertEqual(steps['platform-service']['dependencies'], ['catalog', 'redis'])
 
     def test_rejects_foreign_hosts_and_cross_origin_mutations(self):
         self.assertEqual(self.request('/api/info', headers={'Host': 'evil.test'})[0], 403)

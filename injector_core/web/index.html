@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ko">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Injector</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Injector</title><link rel="stylesheet" href="/style.css"><script src="/graph.js" defer></script><script src="/app.js" defer></script></head>
 <body>
 <header><h1 class="brand"><a href="/">Injector</a></h1></header>
 <main>
@@ -24,6 +24,26 @@
       <details><summary>진행 기록</summary><pre id="events">아직 실행한 작업이 없습니다.</pre></details>
     </section>
   </div>
+  <section id="dependency-graph" class="card dependency-graph" aria-labelledby="dependency-title">
+    <div class="graph-heading">
+      <h2 id="dependency-title">의존성 그래프</h2>
+      <div class="graph-filter">
+        <label for="graph-scope">표시할 앱</label>
+        <select id="graph-scope" disabled><option value="">전체 앱</option></select>
+      </div>
+    </div>
+    <p id="graph-status" class="hint" role="status">프로젝트를 불러오세요.</p>
+    <div id="graph-frame" class="graph-frame" hidden>
+      <div id="graph-viewport" class="graph-viewport" tabindex="0" aria-label="앱에서 의존성으로 이어지는 그래프">
+        <div id="graph-columns" class="graph-columns"></div>
+      </div>
+      <canvas id="graph-edges" aria-hidden="true"></canvas>
+    </div>
+    <details id="graph-relations" class="graph-relations" hidden>
+      <summary>직접 의존성 목록</summary>
+      <ul id="graph-direct"></ul>
+    </details>
+  </section>
   <section id="registry-editor" class="card registry-editor" aria-labelledby="registry-title" hidden>
     <div class="registry-heading">
       <h2 id="registry-title">registry.json</h2>

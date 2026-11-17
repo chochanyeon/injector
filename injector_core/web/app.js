@@ -8,6 +8,7 @@ async function api(path, body) {
   if (!response.ok) throw new Error(result.error || '요청에 실패했습니다.');
   return result;
 }
+const dependencyGraph = new DependencyGraph($('dependency-graph'), api);
 function error(message) { $('result').textContent = message; $('badge').textContent = '확인 필요'; $('badge').className = 'badge failed'; }
 function buttons() {
   $('prepare').disabled = busy || !$('target').value;
@@ -38,7 +39,10 @@ async function targets(preferred) {
   $('target').replaceChildren(...profile.applications.map(name => new Option(name,name)));
   if (profile.applications.includes(preferred)) $('target').value = preferred;
   else if (profile.targets.length) $('target').value = profile.targets[0];
-  await plan();
+  await Promise.all([
+    plan(),
+    dependencyGraph.update(catalog.project, $('profile').value, profile.applications)
+  ]);
 }
 async function load() {
   const profile = $('profile').value, target = $('target').value;
@@ -52,7 +56,7 @@ async function load() {
     $('badge').className = 'badge';
     $('result').textContent = '실행 환경을 준비할 수 있습니다.';
     buttons(); await targets($('profile').value === profile ? target : undefined);
-  } catch(e) { error(e.message); }
+  } catch(e) { dependencyGraph.reset(); error(e.message); }
 }
 async function poll() {
   const job = await api('/api/job'); busy = job.status === 'running'; buttons();
@@ -158,7 +162,7 @@ async function checkEditor(action) {
 $('load').onclick=load;
 $('profile').onchange=() => targets();
 $('target').onchange=plan;
-$('project').oninput=() => {catalog=null; $('target').replaceChildren(); buttons();};
+$('project').oninput=() => {catalog=null; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
 $('prepare').onclick=() => run('prepare');
 $('stop').onclick=() => run('stop');
 $('edit-registry').onclick = () => openEditor($('project').value.trim());

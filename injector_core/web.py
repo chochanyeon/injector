@@ -132,8 +132,12 @@ def make_server(project, port=18770):
                 if url.path == "/api/plan":
                     _, plan = select_plan(query["project"][0], query["target"][0], query["profile"][0])
                     return self.respond(200, plan)
+                if url.path == "/api/graph":
+                    _, graph = select_plan(query["project"][0], query.get("target", [None])[0], query["profile"][0])
+                    return self.respond(200, graph)
                 assets = {"/": ("index.html", "text/html; charset=utf-8"),
                           "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+                          "/graph.js": ("graph.js", "text/javascript; charset=utf-8"),
                           "/style.css": ("style.css", "text/css; charset=utf-8")}
                 if url.path in assets:
                     name, content_type = assets[url.path]
