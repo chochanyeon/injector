@@ -2,14 +2,18 @@
 
 .registry-open { margin-top: 10px; }
 .registry-editor {
+  position: fixed;
+  inset: 12px;
   width: min(900px, calc(100% - 24px));
+  height: min(640px, calc(100% - 24px));
   max-width: none;
-  max-height: calc(100vh - 24px);
-  max-height: calc(100dvh - 24px);
+  max-height: none;
   margin: auto;
   overflow: auto;
   color: inherit;
 }
+.registry-editor[open] { display: flex; flex-direction: column; }
+.registry-editor > :not(#registry-text) { flex-shrink: 0; }
 .registry-editor::backdrop { background: rgb(24 39 41 / 42%); }
 .registry-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .registry-heading h2 { margin: 0; }
@@ -18,9 +22,10 @@
 #registry-text {
   display: block;
   width: 100%;
-  height: min(48vh, 32rem);
-  min-height: 10rem;
-  resize: vertical;
+  flex: 1 1 0;
+  min-height: 6rem;
+  resize: none;
+  overflow: auto;
   padding: 12px;
   border: 1px solid #d6ded6;
   border-radius: 7px;
