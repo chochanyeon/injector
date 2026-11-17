@@ -9,7 +9,7 @@
       <h2 id="setup-title">실행 대상</h2>
       <label for="project">프로젝트 폴더</label>
       <div class="path-row"><input id="project" placeholder="registry.json이 있는 폴더" spellcheck="false"><button id="load" class="secondary">불러오기</button></div>
-      <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-expanded="false" disabled>registry.json 편집</button>
+      <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-haspopup="dialog" disabled>registry.json 편집</button>
       <label for="profile">프로필</label><select id="profile" disabled><option>프로젝트를 불러오세요</option></select>
       <label for="target">애플리케이션</label><select id="target" disabled></select>
       <div class="note">IntelliJ 앱은 준비가 끝나면 IDE에서 <strong>Debug</strong>로 실행하세요.</div>
@@ -18,19 +18,20 @@
     </section>
     <section class="card execution" aria-labelledby="execution-title">
       <div class="execution-heading"><h2 id="execution-title">준비 현황</h2><span id="badge" class="badge">대기 중</span></div>
-      <p id="summary" class="hint">프로필과 앱을 선택하면 실행 순서를 확인할 수 있습니다.</p>
-      <ol id="plan" class="plan"></ol>
+      <details class="plan-disclosure" open>
+        <summary>실행 순서</summary>
+        <p id="summary" class="hint">프로필과 앱을 선택하면 실행 순서를 확인할 수 있습니다.</p>
+        <ol id="plan" class="plan"></ol>
+      </details>
       <div id="result" role="status" aria-live="polite">실행 환경을 준비할 수 있습니다.</div>
       <details><summary>진행 기록</summary><pre id="events">아직 실행한 작업이 없습니다.</pre></details>
     </section>
   </div>
-  <section id="dependency-graph" class="card dependency-graph" aria-labelledby="dependency-title">
-    <div class="graph-heading">
-      <h2 id="dependency-title">의존성 그래프</h2>
-      <div class="graph-filter">
-        <label for="graph-scope">표시할 앱</label>
-        <select id="graph-scope" disabled><option value="">전체 앱</option></select>
-      </div>
+  <details id="dependency-graph" class="card dependency-graph" open>
+    <summary class="graph-heading">의존성 그래프</summary>
+    <div class="graph-filter">
+      <label for="graph-scope">표시할 앱</label>
+      <select id="graph-scope" disabled><option value="">전체 앱</option></select>
     </div>
     <p id="graph-status" class="hint" role="status">프로젝트를 불러오세요.</p>
     <div id="graph-frame" class="graph-frame" hidden>
@@ -43,11 +44,14 @@
       <summary>직접 의존성 목록</summary>
       <ul id="graph-direct"></ul>
     </details>
-  </section>
-  <section id="registry-editor" class="card registry-editor" aria-labelledby="registry-title" hidden>
+  </details>
+  <dialog id="registry-editor" class="card registry-editor" aria-labelledby="registry-title">
     <div class="registry-heading">
       <h2 id="registry-title">registry.json</h2>
-      <button id="registry-close" class="secondary">닫기</button>
+      <div class="registry-window-actions">
+        <button id="registry-fold" class="secondary" title="초안을 유지하고 편집기 접기">접기</button>
+        <button id="registry-close" class="secondary">닫기</button>
+      </div>
     </div>
     <p id="registry-path" class="registry-path"></p>
     <textarea id="registry-text" aria-label="registry.json 편집" aria-describedby="registry-path registry-status"
@@ -58,6 +62,6 @@
       <button id="registry-save" class="primary" disabled>저장</button>
     </div>
     <p id="registry-status" class="registry-status" role="status" aria-live="polite"></p>
-  </section>
+  </dialog>
   <footer>종료는 Injector가 만든 자원에만 적용됩니다.</footer>
 </main></body></html>

@@ -1,5 +1,6 @@
 class DependencyGraph {
   constructor(root, request) {
+    this.panel = root;
     this.request = request;
     for (const name of ['scope', 'status', 'frame', 'viewport', 'columns', 'edges', 'relations', 'direct']) {
       this[name] = root.querySelector('#graph-' + name);
@@ -8,6 +9,7 @@ class DependencyGraph {
     this.nodes = new Map();
     this.links = [];
     this.scope.addEventListener('change', () => this.refresh());
+    root.addEventListener('toggle', () => this.scheduleDraw());
     this.viewport.addEventListener('scroll', () => this.scheduleDraw());
     this.observer = new ResizeObserver(() => this.scheduleDraw());
     this.observer.observe(this.viewport);
@@ -126,7 +128,7 @@ class DependencyGraph {
   }
 
   draw() {
-    if (this.frame.hidden) return;
+    if (!this.panel.open || this.frame.hidden) return;
     const width = this.viewport.clientWidth, height = this.viewport.clientHeight;
     const scale = window.devicePixelRatio || 1;
     this.edges.width = Math.round(width * scale);

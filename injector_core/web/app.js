@@ -9,6 +9,7 @@ async function api(path, body) {
   return result;
 }
 const dependencyGraph = new DependencyGraph($('dependency-graph'), api);
+const registryDialog = $('registry-editor');
 function error(message) { $('result').textContent = message; $('badge').textContent = '확인 필요'; $('badge').className = 'badge failed'; }
 function buttons() {
   $('prepare').disabled = busy || !$('target').value;
@@ -90,7 +91,7 @@ function draftChanged() {
 function editorButtons() {
   $('edit-registry').disabled = !token || editorBusy || !$('project').value.trim();
   $('registry-text').disabled = editorBusy || !editor;
-  $('registry-close').disabled = editorBusy;
+  $('registry-fold').disabled = $('registry-close').disabled = editorBusy;
   for (const id of ['registry-reload', 'registry-validate']) $(id).disabled = editorBusy || !editor;
   $('registry-save').disabled = busy || editorBusy || !draftChanged();
 }
@@ -104,19 +105,30 @@ function discardDraft() {
   return !draftChanged() || window.confirm('저장하지 않은 변경을 버릴까요?');
 }
 
-async function openEditor(project) {
+async function openEditor(project, reload = false) {
+  if (editorBusy) return;
+  const sameProject = editor && (project === editor.project || project === editor.source);
+  if (!reload && sameProject) {
+    if (!registryDialog.open) registryDialog.showModal();
+    $('registry-text').focus({preventScroll:true});
+    return;
+  }
   if (!discardDraft()) return;
+  const source = sameProject ? editor.source : project;
+  if (!sameProject) {
+    editor = null;
+    $('registry-text').value = '';
+    $('registry-path').textContent = '';
+  }
   editorBusy = true;
-  $('registry-editor').hidden = false;
-  $('edit-registry').setAttribute('aria-expanded', 'true');
-  $('registry-editor').scrollIntoView({block:'nearest'});
+  if (!registryDialog.open) registryDialog.showModal();
   editorButtons();
   registryStatus('파일을 읽는 중…');
   try {
     const result = await api('/api/registry/open', {project});
     $('registry-path').textContent = result.path;
     $('registry-text').value = result.text;
-    editor = {project:result.project, revision:result.revision, savedText:$('registry-text').value};
+    editor = {project:result.project, source, revision:result.revision, savedText:$('registry-text').value};
     registryStatus('파일을 불러왔습니다.');
   } catch (e) {
     registryStatus(e.message, 'error');
@@ -125,6 +137,18 @@ async function openEditor(project) {
     editorButtons();
     if (editor) $('registry-text').focus({preventScroll:true});
   }
+}
+
+function hideEditor(discard) {
+  if (editorBusy || (discard && !discardDraft())) return;
+  if (discard) {
+    editor = null;
+    $('registry-text').value = '';
+    $('registry-path').textContent = '';
+  }
+  registryDialog.close();
+  editorButtons();
+  $('edit-registry').focus();
 }
 
 async function checkEditor(action) {
@@ -168,17 +192,13 @@ $('stop').onclick=() => run('stop');
 $('edit-registry').onclick = () => openEditor($('project').value.trim());
 $('registry-validate').onclick = () => checkEditor('validate');
 $('registry-save').onclick = () => checkEditor('save');
-$('registry-reload').onclick = () => openEditor(editor.project);
-$('registry-close').onclick = () => {
-  if (!discardDraft()) return;
-  editor = null;
-  $('registry-text').value = '';
-  $('registry-path').textContent = '';
-  $('edit-registry').setAttribute('aria-expanded', 'false');
-  $('registry-editor').hidden = true;
-  editorButtons();
-  $('edit-registry').focus();
-};
+$('registry-reload').onclick = () => openEditor(editor.project, true);
+$('registry-fold').onclick = () => hideEditor(false);
+$('registry-close').onclick = () => hideEditor(true);
+registryDialog.addEventListener('cancel', event => {
+  event.preventDefault();
+  hideEditor(true);
+});
 $('registry-text').oninput = () => {
   registryStatus(draftChanged() ? '저장하지 않은 변경이 있습니다.' : '저장된 내용과 같습니다.');
   editorButtons();
