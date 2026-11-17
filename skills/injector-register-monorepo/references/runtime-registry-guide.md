@@ -70,6 +70,8 @@ IntelliJ의 projectPath는 .run을 읽는 IDE 프로젝트 루트이며 서비�
 
 현재 render는 IntelliJ 타입에만 제공된다. Compose 컨테이너의 YAML 마운트·경로 변환은 아직 없다. env/vmProperties의 fromEnv 실제 값을 XML에 영구 저장하는 경로도 거부한다. 이 경우 준비되지 않은 기능을 스키마 수정으로 우회하지 말고 런타임 주입의 미구현 범위를 기록한다.
 
+실제 준비는 `prepare <app-id> --project <repo> --profile <profile>`가 담당하며 등록 스킬 자체는 실행하지 않는다. 클릭 화면은 Injector 루트의 Start-Injector.vbs 또는 `serve --open`으로 연다. process·Compose·external 의존성을 DFS 순서로 준비하고 IntelliJ 대상은 Debug용 구성을 만든다. IntelliJ 타입을 하위 의존성으로 등록하면 자동 실행되지 않으므로 process/Compose variant를 조사한다. Compose에는 env만 합성하며 VM 설정은 Compose 서비스의 명령에서 정의한다. Spring YAML은 IntelliJ 대상만 지원한다. process에 vmOptions/vmProperties가 있으면 실행 파일은 java여야 한다. 기존 프로세스·컨테이너를 포트만 보고 재사용하지 않으므로 전용 Compose projectName과 충돌 없는 호스트 포트를 확인한다. `--mode dummy/real`은 프로필 별칭이며 노드를 임의로 대역으로 바꾸지 않는다.
+
 ## 4. 근거와 갱신 순서
 
 1. 앱 ID·프로필·선택 variant를 정하고 현재 등록의 사용자 확정값을 읽는다.

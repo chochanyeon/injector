@@ -23,7 +23,7 @@ public class Main {
             String body;
             int status;
             try {
-                HttpRequest request = HttpRequest.newBuilder(URI.create(catalogUrl + "/product"))
+                HttpRequest request = HttpRequest.newBuilder(URI.create(catalogUrl.replaceAll("/+$", "") + "/product"))
                         .timeout(Duration.ofSeconds(3)).GET().build();
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
                 status = response.statusCode() == 200 ? 200 : 502;

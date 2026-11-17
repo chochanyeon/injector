@@ -1,0 +1,225 @@
+{
+  "schemaVersion": "1.0",
+  "nodes": [
+    {
+      "id": "platform-service",
+      "kind": "application",
+      "variants": {
+        "ide": {
+          "execution": {
+            "type": "intellij",
+            "projectPath": ".",
+            "module": "injector-poc",
+            "mainClass": "poc.Main"
+          },
+          "endpoints": {
+            "http": {
+              "protocol": "http",
+              "bind": {
+                "host": "127.0.0.1",
+                "port": 19080
+              },
+              "addresses": {
+                "host": {
+                  "host": "127.0.0.1",
+                  "port": 19080,
+                  "scheme": "http"
+                }
+              }
+            }
+          },
+          "dependencies": [
+            "catalog",
+            "redis"
+          ],
+          "readiness": {
+            "type": "http",
+            "endpoint": "http",
+            "path": "/demo",
+            "timeoutSeconds": 30
+          },
+          "env": {
+            "APP_PORT": "19080",
+            "DEMO_MESSAGE": "prepared from the local UI"
+          },
+          "vmOptions": [
+            "-Xmx256m"
+          ],
+          "vmProperties": {
+            "file.encoding": "UTF-8"
+          },
+          "injections": [
+            {
+              "channel": "environment",
+              "key": "CATALOG_URL",
+              "source": {
+                "node": "catalog",
+                "endpoint": "main",
+                "context": "host",
+                "component": "url"
+              }
+            },
+            {
+              "channel": "environment",
+              "key": "REDIS_HOST",
+              "source": {
+                "node": "redis",
+                "endpoint": "main",
+                "context": "host",
+                "component": "host"
+              }
+            },
+            {
+              "channel": "environment",
+              "key": "REDIS_PORT",
+              "source": {
+                "node": "redis",
+                "endpoint": "main",
+                "context": "host",
+                "component": "port"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "catalog",
+      "kind": "application",
+      "variants": {
+        "dummy": {
+          "execution": {
+            "type": "compose",
+            "file": "docker/prepare-compose.yaml",
+            "service": "catalog-dummy",
+            "projectName": "injector-prepare-demo"
+          },
+          "endpoints": {
+            "main": {
+              "protocol": "http",
+              "bind": {
+                "host": "127.0.0.1",
+                "port": 19081
+              },
+              "addresses": {
+                "host": {
+                  "host": "127.0.0.1",
+                  "port": 19081,
+                  "scheme": "http"
+                }
+              }
+            }
+          },
+          "dependencies": [
+            "redis"
+          ],
+          "readiness": {
+            "type": "compose",
+            "timeoutSeconds": 90
+          }
+        },
+        "real": {
+          "execution": {
+            "type": "compose",
+            "file": "docker/prepare-compose.yaml",
+            "service": "catalog-real",
+            "projectName": "injector-prepare-demo"
+          },
+          "endpoints": {
+            "main": {
+              "protocol": "http",
+              "bind": {
+                "host": "127.0.0.1",
+                "port": 19082
+              },
+              "addresses": {
+                "host": {
+                  "host": "127.0.0.1",
+                  "port": 19082,
+                  "scheme": "http"
+                }
+              }
+            }
+          },
+          "dependencies": [
+            "redis"
+          ],
+          "readiness": {
+            "type": "compose",
+            "timeoutSeconds": 90
+          }
+        }
+      }
+    },
+    {
+      "id": "redis",
+      "kind": "infrastructure",
+      "variants": {
+        "local": {
+          "execution": {
+            "type": "compose",
+            "file": "docker/prepare-compose.yaml",
+            "service": "redis",
+            "projectName": "injector-prepare-demo"
+          },
+          "endpoints": {
+            "main": {
+              "protocol": "tcp",
+              "bind": {
+                "host": "127.0.0.1",
+                "port": 19379
+              },
+              "addresses": {
+                "host": {
+                  "host": "127.0.0.1",
+                  "port": 19379
+                }
+              }
+            }
+          },
+          "dependencies": [],
+          "readiness": {
+            "type": "compose",
+            "timeoutSeconds": 90
+          }
+        }
+      }
+    }
+  ],
+  "profiles": {
+    "dummy": {
+      "targets": [
+        "platform-service"
+      ],
+      "selections": {
+        "platform-service": "ide",
+        "catalog": "dummy",
+        "redis": "local"
+      },
+      "overrides": {
+        "platform-service": {
+          "vmProperties": {
+            "injector.profile": "dummy"
+          }
+        }
+      }
+    },
+    "real": {
+      "targets": [
+        "platform-service"
+      ],
+      "selections": {
+        "platform-service": "ide",
+        "catalog": "real",
+        "redis": "local"
+      },
+      "overrides": {
+        "platform-service": {
+          "vmProperties": {
+            "injector.profile": "real"
+          }
+        }
+      }
+    }
+  }
+}

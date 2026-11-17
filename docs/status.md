@@ -4,7 +4,7 @@
 
 ## 1. 현재 단계
 
-**단일 데모 프로젝트의 실행 POC가 동작하는 단계다. 실행용 등록 스키마 v1.0·v1.1을 지원한다. 외부 프로젝트의 등록 검증 CLI도 추가했다. 주소 해석·설정 합성도 추가했다. DFS 후위 실행 계획까지 계산한다. Spring 외부 YAML·IntelliJ 실행 구성도 생성한다. 일반 등록의 실제 실행 엔진은 아직 없다.** Python·JSON·Compose는 POC의 선택이며 제품 기술 스택은 미확정이다.
+**단일 데모 프로젝트의 실행 POC가 동작하는 단계다. 실행용 등록 스키마 v1.0·v1.1을 지원한다. 외부 프로젝트의 등록 검증 CLI도 추가했다. 주소 해석·설정 합성도 추가했다. DFS 후위 실행 계획까지 계산한다. Spring 외부 YAML·IntelliJ 실행 구성도 생성한다. 일반 등록의 process·Compose·external 의존성을 DFS 순서대로 준비하고 IntelliJ Debug 구성을 생성한다. CLI와 loopback 웹 화면이 같은 실행 함수를 사용한다. 새 IDE 구성의 실제 breakpoint와 브라우저 시각·클릭 검증은 남았다.** Python·JSON·Compose는 POC의 선택이며 제품 기술 스택은 미확정이다.
 
 저장소 루트는 Injector 개발 공간이다. 기존 Java·Vault 데모는 `examples/demo/`, Spring 설정 검증 앱은 `examples/spring-config/`에 둔다. 루트에서 `python injector.py ...`를 실행하며, IntelliJ에서는 `examples/demo/pom.xml`을 별도 프로젝트로 연다.
 
@@ -12,7 +12,7 @@
 
 | 항목 | 상태 | 실제 구현과 제한 | 근거 |
 |---|---|---|---|
-| VM 옵션·환경변수 합성 | 부분 구현 | 레거시 데모는 단순 합성. 일반 등록은 VM/환경/Spring 값의 출처·충돌 검사, 실행 연결은 미구현 | `injector.py:resolve` |
+| VM 옵션·환경변수 합성 | 부분 구현 | 레거시 데모는 단순 합성. 일반 등록은 VM/환경/Spring 값의 출처·충돌 검사, process·Compose env·IntelliJ 연결 지원(제한은 T-060) | `injector.py:resolve` |
 | IntelliJ 주입 | 부분 구현 | 데모 XML과 일반 등록의 Spring YAML·전용 XML 생성. 기존 구성 병합·IDE 자동 실행 없음 | `injector.py:generate` |
 | 모의 API·실제 API 전환 | 부분 구현 | mock/real 두 프로필로 WireMock 또는 Catalog 선택. 일반적인 의존성별 선택 아님 | 데모 `config/project.json` |
 | DB·Kafka·Redis 기동 | 부분 구현 | Compose의 고정 서비스 선택 및 healthcheck 대기. 데모 앱의 실제 인프라 사용은 없음 | 데모 `docker/compose.yaml` |
@@ -23,14 +23,15 @@
 | LLM 등록 지원 | 완료 | 조사 스킬·프로토콜·예시 제공. 실제 모노레포 조사와 자동 import는 미수행 | `skills/injector-register-monorepo/` |
 | 실행용 등록 스키마 | 완료 | v1.0 기본 계약·v1.1 Spring 확장. 실행 엔진 아님 | T-010, T-140 |
 | Spring 외부 YAML·VM 값 생성 | 완료(로컬) | 타입·환경 placeholder 보존, additional-location 주입. IntelliJ 타입만 지원 | T-140 |
-| 앱 등록 로딩·외부 프로젝트 지정 | 완료(검증) | --project의 registry.json 구조·참조·경로 검사. 실제 실행은 데모에 고정 | T-020 |
-| 접속점·호스트·포트·주입 참조 해석 | 완료(메모리 결과) | 호출자별 주소·설정 합성·출처·충돌·비밀 참조 처리. 일반 등록의 실행 연결은 미구현 | T-030 |
+| 앱 등록 로딩·외부 프로젝트 지정 | 완료(검증) | --project의 registry.json 구조·참조·경로 검사. prepare에서 외부 등록 실행 지원 | T-020 |
+| 접속점·호스트·포트·주입 참조 해석 | 완료(메모리 결과) | 호출자별 주소·설정 합성·출처·충돌·비밀 참조 처리. 일반 등록의 process·Compose env·IntelliJ 연결 지원(제한은 T-060) | T-030 |
 | DFS·공통 의존성·순환 검출 | 완료(계획) | 선택한 하위 그래프 후위 순회·단일 포함·순환 경로 보고 | T-040 |
-| 일반화된 실행·준비 상태 확인 | 미착수 | Compose 외 실행별 수명 관리 없음 | T-050 |
-| 의존성 전체 준비 후 대상 앱 실행 | 미착수 | 단일 작업으로 연결된 그래프 파이프라인 없음 | T-060 |
+| 일반화된 실행·준비 상태 확인 | 완료(첫 범위) | process/Compose/external, HTTP/TCP/healthcheck, 소유 자원 정리 | T-050 |
+| 의존성 전체 준비 후 대상 앱 실행 | 구현·부분 검증 | prepare 파이프라인과 IDE Debug 준비. 새 구성의 IDE 직접 검증 남음 | T-060 |
+| 클릭 준비 화면 | 구현·부분 검증 | 더블클릭 launcher, 로컬 API·화면. 실제 브라우저 확인 남음 | T-150 |
 | 사용자 정의 이름 해석 | 미착수 | hosts/DNS 등록·복원 없음 | T-070 |
-| 모드별 하위 그래프 선택 | 미착수 | 두 데모 프로필 전환만 있음 | T-080 |
-| 세션·실패 복구·데이터 정책 | 미착수 | 포트·Compose 프로젝트명 고정, 익명 볼륨 사용 | T-090 |
+| 모드별 하위 그래프 선택 | 부분 구현 | profile selections 기반 실행과 mode 별칭. 의존성별 임시 전환은 후속 | T-080 |
+| 세션·실패 복구·데이터 정책 | 부분 구현 | 단일 프로젝트 세션·소유권·실패 정리. 다중 세션 공유·완전 crash 복구 후속 | T-050, T-090 |
 
 스킬의 `registration-draft.json`은 검토용 산출물 계약이다. 실행용 설정으로 읽거나 현재 `project.json`에 바로 넣을 수 없다.
 
@@ -42,6 +43,8 @@
 | [tests/test_injector.py](../tests/test_injector.py) | 설정·생성 결과·Vault opt-in/서비스 선택 검사 5개 |
 | [schemas/registry-v1.schema.json](../schemas/registry-v1.schema.json) | 실행용 등록 v1.0의 구조 계약 |
 | [schemas/registry-v1.1.schema.json](../schemas/registry-v1.1.schema.json) | Spring 설정용 v1.1 확장 |
+| [injector_core/runtime.py](../injector_core/runtime.py) | prepare/stop 실행·세션·readiness |
+| [injector_core/web.py](../injector_core/web.py) | 로컬 클릭 화면 서버·job API |
 | [injector_core/rendering.py](../injector_core/rendering.py) | 생성 YAML·IntelliJ XML |
 | [injector_core/registry.py](../injector_core/registry.py) | 임의 프로젝트의 등록 로딩·참조 검증 |
 | [tests/test_registry.py](../tests/test_registry.py) | 로더·검증 CLI 검사 15개 |
@@ -54,8 +57,8 @@
 
 ## 4. 검증 수준
 
-- 자동 검증: 기존 60개에 Spring 스키마/렌더러 13개·실제 Boot 통합 1개를 추가해 총 74개. 기본 실행은 통합 6개를 skip한다. 실행 세션 테스트는 아직 없다.
-- 수동 통합 검증: 로컬 JVM·Docker에서 mock/real 호출과 주입, 인프라 기본 동작 확인.
+- 자동 검증: 총 90개. 기본 실행에서 84개 통과·기존 통합 6개 skip. 실제 process 실행·정리 11개, 웹 API 5개가 포함된다.
+- 수동 통합 검증: CLI dummy/real과 화면 API dummy 전환으로 실제 Docker 의존성 준비·정리를 확인했다. 생성 XML의 인자·환경으로 Java Main→실제 Catalog 응답도 확인했다.
 - IntelliJ: 기존 데모 Debug는 분리 전 검증. Spring XML은 생성·파싱을 검증하고, 동일 JVM 인자로 실제 Boot 앱을 확인했다. 새 XML의 IDE UI 실행은 미수행.
 - 스킬: 형식 검사, 예시 JSON 파싱·참조 무결성 확인. 실제 업무 모노레포 적용 검증은 아직 없다.
 
@@ -63,10 +66,10 @@
 
 ## 5. 현재 인계
 
-- 진행 중 구현: 없음. T-140의 Spring 생성·AI 관리 지침을 완료하고 T-050으로 복귀한다.
-- 다음 작업: **[T-050 실행·준비 상태 확인](work-items/T-050.md)**.
+- 진행 중 구현: 없음. T-050·T-060·T-150의 지원 범위 구현 완료. IDE Debug·브라우저 수동 검증은 각 작업 문서에 남겼다.
+- 다음 작업: T-150·T-060 수동 검증 보완 후 **[T-070 사용자 정의 호스트 이름 연결](work-items/T-070.md)**.
 - 입력: 설계 R-08~R-11, 15~16절, 등록 프로토콜 v0.1, 현재 데모 설정.
-- 첫 산출물: 계획·설정 사전 검증 후 로컬 프로세스·Compose를 순서대로 준비하고 readiness·실패를 확인하는 실행 경로.
+- 다음 개발 산출물: 사용자 정의 호스트의 적용·복원 정책과 검증. 현재 endpoint 이름은 이미 OS에서 해석 가능해야 한다.
 - 다음 작업에 필요한 사용자 입력: 현재 없음. 실제 업무 모노레포가 제공되기 전까지 로컬 fixture로 모델을 검증할 수 있다.
 - 남은 제품 결정: D-01~D-09는 공통 설계의 미결정 표를 참고한다. 필요한 결정은 해당 T-ID에서 이유를 기록하고 처리한다.
 - 런타임 상태: 이 문서에 기동 상태를 고정 기록하지 않는다. 재개 시 확인한다.

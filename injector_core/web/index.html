@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Injector · Local workspace</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<header><a href="/" class="brand"><span class="mark">i</span> injector</a><span class="local"><span></span> LOCAL WORKSPACE</span></header>
+<main>
+  <div class="eyebrow">YOUR LOCAL DEVELOPMENT, READY.</div>
+  <h1>실행에 필요한 모든 것을,<br>한 번에 준비하세요.</h1>
+  <p class="intro">의존성부터 설정 주입까지. 앱을 선택하면 Injector가 실행 순서대로 준비합니다.</p>
+  <div class="workspace">
+    <section class="card settings" aria-labelledby="setup-title">
+      <div class="section-label">01 / CONFIGURE</div><h2 id="setup-title">실행 대상</h2>
+      <label for="project">프로젝트 폴더</label>
+      <div class="path-row"><input id="project" placeholder="registry.json이 있는 폴더" spellcheck="false"><button id="load" class="secondary">불러오기</button></div>
+      <p class="hint">등록된 registry.json을 읽습니다.</p>
+      <label for="profile">프로필</label><select id="profile" disabled><option>프로젝트를 불러오세요</option></select>
+      <label for="target">애플리케이션</label><select id="target" disabled></select>
+      <div class="note">IntelliJ 앱은 의존성과 실행 구성을 준비한 뒤,<br>IDE에서 직접 <strong>Debug</strong>로 시작합니다.</div>
+      <button id="prepare" class="primary" disabled>실행 환경 준비 <span>↗</span></button>
+      <button id="stop" class="secondary stop">이 프로젝트의 의존성 종료</button>
+    </section>
+    <section class="card execution" aria-labelledby="execution-title">
+      <div class="execution-heading"><div><div class="section-label">02 / PREPARE</div><h2 id="execution-title">준비 현황</h2></div><span id="badge" class="badge">대기 중</span></div>
+      <p id="summary" class="hint">프로필과 앱을 선택하면 실행 순서를 확인할 수 있습니다.</p>
+      <ol id="plan" class="plan"></ol>
+      <div id="result" role="status" aria-live="polite">실행 환경을 준비할 수 있습니다.</div>
+      <details><summary>진행 기록</summary><pre id="events">아직 실행한 작업이 없습니다.</pre></details>
+    </section>
+  </div>
+  <footer>프로필이 실제 앱과 대역을 결정합니다. 종료는 Injector가 만든 자원에만 적용됩니다.</footer>
+</main></body></html>

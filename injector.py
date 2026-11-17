@@ -86,7 +86,11 @@ def compile_java():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render", "vault-demo"))
+    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render", "vault-demo", "prepare", "stop", "serve"))
+    parser.add_argument("target", nargs="?", help="application ID for prepare")
+    parser.add_argument("--mode", choices=("dummy", "real"), help="prepare using a matching registry profile")
+    parser.add_argument("--port", type=int, default=18770, help="local UI port (serve only)")
+    parser.add_argument("--open", action="store_true", help="open the local UI in a browser")
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
     parser.add_argument("--project", type=Path, help="project directory containing registry.json")
     parser.add_argument("--node", help="node to resolve or render")
@@ -95,6 +99,31 @@ def main():
     parser.add_argument("--with-vault", action="store_true", help="include the local Vault API mock in demo setup")
     parser.add_argument("--vault-service", help="service name for the local Vault secret path; enables the Vault mock")
     args = parser.parse_args()
+    if args.target and args.command != "prepare":
+        parser.error("target is supported only with prepare")
+    if args.mode and args.command != "prepare":
+        parser.error("--mode is supported only with prepare")
+    if args.command in ("prepare", "stop", "serve"):
+        if args.infra or args.main_docker or args.with_vault or args.vault_service or args.node:
+            parser.error("prepare, stop and serve do not accept legacy demo options")
+        from injector_core.registry import RegistryError
+        try:
+            if args.command == "serve":
+                from injector_core.web import serve
+                serve(args.project or DEMO, args.port, args.open)
+            elif args.command == "stop":
+                from injector_core.runtime import stop
+                print(json.dumps(stop(args.project or Path.cwd()), indent=2))
+            else:
+                if not args.target:
+                    parser.error("prepare requires an application ID")
+                from injector_core.runtime import prepare
+                result = prepare(args.project or Path.cwd(), args.target, args.profile, args.mode,
+                                 emit=lambda event: print(json.dumps(event), flush=True))
+                print(json.dumps(result, indent=2))
+        except (RegistryError, OSError) as error:
+            parser.exit(1, f"Injector failed: {error}\n" if isinstance(error, RegistryError) else "Injector failed: local runtime operation failed\n")
+        return
     if args.command in ("validate", "resolve", "render") or (args.command == "plan" and args.project is not None):
         if args.project is None or args.infra or args.main_docker or args.with_vault or args.vault_service is not None:
             parser.error("registry commands require --project and do not accept demo execution options")

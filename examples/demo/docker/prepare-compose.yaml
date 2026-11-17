@@ -1,0 +1,29 @@
+services:
+  redis:
+    image: redis:7.4.6
+    ports: ["127.0.0.1:19379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  catalog-dummy:
+    image: wiremock/wiremock:3.13.2
+    ports: ["127.0.0.1:19081:8080"]
+    volumes: ["./wiremock:/home/wiremock:ro"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/__admin/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  catalog-real:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    command: ["poc.Catalog"]
+    ports: ["127.0.0.1:19082:18082"]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/18082"]
+      interval: 2s
+      timeout: 2s
+      retries: 30

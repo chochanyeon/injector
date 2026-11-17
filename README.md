@@ -28,7 +28,32 @@ injector/
 - Docker Desktop 또는 Docker Engine과 Compose
 - IntelliJ IDEA. `examples/demo/pom.xml`을 Maven 프로젝트로 연다.
 
-## IntelliJ에서 실행하기
+## 클릭으로 실행 환경 준비하기
+
+위 준비 항목을 한 번 설치한 뒤 Windows에서 루트의 **`Start-Injector.vbs`를 더블클릭**한다. 터미널 없이 `http://127.0.0.1:18770` 화면이 열린다. 이미 이 저장소의 화면 서버가 실행 중이면 그 화면을 다시 연다. 시작 실패 안내가 나오면 Python 의존성 설치와 포트 점유를 확인한다.
+
+1. `registry.json`이 있는 프로젝트 폴더를 불러온다. 기본값은 `examples/demo`다.
+2. 프로필(`dummy` 또는 `real`)과 `platform-service`를 선택한다.
+3. 실행 순서 `redis → catalog → platform-service`를 확인하고 **실행 환경 준비**를 누른다.
+4. 준비 완료 후 IntelliJ에서 `examples/demo/pom.xml`을 열고 **`Injector-dummy-platform-service`** 또는 **`Injector-real-platform-service`**를 Debug로 실행한다. 앱 응답은 `http://127.0.0.1:19080/demo`에서 확인한다.
+5. 앱은 IDE에서 종료한다. 화면의 **이 프로젝트의 의존성 종료**로 Injector가 만든 프로세스·컨테이너를 종료한다. 브라우저를 닫는 것만으로 의존성이나 화면 서버가 종료되지는 않는다.
+
+프로필을 전환하기 전에는 IDE에서 실행 중인 앱을 종료한다. 다시 준비하면 해당 프로젝트의 이전 Injector 세션 자원을 종료하고 새 설정으로 준비한다. 다른 프로그램의 열린 포트나 이미 존재하는 Compose 서비스는 충돌로 처리한다. 컨테이너 볼륨과 Compose 네트워크는 보존한다. 데모의 Catalog→Redis 의존성은 다단계·공유 그래프 검증용이며 Catalog 코드가 Redis를 조회하는 것은 아니다.
+
+같은 작업을 CLI로도 실행한다. `--project`를 생략하면 현재 폴더에서 registry.json을 찾는다.
+
+```powershell
+python injector.py prepare platform-service --project examples/demo --mode dummy
+python injector.py prepare platform-service --project examples/demo --mode real
+python injector.py stop --project examples/demo
+python injector.py serve --open
+```
+
+업무 프로젝트는 `--profile local-dev`처럼 등록된 프로필을 명시할 수도 있다. `--mode dummy`는 `dummy/local-mock/mock`, `real`은 `real/local-real` 중 **하나만 존재할 때** 해당 프로필을 선택한다. 프로필의 variant 선택이 실제 앱·대역·하위 의존성을 결정한다. 여러 별칭이 있으면 `--profile`을 사용한다.
+
+현재 일반 실행 경로는 process·Compose·external 의존성, IntelliJ·process·Compose 대상을 지원한다. process의 VM 설정은 `java` 실행 파일에만 주입한다. Spring 외부 YAML 생성은 IntelliJ 대상에 한정한다. Compose는 env 주입을 지원하며 VM 설정은 서비스 자체 JVM 명령으로 정의해야 한다. IntelliJ 의존성은 자동 실행할 수 없으므로 process/Compose variant가 필요하다. 실제 비밀값을 env/vmProperties에서 XML로 저장하는 경로는 거부한다. UI에서 값을 입력·수정하는 편집기는 아직 없다.
+
+## 기존 단일 데모 명령으로 실행하기
 
 프로젝트 루트에서 다음을 실행한다. 첫 실행에는 컨테이너 이미지를 내려받는다.
 

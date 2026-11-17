@@ -11,12 +11,12 @@ from .resolution import ResolvedSettings, _spring_leaves, resolve_node, selected
 
 @dataclass
 class RenderedConfig:
-    yaml_path: Path
+    yaml_path: Path | None
     run_path: Path
     settings: ResolvedSettings = field(repr=False)
 
     def describe(self):
-        return {"springConfig": str(self.yaml_path), "runConfiguration": str(self.run_path),
+        return {"springConfig": str(self.yaml_path) if self.yaml_path else None, "runConfiguration": str(self.run_path),
                 "settings": self.settings.describe()}
 
 
@@ -30,7 +30,7 @@ def _artifact_path(root, path):
             raise RegistryError("generated configuration path must not be a symbolic link")
 
 
-def render_node(data, project, profile_name, node_id, environ=None):
+def render_node(data, project, profile_name, node_id, environ=None, *, allow_plain=False):
     """Create owned artifacts only; never change source YAML or launch an app."""
     settings = resolve_node(data, profile_name, node_id, environ, defer_spring_env=True)
     nodes = {node["id"]: node for node in data["nodes"]}
@@ -38,19 +38,19 @@ def render_node(data, project, profile_name, node_id, environ=None):
     execution = variant["execution"]
     if execution["type"] != "intellij":
         raise RegistryError("Spring rendering currently requires an IntelliJ execution definition")
-    if not settings.spring_properties:
+    if not settings.spring_properties and not allow_plain:
         raise RegistryError("Spring rendering requires springProperties")
     if any(" via environment/" in source for channel in ("env", "vmProperties")
            for source in settings.origins[channel].values()):
         raise RegistryError("render cannot persist environment references in env or VM properties; use runtime injection")
     managed = "spring.config.additional-location"
-    if managed in settings.vm_properties or "SPRING_CONFIG_ADDITIONAL_LOCATION" in settings.env:
+    if settings.spring_properties and (managed in settings.vm_properties or "SPRING_CONFIG_ADDITIONAL_LOCATION" in settings.env):
         raise RegistryError("generated Spring location conflicts with an existing setting")
     spring_names = [name for key, value in settings.spring_properties.items() for name in _spring_leaves(value, key)]
     if any(name.startswith("spring.config.") or name in ("spring.profiles.active", "spring.profiles.default", "spring.profiles.include")
            for name in spring_names):
         raise RegistryError("Spring bootstrap settings must use VM properties or environment")
-    if "spring.application.json" in settings.vm_properties or "SPRING_APPLICATION_JSON" in settings.env:
+    if settings.spring_properties and ("spring.application.json" in settings.vm_properties or "SPRING_APPLICATION_JSON" in settings.env):
         raise RegistryError("Spring rendering cannot combine an opaque application JSON override")
 
     root = Path(project).resolve()
@@ -61,8 +61,11 @@ def render_node(data, project, profile_name, node_id, environ=None):
     run_path = application / ".run" / f"Injector-{profile_name}-{node_id}.run.xml"
     _artifact_path(root, yaml_path)
     _artifact_path(root, run_path)
-    settings.vm_properties[managed] = yaml_path.as_uri()
-    settings.origins["vmProperties"][managed] = "generated/spring-overrides.yml"
+    if settings.spring_properties:
+        settings.vm_properties[managed] = yaml_path.as_uri()
+        settings.origins["vmProperties"][managed] = "generated/spring-overrides.yml"
+    else:
+        yaml_path = None
 
     component = ET.Element("component", name="ProjectRunConfigurationManager")
     run = ET.SubElement(component, "configuration", default="false", name=f"Injector-{profile_name}-{node_id}",
@@ -81,9 +84,10 @@ def render_node(data, project, profile_name, node_id, environ=None):
     ET.indent(component)
     content = yaml.safe_dump(settings.spring_properties, allow_unicode=True, sort_keys=False)
     try:
-        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        if yaml_path:
+            yaml_path.parent.mkdir(parents=True, exist_ok=True)
+            yaml_path.write_text(content, encoding="utf-8")
         run_path.parent.mkdir(parents=True, exist_ok=True)
-        yaml_path.write_text(content, encoding="utf-8")
         ET.ElementTree(component).write(run_path, encoding="utf-8", xml_declaration=True)
     except OSError as error:
         raise RegistryError("cannot write generated Spring configuration") from error
