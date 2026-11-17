@@ -116,14 +116,26 @@ def load_registry(project, profile=None):
     """Read project/registry.json. A profile narrows profile-dependent checks."""
     root = Path(project).resolve()
     try:
-        data = json.loads((root / "registry.json").read_text(encoding="utf-8"),
-                          object_pairs_hook=_object, parse_constant=_constant)
+        text = (root / "registry.json").read_text(encoding="utf-8")
     except OSError as error:
         raise RegistryError("cannot read project registry.json") from error
     except UnicodeError as error:
         raise RegistryError("registry.json must be UTF-8") from error
+    return parse_registry(text, root, profile)
+
+
+def parse_registry(text, root, profile=None):
+    """Validate a UTF-8 registry draft against the same rules as the CLI."""
+    try:
+        data = json.loads(text, object_pairs_hook=_object, parse_constant=_constant)
     except json.JSONDecodeError as error:
         raise RegistryError(f"invalid JSON at line {error.lineno}, column {error.colno}") from error
+    except RecursionError as error:
+        raise RegistryError("registry.json is nested too deeply") from error
+    except RegistryError:
+        raise
+    except ValueError as error:
+        raise RegistryError("invalid JSON number") from error
 
     version = data.get("schemaVersion") if isinstance(data, dict) else None
     if not isinstance(version, str) or version not in SCHEMA_PATHS:

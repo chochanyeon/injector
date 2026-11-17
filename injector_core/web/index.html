@@ -9,6 +9,7 @@
       <h2 id="setup-title">실행 대상</h2>
       <label for="project">프로젝트 폴더</label>
       <div class="path-row"><input id="project" placeholder="registry.json이 있는 폴더" spellcheck="false"><button id="load" class="secondary">불러오기</button></div>
+      <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-expanded="false" disabled>registry.json 편집</button>
       <label for="profile">프로필</label><select id="profile" disabled><option>프로젝트를 불러오세요</option></select>
       <label for="target">애플리케이션</label><select id="target" disabled></select>
       <div class="note">IntelliJ 앱은 준비가 끝나면 IDE에서 <strong>Debug</strong>로 실행하세요.</div>
@@ -23,5 +24,20 @@
       <details><summary>진행 기록</summary><pre id="events">아직 실행한 작업이 없습니다.</pre></details>
     </section>
   </div>
+  <section id="registry-editor" class="card registry-editor" aria-labelledby="registry-title" hidden>
+    <div class="registry-heading">
+      <h2 id="registry-title">registry.json</h2>
+      <button id="registry-close" class="secondary">닫기</button>
+    </div>
+    <p id="registry-path" class="registry-path"></p>
+    <textarea id="registry-text" aria-label="registry.json 편집" aria-describedby="registry-path registry-status"
+              rows="22" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" disabled></textarea>
+    <div class="registry-actions">
+      <button id="registry-reload" class="secondary" disabled>파일 다시 읽기</button>
+      <button id="registry-validate" class="secondary" disabled>검증</button>
+      <button id="registry-save" class="primary" disabled>저장</button>
+    </div>
+    <p id="registry-status" class="registry-status" role="status" aria-live="polite"></p>
+  </section>
   <footer>종료는 Injector가 만든 자원에만 적용됩니다.</footer>
 </main></body></html>

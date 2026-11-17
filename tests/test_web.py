@@ -55,6 +55,65 @@ class WebTests(unittest.TestCase):
         token = json.loads(self.request('/api/info')[1])['token']
         self.assertEqual(self.request('/api/stop', {}, {'X-Injector-Token': token, 'Origin': 'https://evil.test'})[0], 403)
 
+    def registry_request(self, action, **payload):
+        token = json.loads(self.request('/api/info')[1])['token']
+        body = {'project': self.temporary.name, **payload}
+        status, response = self.request('/api/registry/' + action, body, {'X-Injector-Token': token})
+        return status, json.loads(response)
+
+    def test_registry_editor_repairs_invalid_file_and_refreshes_catalog(self):
+        path = Path(self.temporary.name) / 'registry.json'
+        data = json.loads(path.read_bytes())
+        data['profiles']['updated'] = data['profiles'].pop('dummy')
+        corrected = json.dumps(data, indent=2) + '\n'
+        broken = b'{\r\n bad'
+        path.write_bytes(broken)
+        status, opened = self.registry_request('open')
+        self.assertEqual(status, 200)
+        self.assertEqual(opened['text'], broken.decode())
+        self.assertEqual(self.request('/api/project')[0], 400)
+
+        rejected, error = self.registry_request('save', text=opened['text'], revision=opened['revision'])
+        self.assertEqual(rejected, 400)
+        self.assertIn('line 2, column 2', error['error'])
+        self.assertEqual(path.read_bytes(), broken)
+        self.assertEqual(self.registry_request('validate', text=corrected)[0], 200)
+        self.assertEqual(path.read_bytes(), broken)
+
+        status, saved = self.registry_request('save', text=corrected, revision=opened['revision'])
+        self.assertEqual(status, 200)
+        self.assertNotEqual(saved['revision'], opened['revision'])
+        self.assertEqual(path.read_bytes(), corrected.replace('\n', '\r\n').encode())
+        self.assertIn('updated', json.loads(self.request('/api/project')[1])['profiles'])
+
+    def test_registry_editor_validates_schema_references_and_cycles(self):
+        original = json.loads((Path(self.temporary.name) / 'registry.json').read_bytes())
+        for key, pattern in (('schema', '/nodes/0'), ('missing', 'unknown dependency'), ('cycle', 'dependency cycle')):
+            with self.subTest(key=key):
+                data = json.loads(json.dumps(original))
+                if key == 'schema':
+                    data['nodes'][0]['kind'] = 'wrong'
+                else:
+                    data['nodes'][1]['variants']['local']['dependencies'] = ['main' if key == 'cycle' else 'unknown']
+                status, result = self.registry_request('validate', text=json.dumps(data))
+                self.assertEqual(status, 400)
+                self.assertIn(pattern, result['error'])
+
+    def test_registry_editor_protects_raw_reads_and_concurrent_edits(self):
+        self.assertEqual(self.request('/api/registry/open', {'project': self.temporary.name})[0], 403)
+        token = json.loads(self.request('/api/info')[1])['token']
+        self.assertEqual(self.request('/api/registry/save', {}, {
+            'X-Injector-Token': token, 'Origin': 'https://evil.test'})[0], 403)
+
+        _, opened = self.registry_request('open')
+        path = Path(self.temporary.name) / 'registry.json'
+        edited = path.read_bytes() + b'\n'
+        path.write_bytes(edited)
+        status, reason = self.registry_request('save', text=opened['text'] + '\t', revision=opened['revision'])
+        self.assertEqual(status, 409)
+        self.assertIn('changed on disk', reason['error'])
+        self.assertEqual(path.read_bytes(), edited)
+
     def test_job_uses_runtime_and_reports_progress(self):
         token = json.loads(self.request('/api/info')[1])['token']
         def fake(project, target, profile, emit):

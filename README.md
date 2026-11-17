@@ -68,7 +68,15 @@ python injector.py serve --open
 
 업무 프로젝트는 `--profile local-dev`처럼 등록된 프로필을 명시할 수도 있다. `--mode dummy`는 `dummy/local-mock/mock`, `real`은 `real/local-real` 중 **하나만 존재할 때** 해당 프로필을 선택한다. 프로필의 variant 선택이 실제 앱·대역·하위 의존성을 결정한다. 여러 별칭이 있으면 `--profile`을 사용한다.
 
-현재 일반 실행 경로는 process·Compose·external 의존성, IntelliJ·process·Compose 대상을 지원한다. process의 VM 설정은 `java` 실행 파일에만 주입한다. Spring 외부 YAML 생성은 IntelliJ 대상에 한정한다. Compose는 env 주입을 지원하며 VM 설정은 서비스 자체 JVM 명령으로 정의해야 한다. IntelliJ 의존성은 자동 실행할 수 없으므로 process/Compose variant가 필요하다. 실제 비밀값을 env/vmProperties에서 XML로 저장하는 경로는 거부한다. UI에서 값을 입력·수정하는 편집기는 아직 없다.
+현재 일반 실행 경로는 process·Compose·external 의존성, IntelliJ·process·Compose 대상을 지원한다. process의 VM 설정은 `java` 실행 파일에만 주입한다. Spring 외부 YAML 생성은 IntelliJ 대상에 한정한다. Compose는 env 주입을 지원하며 VM 설정은 서비스 자체 JVM 명령으로 정의해야 한다. IntelliJ 의존성은 자동 실행할 수 없으므로 process/Compose variant가 필요하다. 실제 비밀값을 env/vmProperties에서 XML로 저장하는 경로는 거부한다.
+
+## 화면에서 registry.json 확인·수정하기
+
+1. 프로젝트 폴더를 입력하고 **registry.json 편집**을 누른다. 문법 오류가 있는 기존 파일도 열 수 있다.
+2. **검증**을 누르면 JSON 문법, 스키마, 앱·의존성 참조, 각 프로필의 실행 계획에 있는 순환을 확인한다. 문법 오류에는 줄·열이 표시된다.
+3. **저장**을 누르면 다시 검증하고, 통과한 경우에만 파일을 쓴다. 저장 후 앱·프로필 목록이 갱신된다.
+
+열어 둔 파일을 다른 편집기에서 수정하면 저장이 거부된다. **파일 다시 읽기**로 최신 내용을 확인할 수 있다. 새 서버 API를 사용하려면 이전에 열어 둔 Injector 서버를 종료한 뒤 다시 실행한다.
 
 ## 로컬 호스트 이름 사용하기
 

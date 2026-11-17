@@ -10,6 +10,7 @@ from urllib.request import ProxyHandler, build_opener
 import webbrowser
 
 from .registry import RegistryError
+from .registry_editor import MAX_BYTES, RegistryConflict, open_registry, save_registry, validate_registry
 from .runtime import prepare, project_info, select_plan, stop
 
 ASSETS = Path(__file__).resolve().parent / "web"
@@ -32,6 +33,25 @@ class Control:
     def snapshot(self):
         with self.lock:
             return json.loads(json.dumps(self.job))
+
+    def edit_registry(self, action, body):
+        project = body.get("project")
+        if not isinstance(project, str) or not project.strip():
+            raise RegistryError("project path is required")
+        if action == "open":
+            return open_registry(project)
+        text = body.get("text")
+        if not isinstance(text, str):
+            raise RegistryError("registry text is required")
+        if action == "validate":
+            return validate_registry(project, text)
+        revision = body.get("revision")
+        if not isinstance(revision, str):
+            raise RegistryError("open the registry before saving")
+        with self.lock:
+            if self.job["status"] == "running":
+                raise RegistryConflict("wait for the running job before saving")
+            return save_registry(project, text, revision)
 
     def start(self, action, body):
         project = body.get("project", self.project)
@@ -125,19 +145,32 @@ def make_server(project, port=18770):
         def do_POST(self):
             if not self.allowed(mutation=True):
                 return
-            if self.path not in ("/api/prepare", "/api/stop"):
+            editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save")
+            if not editor and self.path not in ("/api/prepare", "/api/stop"):
                 return self.respond(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
-                if length <= 0 or length > 16384:
+                limit = 6 * MAX_BYTES + 16384 if editor else 16384
+                if length <= 0 or length > limit:
                     raise ValueError()
                 body = json.loads(self.rfile.read(length))
                 if not isinstance(body, dict):
                     raise ValueError()
-                control.start(self.path.rsplit("/", 1)[1], body)
+                action = self.path.rsplit("/", 1)[1]
+                if editor:
+                    return self.respond(200, control.edit_registry(action, body))
+                control.start(action, body)
                 self.respond(202, {"status": "running"})
-            except (ValueError, RegistryError) as error:
-                self.respond(400, {"error": str(error) if isinstance(error, RegistryError) else "invalid request"})
+            except RegistryConflict as error:
+                self.respond(409, {"error": str(error)})
+            except RegistryError as error:
+                self.respond(400, {"error": str(error)})
+            except UnicodeError:
+                self.respond(400, {"error": "registry.json must be UTF-8"})
+            except (ValueError, RecursionError):
+                self.respond(400, {"error": "invalid request or registry text"})
+            except OSError:
+                self.respond(400, {"error": "cannot read or save project registry.json"})
 
     return LoopbackHTTPServer(("127.0.0.1", port), Handler)
 
