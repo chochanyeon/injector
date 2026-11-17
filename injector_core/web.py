@@ -120,9 +120,9 @@ def make_server(project, port=18770):
         def do_GET(self):
             if not self.allowed():
                 return
-            url = urlsplit(self.path)
-            query = parse_qs(url.query)
             try:
+                url = urlsplit(self.path)
+                query = parse_qs(url.query)
                 if url.path == "/api/info":
                     return self.respond(200, {"project": control.project, "token": control.token,
                                               "injectorRoot": str(ASSETS.parent.parent)})
@@ -145,6 +145,8 @@ def make_server(project, port=18770):
                 self.respond(404, {"error": "not found"})
             except (RegistryError, KeyError) as error:
                 self.respond(400, {"error": str(error) if isinstance(error, RegistryError) else "missing query parameter"})
+            except (ValueError, OSError, RecursionError):
+                self.respond(400, {"error": "cannot read project registry or request path"})
 
         def do_POST(self):
             if not self.allowed(mutation=True):

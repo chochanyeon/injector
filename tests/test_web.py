@@ -115,6 +115,11 @@ class WebTests(unittest.TestCase):
         token = json.loads(self.request('/api/info')[1])['token']
         self.assertEqual(self.request('/api/stop', {}, {'X-Injector-Token': token, 'Origin': 'https://evil.test'})[0], 403)
 
+    def test_bad_project_path_returns_json_without_disconnect(self):
+        status, response = self.request('/api/project?project=%00')
+        self.assertEqual(status, 400)
+        self.assertIn('error', json.loads(response))
+
     def registry_request(self, action, **payload):
         token = json.loads(self.request('/api/info')[1])['token']
         body = {'project': self.temporary.name, **payload}

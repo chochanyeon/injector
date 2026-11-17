@@ -4,8 +4,21 @@ let editor, editorBusy = false;
 let variants = {}, planReady = false, planRequest = 0;
 const phases = {starting:'시작 중', waiting:'준비 확인 중', ready:'준비 완료', 'debug-ready':'Debug 가능', stopping:'종료 중'};
 async function api(path, body) {
-  const response = await fetch(path, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json', 'X-Injector-Token':token}, body:JSON.stringify(body)});
-  const result = await response.json();
+  const endpoint = path.split('?')[0];
+  let response, result;
+  try {
+    response = await fetch(path, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json', 'X-Injector-Token':token}, body:JSON.stringify(body)});
+  } catch {
+    throw new Error(`Injector 서버에 연결할 수 없습니다 (${endpoint}).`);
+  }
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(`Injector 서버 응답이 비어 있거나 읽을 수 없습니다 (${endpoint}, HTTP ${response.status}).`);
+  }
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    throw new Error(`Injector 서버 응답 형식이 올바르지 않습니다 (${endpoint}).`);
+  }
   if (!response.ok) throw new Error(result.error || '요청에 실패했습니다.');
   return result;
 }
