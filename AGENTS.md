@@ -1,10 +1,13 @@
-# Injector 개발 재개 지침
+# Injector development workflow
 
-- 먼저 [작업 인덱스](docs/index.md)에서 진행할 T-ID를 선택하고 해당 작업 문서의 설계 → 개발 → 검증 → 재개 지점을 읽는다.
-- 저장소 루트는 Injector 개발 공간이다. 적용 대상 데모는 `examples/demo/`에 유지한다.
-- macOS를 주 사용 환경으로 두고 Windows도 함께 지원한다. 실행·설치·시스템 경로가 바뀌면 두 OS의 동작과 사용 문서를 확인한다.
-- 현재 동작과 설계를 구분한다. 그래프 실행·앱 등록 등 계획만 있는 기능을 구현 완료로 가정하지 않는다.
-- 작업을 시작할 때 T-ID와 완료 기준을 정한다. 설계 결정·변경 파일·검증 결과·다음 조치는 같은 작업 문서에 누적하고, 인덱스의 단계별 상태와 전체 현황을 동기화한다.
-- 테스트와 런타임 상태를 실제로 확인한다. 이전 세션의 컨테이너·IntelliJ·로컬 스킬 사본 상태를 가정하지 않는다.
-- 검증한 작업 단위마다 커밋하고 `https://github.com/chochanyeon/injector`에 푸시한다. 생성 파일·빌드 결과·실제 자격증명은 커밋하지 않는다.
-- 변경은 요청 범위에 한정하고, 필요한 설계 결정을 기록한다. 사용자 지시는 이 문서보다 우선한다.
+**English** · [한국어](AGENTS.ko.md)
+
+- Start with the [work index](docs/index.md). Select the T-ID and read its design, development, verification, and resume point.
+- Develop Injector at the repository root. Keep the example target under `examples/demo/`.
+- Support macOS as the primary platform and support Windows alongside it. Check both platforms and their documentation when changing launchers, installation, or system paths.
+- Distinguish implemented behavior from planned work. Check the current implementation before claiming graph execution, application registration, or related features are complete.
+- Set a T-ID and acceptance criteria at the start of a work item. Record decisions, changed files, verification evidence, and next actions in that work item's document. Keep the index and project status in sync.
+- Verify tests and runtime state directly. Recheck containers, IntelliJ, and installed skill copies when resuming a session.
+- Commit and push each verified work item to `https://github.com/chochanyeon/injector`. Keep generated files, build outputs, and real credentials out of commits.
+- Make changes within the requested scope and document decisions that matter. Follow the user's latest instructions.
+- Use English for default Markdown paths and keep the Korean translation in a sibling `*.ko.md` file. Link the two versions and update both when changing shared documentation.

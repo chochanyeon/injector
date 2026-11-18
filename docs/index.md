@@ -1,75 +1,78 @@
-# 작업 인덱스
+# Work index
 
-최종 갱신: 2026-11-18. **하나의 T-ID가 설계 → 개발 → 검증을 끝까지 묶는 작업 단위다.** 문서 종류가 아니라 작업 단위로 순서를 관리한다.
+**English** · [한국어](index.ko.md)
 
-## 1. 작업 목록
+Last updated November 18, 2026. Each T-ID groups design, development, verification, and the point at which to resume.
 
-아래 순서대로 진행한다. T-130·T-131·T-140은 사용자 요청으로 T-040 다음에 우선 처리했다. T-150은 클릭 실행 요청으로 T-060 직후 진행했다. 구체적인 선행 조건은 각 작업 문서에 있다. 각 행의 링크를 열면 그 작업의 설계, 구현 내역, 검증 계획·결과, 재개 지점을 한 번에 확인할 수 있다.
+## 1. Work items
 
-| 작업 ID | 작업 | 설계 | 개발 | 검증 |
+Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at the user's request. T-150 followed T-060 to add the browser workflow. Each work item lists its prerequisites.
+
+| Work ID | Work item | Design | Development | Verification |
 |---|---|---|---|---|
-| [T-000](work-items/T-000.md) | 단일 데모 실행 POC | 완료(범위 한정) | 완료 | 완료(범위 한정) |
-| [T-005](work-items/T-005.md) | LLM 모노레포 최초 등록·Spring 설정 조사 | 완료(조사 지원) | 완료 | 완료(형식·참조·예제 검증) |
-| [T-010](work-items/T-010.md) | 실행용 앱 등록 스키마 | 완료 | 완료 | 완료(스키마 범위) |
-| [T-020](work-items/T-020.md) | 등록 로딩·검증·대상 프로젝트 지정 | 완료 | 완료 | 완료(로딩·참조 범위) |
-| [T-030](work-items/T-030.md) | 접속 정보 해석과 설정 주입 | 완료 | 완료 | 완료(해석·합성 범위) |
-| [T-040](work-items/T-040.md) | DFS 실행 계획 | 완료 | 완료 | 완료(계획 범위) |
-| [T-130](work-items/T-130.md) | WireMock 기반 Vault 설정 API 대역 | 완료(요청 계약 한정) | 완료 | 완료(KV v2 데모 범위) |
-| [T-131](work-items/T-131.md) | 서비스 ID별 Vault 경로와 설정값 분리 | 완료 | 완료 | 완료(2개 서비스 데모) |
-| [T-140](work-items/T-140.md) | Spring 외부 YAML 생성·AI 실행 등록 관리 | 완료 | 완료(로컬 IntelliJ 생성) | 완료(실제 Spring Boot 포함) |
-| [T-050](work-items/T-050.md) | 실행·준비 상태 확인 | 완료(첫 실행 범위) | 완료 | 완료(명시한 범위) |
-| [T-060](work-items/T-060.md) | 대상 앱 실행 파이프라인 | 완료(지원 runner 범위) | 완료 | 부분 검증(IDE Debug 남음) |
-| [T-150](work-items/T-150.md) | 클릭으로 실행 환경 준비 | 완료 | 완료 | 부분 검증(브라우저 수동 확인 남음) |
-| [T-070](work-items/T-070.md) | 사용자 정의 호스트 이름 연결 | 완료(macOS·Windows hosts) | 완료 | 부분 검증(관리자 적용 남음) |
-| [T-160](work-items/T-160.md) | macOS와 Windows 실행 환경 지원 | 완료 | 완료 | 부분 검증(Finder·IDE 수동 확인 남음) |
-| [T-170](work-items/T-170.md) | 로컬 registry.json 편집기 | 완료 | 완료 | 부분 검증(macOS 폴더 선택 창·휴대폰 원격 미리보기 확인 남음) |
-| [T-180](work-items/T-180.md) | registry 기반 의존성 그래프 | 완료 | 완료 | 부분 검증(작은 화면·대형 그래프 확인 남음) |
-| [T-190](work-items/T-190.md) | 앱별 실행·주입 설정 파일 | 완료 | 완료 | 완료(호환성·편집·프로세스) |
-| [T-200](work-items/T-200.md) | 워크트리와 registry 보관 위치 분리 | 완료 | 완료 | 부분 검증(OS 선택 창·IDE 가져오기 남음) |
-| [T-080](work-items/T-080.md) | 의존성별 실제 실행·모의 대체 | 완료 | 완료 | 완료(기본 데모·프로세스) |
-| [T-090](work-items/T-090.md) | 세션·실패 처리·종료 정책 | 부분 확정 | 부분 완료 | 부분 검증(Windows·Linux·데모 Compose) |
-| [T-100](work-items/T-100.md) | LLM 등록 초안의 검증·변환 | 초안 | 미착수 | 미수행 |
-| [T-110](work-items/T-110.md) | 다중 앱 통합 검증 | 초안 | 미착수 | 미수행 |
-| [T-120](work-items/T-120.md) | IDE 실행 전 자동 준비 연동 | 후보 | 미착수 | 미수행 |
+| [T-000](work-items/T-000.md) | Single-demo POC | Complete for POC | Complete | Complete for documented scope |
+| [T-005](work-items/T-005.md) | LLM monorepo onboarding and Spring configuration audit | Complete for discovery | Complete | Format, links, and examples verified |
+| [T-010](work-items/T-010.md) | Application registry schema | Complete | Complete | Schema verified |
+| [T-020](work-items/T-020.md) | Registry loading, validation, and project selection | Complete | Complete | Loading and references verified |
+| [T-030](work-items/T-030.md) | Endpoint resolution and settings injection | Complete | Complete | Resolution and merge verified |
+| [T-040](work-items/T-040.md) | DFS execution planning | Complete | Complete | Planning verified |
+| [T-130](work-items/T-130.md) | WireMock-based Vault configuration API mock | Complete for the request contract | Complete | KV v2 demo verified |
+| [T-131](work-items/T-131.md) | Service-specific Vault paths and values | Complete | Complete | Two-service demo verified |
+| [T-140](work-items/T-140.md) | External Spring YAML and AI-assisted registry maintenance | Complete | Complete for local IntelliJ generation | Verified with Spring Boot |
+| [T-050](work-items/T-050.md) | Execution and readiness checks | Complete for initial execution | Complete | Documented scope verified |
+| [T-060](work-items/T-060.md) | Target app execution pipeline | Complete for supported runners | Complete | New IDE Debug flow pending |
+| [T-150](work-items/T-150.md) | Browser environment preparation | Complete | Complete | Manual browser verification pending |
+| [T-070](work-items/T-070.md) | Custom hostnames | Complete for hosts on macOS and Windows | Complete | System changes with elevation pending |
+| [T-160](work-items/T-160.md) | macOS and Windows launch support | Complete | Complete | Finder and IDE checks pending |
+| [T-170](work-items/T-170.md) | Local registry.json editor | Complete | Complete | macOS picker and mobile remote preview pending |
+| [T-180](work-items/T-180.md) | Registry dependency graph | Complete | Complete | Small viewport and large graph checks pending |
+| [T-190](work-items/T-190.md) | Per-app execution and settings files | Complete | Complete | Compatibility, editor, and processes verified |
+| [T-200](work-items/T-200.md) | Separate registry storage from source worktrees | Complete | Complete | Native picker and IDE import checks pending |
+| [T-210](work-items/T-210.md) | English and Korean documentation | Complete | Complete | Language navigation and links verified |
+| [T-080](work-items/T-080.md) | Per-dependency real or mock execution | Complete | Complete | Demo and process scenarios verified |
+| [T-090](work-items/T-090.md) | Session, failure, and stop policies | Partially specified | Partially complete | Windows, Linux, and demo Compose verified in part |
+| [T-100](work-items/T-100.md) | LLM registration draft validation and conversion | Draft | Not started | Not run |
+| [T-110](work-items/T-110.md) | Multi-app integration verification | Draft | Not started | Not run |
+| [T-120](work-items/T-120.md) | Automatic preparation before IDE execution | Candidate | Not started | Not run |
 
-완료 표시는 해당 작업에 명시한 범위에 한정된다. POC 완료가 일반화된 앱 등록·DFS 실행까지 완료되었다는 뜻은 아니다. 후속 작업의 설계 초안은 범위·완료 기준을 정한 수준이며 상세 설계 완료가 아니다.
+Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 
-## 2. 작업 문서의 공통 구조
+## 2. Work item format
 
-각 `work-items/T-xxx.md`에서 다음을 함께 관리한다.
+Each `work-items/T-xxx.md` includes:
 
-1. **설계:** 문제·범위·관련 요구사항·선택지·결정 이유·완료 기준.
-2. **개발:** 설계에 대응하는 변경 파일·구현 내역·남은 작업.
-3. **검증:** 계획과 실제 수행 결과를 구분하고 명령·환경·관찰 결과·한계를 기록.
-4. **재개 지점:** 중단 위치·미해결 문제·다음 조치.
+1. **Design** explains the problem, scope, requirements, options, rationale, and acceptance criteria.
+2. **Development** lists changed files, implementation details, and remaining work.
+3. **Verification** separates plans from actual commands, environments, results, and limitations.
+4. **Resume point** records open issues and the next action.
 
-기능을 바꾸거나 고칠 때 해당 작업 문서의 설계·개발·검증을 함께 갱신한다. 별도 문서로 나눠야 하는 큰 자료는 작업 문서에서 연결하되, 단계별 상태와 판단 근거는 같은 작업에서 찾을 수 있게 유지한다.
+Keep decisions and evidence under the same T-ID. Link larger supporting documents from the work item when needed.
 
-## 3. 지금 재개한다면
+## 3. Resume development
 
-T-080과 T-090의 포트 충돌·프로세스 정리·상대 경로 수정을 마쳤다. 다음은 실제 멀티모듈 앱으로 등록과 IntelliJ Debug까지 확인하는 도그푸딩이다. 세션 정책의 남은 작업은 [T-090](work-items/T-090.md)에 기록했다.
+T-080 is complete. T-090 covers the recent port-conflict, process cleanup, and relative command fixes. The next integration check is onboarding and IntelliJ debugging for a real multimodule app. See [T-090](work-items/T-090.md) for remaining session policy work.
 
-1. `git status --short --branch`와 최근 커밋을 확인한다. 미커밋 변경의 주체와 범위를 파악한다.
-2. 인덱스에서 작업을 선택하고 그 문서의 설계 → 개발 → 검증 → 재개 지점을 읽는다. 필요한 공통 배경만 아래 참고 자료에서 추가 확인한다.
-3. 선행 작업과 완료 기준을 확인하고 작업한다. 사용자 최신 지시가 문서보다 우선한다.
-4. `python -m unittest discover -s tests -v`로 현재 기준을 확인한다. Windows에서 Vault URL과 Spring JAR/JDK를 지정한 전체 113개 테스트를 통과했다. 먼저 `python -m pip install -r requirements.txt`로 의존성을 준비하고, 선택한 작업의 검증을 추가로 수행한다.
-5. 같은 작업 문서에 설계 결정·개발 결과·검증 증거·다음 조치를 기록하고 이 인덱스의 단계별 상태 및 전체 현황을 갱신한다.
-6. 커밋·푸시 후 원격 동기화를 확인한다. 중단한다면 작업 문서의 재개 지점을 먼저 남긴다.
+1. Check `git status --short --branch` and recent commits. Identify the context of any uncommitted changes.
+2. Choose a T-ID and read it from design through the resume point. Consult the shared references as needed.
+3. Confirm prerequisites and acceptance criteria. Follow the latest user instructions.
+4. Install dependencies with `python -m pip install -r requirements.txt`. Run `python -m unittest discover -s tests -v` and any work-specific checks. The Windows baseline passed 113 tests with the Vault URL and Spring JAR and JDK configured.
+5. Write decisions, implementation, evidence, and next steps in the work item. Update this index and the project status.
+6. Commit, push, and verify the remote. Record the resume point before pausing.
 
-실행 중인 컨테이너·IntelliJ·로컬 스킬 사본 상태는 재개 시 다시 확인한다. 단위 테스트에는 Docker·IntelliJ가 필요하지 않다.
+Recheck live containers, IntelliJ, and the locally installed skill. Unit tests run without Docker or IntelliJ.
 
-## 4. 공통 참고 자료
+## 4. Shared references
 
-- [공통 설계](design.md): 여러 작업이 공유하는 R/D-ID와 아키텍처 방향.
-- [전체 현황](status.md): 저장소 구조, 현재 동작과 제한, 다음 작업 요약.
-- [기존 검증 이력](validation-history.md): T-000·T-005의 이전 상세 기록.
-- [README](../README.md): 현재 실행 방법.
-- [등록 스킬](../skills/injector-register-monorepo/SKILL.md): 모노레포 최초 등록·Spring 설정 조사·실행용 registry 관리.
+- [Design](design.md) for shared R-IDs, D-IDs, and architecture.
+- [Project status](status.md) for the current implementation, limits, and handoff.
+- [Verification history](validation-history.md) for earlier T-000 and T-005 procedures.
+- [README](../README.md) for the current workflow.
+- [Registration skill](../skills/injector-register-monorepo/SKILL.md) for monorepo onboarding, Spring configuration discovery, and registry maintenance.
 
-## 5. 상태와 변경 규칙
+## 5. Status and change rules
 
-설계는 초안·진행 중·완료, 개발은 미착수·진행 중·부분 구현·완료, 검증은 미수행·진행 중·실패·부분 검증·완료로 구분한다. 후보는 아직 범위·착수 시점이 미정인 작업이다. 범위가 다른 완료를 섞지 않고 제한을 작업 문서에 남긴다.
+Track design as draft, in progress, or complete. Track development as not started, in progress, partial, or complete. Track verification as not run, in progress, failed, partial, or complete. Candidate items have an open scope or start date. Record what was actually verified and the limits of each result.
 
-작업 ID는 유지한다. 새 작업은 설계·개발·검증을 묶은 문서와 인덱스 행을 함께 만든다. 기존 설계가 바뀌면 이유와 영향을 같은 작업 문서에 남긴다. 실제 수행하지 않은 검증은 결과로 기록하지 않는다.
+Keep T-IDs stable. Add a work item and an index row together. Record rationale and impact when changing the design. Database seeding, topic initialization, non-HTTP mocks, forced outbound blocking, and support for all languages and IDEs remain open.
 
-DB 초기 데이터·토픽 초기화, 비HTTP 대역, 외부 통신 강제 차단, 모든 언어·IDE 지원은 아직 확정 범위가 아니다. 필요할 때 요구사항과 연결한 작업을 추가한다.
+English is the default document path. Update the corresponding Korean `*.ko.md` file when changing shared documentation.

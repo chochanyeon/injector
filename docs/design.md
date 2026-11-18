@@ -1,307 +1,289 @@
-# 공통 설계: 로컬 개발 환경 관리 도구
+# Shared design for local development environments
 
-- 문서 상태: 요구사항 정리 초안. 사용자 요청으로 최소 POC 구현 착수
-- 작성일: 2026-11-16
-- 현재 단계: 설계 병행 POC. 제품 기술 스택은 미확정
-- 문서 목적: 복잡한 프로젝트의 실행 설정과 의존성 구성을 명시하고, 이후 설계·구현의 판단 기준으로 사용한다.
+**English** · [한국어](design.ko.md)
 
-이 문서는 여러 작업에 공통인 요구사항·아키텍처 배경이다. [작업 인덱스](index.md)에서 T-ID를 선택하고 같은 작업 문서 안에서 설계 → 개발 → 검증을 이어서 확인한다. 현재 구현의 전체 요약은 [전체 현황](status.md)에 있다.
+- Status: requirements draft with a minimal POC requested by the user
+- Initial date: November 16, 2026
+- Stage: design and POC in parallel. The product stack remains open.
 
-## 1. 문제와 목표
+This document provides shared requirements and architectural background. Start with the [work index](index.md) for item-specific design, development, verification, and resume notes. The [project status](status.md) tracks current implementation.
 
-프로젝트를 실행하기 위해 VM 옵션, 환경변수, 외부 애플리케이션, DB·Kafka·Redis 등 여러 요소를 맞춰야 한다. 이 설정들이 얽혀 있으면 개발 환경을 재현하기 어렵고, 공유 개발 환경의 상태에 따라 로컬 개발이 영향을 받는다.
+## 1. Problem and goals
 
-이 도구는 프로젝트에 필요한 설정과 의존성을 하나의 실행 구성으로 관리한다. 개발자는 IntelliJ에서 메인 애플리케이션을 실행하고 디버깅하면서, 주변 의존성을 원하는 방식으로 준비할 수 있어야 한다.
+Running a project can require coordinated JVM options, environment variables, external applications, databases, Kafka, and Redis. When these are tightly coupled, reproducing an environment becomes difficult and local development inherits problems from a shared development environment.
 
-의존성을 모두 모의 대체하는 구성, 관련 애플리케이션을 실제로 모두 실행하는 구성, 두 방식을 섞는 구성의 가능성을 열어둔다. 모든 구성의 초기 구현을 약속하는 것은 아니다.
+Manage settings and dependencies as one execution configuration. A developer should be able to run and debug the main app in IntelliJ while choosing how to prepare each dependency. The model should accommodate all mocks, all real dependencies, and a mixture. Initial support for each option can be decided separately.
 
-## 2. 요구사항 상태 규칙
+## 2. Requirements status
 
-| 상태 | 의미 |
+| Status | Meaning |
 |---|---|
-| 확정 | 사용자에게서 확인된 요구사항 |
-| 제안 | 검토를 위한 설계 초안이며 승인된 요구사항이 아님 |
-| 미결정 | 선택지와 판단 기준을 추가로 확인해야 함 |
+| Confirmed | A requirement confirmed by the user |
+| Proposed | An option for review |
+| Open | A decision that needs more information |
 
-이 문서의 구조와 동작 모델은 별도 표시가 없는 한 제안이다. 기술 선택, 구현 범위, 우선순위는 확정 요구사항과 구분한다.
+The structure and behavior in this document are proposals unless marked otherwise. Confirmed requirements are tracked separately from technology choices, implementation scope, and priorities.
 
-## 3. 확정 요구사항
+## 3. Confirmed requirements
 
-| ID | 요구사항 | 확인 기준 |
+| ID | Requirement | Acceptance evidence |
 |---|---|---|
-| R-01 | 복잡한 VM 옵션과 환경변수를 관리하고 실행 시 주입한다. | 선택한 실행 구성의 값이 대상 애플리케이션에 전달됨을 확인한다. |
-| R-02 | 기본 개발 흐름에서 메인 애플리케이션은 IntelliJ에서 실행·디버그할 수 있어야 한다. | IntelliJ에서 브레이크포인트를 걸고 실행 흐름을 확인할 수 있다. |
-| R-03 | Docker를 이용한 애플리케이션 실행 기능도 포함한다. | IntelliJ 실행과 별도로 Docker 실행 경로를 정의한다. |
-| R-04 | DB·Kafka·Redis 등 필요한 인프라를 실행할 수 있어야 한다. | 선택된 인프라의 실행과 애플리케이션 연결을 확인한다. 지원 제품·버전 범위는 별도로 정한다. |
-| R-05 | WireMock을 활용해 외부 개발 환경에 의존하지 않는 로컬 실행을 지원한다. | 모의 대체 대상으로 정한 호출이 로컬 대역으로 연결된다. |
-| R-06 | 의존 애플리케이션을 모의 대체하거나 실제 실행하는 구성을 설계상 허용한다. | 전체 모의 대체, 전체 실제 실행, 혼합 구성을 모델에서 표현할 수 있다. |
-| R-07 | 초기에는 설계 문서 정형화에 집중한다. 이후 사용자 요청으로 최소 POC를 시작한다. | 요구사항과 미결정 사항을 유지하면서 POC 결과를 구분해 기록한다. |
-| R-08 | 앱별 접속 정보와 의존 관계를 관리한다. | 호스트 이름, 바인딩 주소, 포트, 호출자별 접속 주소, 설정 주입 위치를 표현한다. |
-| R-09 | 대상 앱의 전이적 의존성을 DFS로 탐색해 하위 의존성부터 순서대로 실행한다. | 의존성의 의존성까지 준비한 뒤 상위 앱을 실행한다. |
-| R-10 | 대상 앱 실행 전 주입·준비 작업을 시작점으로 사용한다. | 각 앱의 실행 전에 설정을 적용하고 필요한 의존성을 준비한다. IDE 실행 전 자동 연동 방식은 후속 결정한다. |
-| R-11 | 모노레포의 최초 앱 등록을 LLM으로 보조할 수 있는 스킬 또는 프로토콜을 제공한다. | 앱·접속점·전이적 의존성을 근거와 함께 조사하고 검토용 등록 초안을 작성할 수 있다. |
-| R-12 | Vault 형태의 설정 조회를 로컬 API 대역과 로컬 값으로 대체한다. | 앱이 사용하는 요청 경로·응답 구조·키에 맞춰 값을 반환한다. 실제 Vault 연결·이미지 기동은 요구하지 않는다. 현재 구현 범위는 T-130에 명시한다. |
-| R-13 | Vault 대역의 설정값을 서비스 이름이 포함된 경로로 구분한다. | 하나의 대역 주소에서 같은 키라도 서비스별 값을 반환하고, 앱마다 해당 서비스의 조회 경로를 주입한다. 현재 구현 범위는 T-131에 명시한다. |
-| R-14 | Spring 외부 YAML과 VM 전용 설정을 구분해 생성하고, AI가 실행 등록을 관리할 지침을 제공한다. | 원본 YAML을 보존하고 추가 설정 경로를 주입한다. 레포 근거로 각 값의 읽는 방식·프로필·채널을 구분하며 실제 스키마와 검증 CLI를 사용한다. T-140에서 관리한다. |
+| R-01 | Manage and inject complex JVM options and environment variables. | The selected configuration reaches the target app. |
+| R-02 | Support running and debugging the main app in IntelliJ. | A developer can set a breakpoint and inspect execution. |
+| R-03 | Provide a Docker execution path. | The Docker path can be used independently of IntelliJ. |
+| R-04 | Run required infrastructure such as databases, Kafka, and Redis. | Selected services start and app connectivity can be checked. Product and version support is tracked separately. |
+| R-05 | Use WireMock to support local execution independently of shared development services. | Selected API calls reach the local mock. |
+| R-06 | Model real and mocked dependencies. | The model can express all-real, all-mock, and mixed configurations. |
+| R-07 | Establish the design documentation, then build a minimal POC when requested. | Requirements and open decisions remain visible alongside POC results. |
+| R-08 | Manage endpoints and dependencies for each app. | The model represents names, bind addresses, ports, caller-specific addresses, and injection points. |
+| R-09 | Traverse transitive dependencies with DFS and start prerequisites first. | Each dependency's own dependencies become ready before it starts. |
+| R-10 | Prepare and inject the environment before starting the target. | Each app receives its settings before startup. Automatic IDE integration remains open. |
+| R-11 | Provide a skill or protocol for LLM-assisted monorepo onboarding. | An LLM can document runnable apps, endpoints, and transitive dependencies with evidence and produce a reviewed draft. |
+| R-12 | Substitute Vault-style configuration reads with a local API and local values. | Match the requested path, response shape, and keys without requiring a real Vault instance. See T-130. |
+| R-13 | Give Vault mock values service-specific paths. | The same mock origin returns service-specific values for identical keys. Each app receives its own path. See T-131. |
+| R-14 | Generate Spring YAML and JVM-only configuration and guide AI registry maintenance. | Preserve source YAML, inject an additional location, and use repository evidence to determine each setting's profile, source, and channel. Use the actual schema and validation CLI. See T-140. |
 
-## 4. 용어
+## 4. Terminology
 
-| 용어 | 정의 |
+| Term | Definition |
 |---|---|
-| 대상 프로젝트 | 이 도구로 실행 환경을 관리하는 개발 프로젝트 |
-| 메인 애플리케이션 | 현재 개발자가 실행·디버그하려는 애플리케이션 |
-| 의존성 | 메인 애플리케이션이나 다른 의존성이 필요로 하는 API, 앱, 인프라 등 |
-| 실행 구성 | 설정값, 의존성별 처리 방식, 메인 애플리케이션 실행 방식을 묶은 정의 |
-| 실행 세션 | 하나의 실행 구성을 적용해 환경을 준비하고 사용하는 한 번의 실행 단위 |
-| 모의 대체 | 실제 의존성 대신 필요한 동작을 제공하는 대역을 사용함 |
-| 실제 로컬 실행 | 의존 애플리케이션 또는 인프라를 로컬에서 실제로 실행함 |
-| 외부 연결 | 이미 실행 중인 외부 또는 공유 자원에 연결함. 지원 여부 미결정 |
+| Target project | The project whose local execution environment Injector manages |
+| Main application | The app the developer currently intends to run or debug |
+| Dependency | An API, app, or infrastructure service required by an app or another dependency |
+| Execution configuration | The settings, dependency choices, and main app execution method |
+| Execution session | One preparation and use of an execution configuration |
+| Mock | A substitute that supplies the needed behavior |
+| Real local execution | A dependency app or infrastructure service running locally |
+| External connection | A connection to an existing shared or external service. Support was open in the initial design. |
 
-## 5. 책임 경계
+## 5. Responsibilities
 
-도구가 맡을 책임의 후보는 실행 설정 해석·검증, 의존성 준비, 연결 주소 반영, IntelliJ 연동, 상태 확인, 세션 종료 및 정리다.
+Candidate responsibilities include resolving and validating settings, preparing dependencies, resolving connection addresses, integrating with IntelliJ, reporting status, and cleaning up sessions.
 
-제품의 최종 제공 형태는 미결정이다. 현재 POC는 CLI가 설정 생성과 의존성 준비를 맡고, 개발자가 IntelliJ에서 메인 앱의 Debug를 시작한다. 별도 IntelliJ 플러그인은 필요하지 않다. 구체적인 POC 동작은 14절에 기록한다.
+The final product packaging remains open. The POC CLI generates configuration and prepares dependencies. The developer starts Debug in IntelliJ without a dedicated plugin. Section 14 records the original workflow.
 
-모의 대체는 의존성의 종류와 통신 방식에 맞춰 정의한다. WireMock을 모든 종류의 의존성을 대체하는 공통 엔진으로 확정하지 않는다. DB·Kafka·Redis까지 모의 대체할 필요가 있는지, 필요한 경우 어떤 방식으로 제공할지는 별도 검토한다.
+Choose mocks by dependency type and protocol. WireMock covers HTTP behavior. Whether and how to mock database, Kafka, and Redis behavior requires a separate decision.
 
-## 6. 의존성 구성 모델
+## 6. Dependency model
 
-의존성별로 처리 방식을 선택하는 모델을 제안한다. 실행 방식은 메인 애플리케이션의 IntelliJ/Docker 실행 선택과 구분한다.
+Choose how to satisfy each dependency independently of the main app's IntelliJ or Docker execution method.
 
-| 처리 방식 | 의미 | 상태 |
+| Method | Meaning | Initial decision |
 |---|---|---|
-| 모의 대체 | 정의된 응답이나 동작을 대역이 제공 | 방향 확정, 구체적인 지원 범위 미결정 |
-| 실제 로컬 실행 | 해당 앱이나 인프라를 로컬에서 실행 | 방향 확정, 실행 수단과 관리 범위 미결정 |
-| 외부 연결 | 사용자가 지정한 기존 실행 자원에 연결 | 지원 여부 미결정 |
+| Mock | Supply a defined response or behavior through a substitute | Direction confirmed. Specific coverage remains open. |
+| Real local service | Run the app or infrastructure locally | Direction confirmed. Runner and ownership details remain open. |
+| External service | Connect to an existing resource specified by the user | Support under consideration. |
 
-의존성 간 관계를 표현할 수 있어야 한다. 예를 들어 메인 앱 → 주문 앱 → 주문 DB라는 관계에서 주문 앱을 실제 실행하면 주문 DB도 준비 대상이 될 수 있다. 주문 앱을 모의 대체할 때 주문 DB까지 준비해야 하는지는 해당 실행 구성의 다른 의존 관계를 함께 보고 판단해야 한다.
+The model records relationships between dependencies. If the main app uses Orders and Orders uses a database, running real Orders can require the database. Whether the database is still needed with mock Orders depends on the other selected edges.
 
-실행 대상 앱에서 전이적 의존성을 DFS로 탐색하고 하위 의존성부터 실행하는 방향은 확정한다. 공통 의존성이 있으므로 내부 모델은 방향 그래프로 정의한다. 처리 방식에 따른 의존성 선택과 실행 규칙의 초안은 15절에 기록한다.
+The model uses a directed graph because several apps can share a dependency. Traverse from the target using DFS and prepare dependencies first. Section 15 describes the planning rules.
 
-## 7. 주요 시나리오
+## 7. Scenarios
 
-### S-01. 메인 앱 디버그 + 외부 API 모의 대체
+### S-01. Debug the main app with mocked external APIs
 
-1. 개발자가 대상 프로젝트와 실행 구성을 선택한다.
-2. 도구가 필요한 대역과 인프라를 준비한다.
-3. 로컬 연결 주소를 포함한 VM 옵션·환경변수를 적용한다.
-4. 개발자가 IntelliJ에서 메인 앱을 디버깅한다.
+1. The developer selects the target project and configuration.
+2. Injector prepares the selected mocks and infrastructure.
+3. Injector applies JVM options and environment variables, including local addresses.
+4. The developer debugs the main app in IntelliJ.
 
-검토 기준: 선택한 외부 API 호출이 대역으로 향하고, IntelliJ에서 디버깅할 수 있다.
+Verify that selected API calls reach their mocks and that IntelliJ debugging works.
 
-### S-02. 메인 앱 디버그 + 의존 앱 실제 실행
+### S-02. Debug the main app with real dependency applications
 
-1. 의존 앱을 실제 로컬 실행하는 구성을 선택한다.
-2. 필요한 하위 앱과 인프라를 확인하고 준비한다.
-3. 실제 로컬 앱의 주소를 메인 앱 실행 설정에 반영한다.
-4. IntelliJ에서 메인 앱을 디버깅한다.
+1. Select a configuration that runs real dependency apps locally.
+2. Identify and prepare their prerequisites.
+3. Apply the real local connection addresses to the main app.
+4. Debug the main app in IntelliJ.
 
-검토 기준: 실제 의존 앱과 통신하며, 필요한 하위 의존성의 준비 상태를 확인할 수 있다.
+Verify communication with real apps and readiness of their prerequisites.
 
-### S-03. 혼합 실행
+### S-03. Mix real services and mocks
 
-일부 API는 모의 대체하고, 일부 앱과 인프라는 실제 로컬 실행한다.
+Run real applications and infrastructure alongside selected API mocks. Verify that the effective settings and connection addresses agree with each choice.
 
-검토 기준: 각 의존성의 선택이 설정과 연결 주소에 일관되게 반영된다.
+### S-04. Run the main app in Docker
 
-### S-04. 메인 앱까지 Docker 실행
+Start the main app and surrounding environment through Docker. Use the same execution configuration model as the IntelliJ path. Define address translation for container callers separately.
 
-메인 앱과 주변 환경을 Docker 실행 경로로 구동한다.
+## 8. Configuration injection
 
-검토 기준: IntelliJ 실행 경로와 같은 실행 구성 개념을 사용할 수 있다. 컨테이너 내부에서 사용할 연결 주소의 변환 규칙은 별도 설계한다.
-
-## 8. 설정 주입 설계 항목
-
-| 항목 | 설계해야 할 내용 |
+| Area | Design question |
 |---|---|
-| 입력 | 기존 VM 옵션·환경변수를 어디서 읽고 어떤 형식으로 관리할지 |
-| 합성 | 공통값, 프로젝트값, 개인값, 실행 구성값을 지원할지 및 적용 우선순위 |
-| 충돌 | 동일 키 중복, VM 시스템 속성과 환경변수의 관계를 어떻게 표시할지 |
-| 치환 | 로컬 주소·포트 등 실행 중 결정된 값을 어떤 설정에 반영할지 |
-| 추적 | 최종값이 어떤 원본에서 왔는지 확인하는 방법 |
-| 비밀값 | 저장 위치, 공유 제외 범위, 화면·로그 마스킹 방식 |
-| IntelliJ 연동 | 실행 구성 생성·수정·런타임 주입 중 어떤 방식을 사용할지 |
+| Inputs | Where to read existing JVM options and environment variables and how to represent them |
+| Merge | Which common, project, personal, and execution-specific layers to support and in what order |
+| Conflicts | How to report duplicate keys and interactions between JVM properties and environment variables |
+| Substitution | Where to inject runtime addresses, ports, and similar values |
+| Provenance | How to trace each effective value to its source |
+| Secrets | Where to store values, what to exclude from sharing, and how to redact the UI and logs |
+| IntelliJ | Whether to generate, edit, or inject a run configuration |
 
-애플리케이션 프레임워크의 설정 우선순위와 도구 내부의 설정 합성 우선순위는 구분해서 설계한다. 기존 IntelliJ 실행 설정을 변경할 경우 덮어쓰기와 복원 정책도 정의한다.
+Treat application framework precedence and Injector's merge rules separately. Define overwrite and restoration behavior before editing existing IntelliJ configurations.
 
-## 9. 실행 세션과 자원 관리
+## 9. Sessions and resource management
 
-제안하는 기본 흐름은 `구성 선택 → 검증 → 실행 계획 확인 → 의존성 준비 → 준비 상태 확인 → 메인 앱 실행·디버그 → 종료·정리`다. 실행 계획 확인을 사용자 승인 단계로 강제할지는 정하지 않는다.
+Proposed flow: select configuration → validate → inspect plan → prepare dependencies → check readiness → run or debug the main app → stop and clean up. Whether reviewing the plan requires an explicit approval remains open.
 
-다음 정책을 후속 설계에서 명시한다.
+Follow-on design should specify:
 
-- 프로세스 시작과 실제 사용 준비 완료를 구분하는 기준
-- 의존성 순서, 순환 의존, 포트 충돌 처리
-- 준비 과정 일부 실패 시 중단·재시도·정리 범위
-- 도구가 생성한 자원과 기존 자원의 소유권 구분
-- 여러 프로젝트나 세션에서 동일 인프라를 공유할지 여부
-- 앱 종료·IntelliJ 종료·도구 종료 시 자원 수명
-- DB 데이터, Kafka 메시지, Redis 데이터의 보존·초기화 정책
-- 스키마·초기 데이터·토픽 등의 초기화 지원 범위
+- How to distinguish process startup from service readiness
+- Dependency order, cycles, and port conflicts
+- Which steps to stop, retry, or clean up after partial failure
+- How to distinguish Injector-managed resources from existing resources
+- Whether multiple projects or sessions can share infrastructure
+- What happens to resources when an app, IntelliJ, or Injector exits
+- Retention and reset for database data, Kafka messages, and Redis data
+- Initialization scope for schemas, sample data, and topics
 
-인프라 초기화는 유용한 후보 기능이며, 아직 확정 요구사항으로 취급하지 않는다.
+Infrastructure initialization is a candidate feature.
 
-## 10. 로컬 격리의 의미
+## 10. Local isolation
 
-다음 두 수준을 구분해 선택해야 한다.
+1. Functional independence prepares dependencies locally so the app can run without the shared development environment.
+2. Network restrictions technically prevent unintended outbound connections as well.
 
-1. 기능적 독립: 실행에 필요한 의존성을 로컬에 준비해 공유 개발 환경 없이 동작한다.
-2. 통신 제한: 의도하지 않은 외부 연결까지 기술적으로 제한한다.
+The confirmed direction is functional independence. Enforcing network restrictions remains open. Address substitution alone provides no network enforcement.
 
-현재는 공유 개발 환경 없이 동작하는 방향이 확인되었다. 외부 통신의 강제 차단까지 요구하는지는 미결정이다. 단순한 주소 치환만으로 통신 제한이 보장된다고 가정하지 않는다.
+## 11. Open decisions
 
-## 11. 미결정 사항
-
-| ID | 결정할 내용 | 판단에 필요한 정보 |
+| ID | Decision | Information needed |
 |---|---|---|
-| D-01 | 도구 제공 형태와 IntelliJ 연동 방식 | 원하는 조작 흐름, 설치 제약, 기존 실행 설정 사용 방식 |
-| D-02 | 첫 지원 프로젝트 유형 | 언어·프레임워크·빌드 도구·프로젝트 구조 |
-| D-03 | 기존 설정을 가져오는 경로 | 현재 VM 옵션·환경변수의 관리 위치와 복잡성 사례 |
-| D-04 | 모의 대체 범위 | API 통신 방식, 상태·인증·비동기 동작 재현 필요성 |
-| D-05 | 실제 의존 앱 실행 방식 | 소스 실행, 빌드 산출물 실행, 컨테이너 실행 중 필요한 범위 |
-| D-06 | 인프라 지원 및 초기화 범위 | 제품·버전·초기 상태·데이터 보존 요구 |
-| D-07 | 설정 저장·공유·비밀값 정책 | 개인 사용인지 팀 공유인지, 저장소 관리 제약 |
-| D-08 | 격리 수준과 외부 연결 지원 | 외부 연결 허용 범위와 통신 차단 필요 여부 |
-| D-09 | 초기 구현 범위와 우선순위 | 대표 프로젝트 하나에서 검증할 최소 시나리오 |
+| D-01 | Product packaging and IntelliJ integration | Desired workflow, installation constraints, and how existing configurations are used |
+| D-02 | First supported project types | Languages, frameworks, build tools, and project layout |
+| D-03 | How to import existing settings | Where JVM options and environment variables are managed and representative complexity |
+| D-04 | Mock scope | API protocols and state, authentication, or asynchronous behavior to match |
+| D-05 | Real dependency runners | Whether to support source, built artifacts, containers, or a combination |
+| D-06 | Infrastructure coverage and initialization | Products, versions, initial state, and retention needs |
+| D-07 | Settings storage, sharing, and secrets | Personal or team use and repository constraints |
+| D-08 | Isolation and external connections | Permitted outbound services and any network-enforcement requirements |
+| D-09 | Initial scope and priorities | The smallest scenario to verify on a representative project |
 
-## 12. 설계 진행 순서와 완료 기준
+## 12. Design sequence and acceptance criteria
 
-1. 대표 프로젝트의 실제 실행 절차와 설정 사례를 수집한다. → 검증: 필요한 입력과 의존 관계를 빠짐없이 설명할 수 있다.
-2. 실행 구성 및 의존성 모델을 구체화한다. → 검증: S-01~S-04를 특정 기술 선택 없이 표현할 수 있다.
-3. IntelliJ 연동과 자원 수명 정책을 결정한다. → 검증: 정상 실행, 부분 실패, 재실행, 종료의 책임이 명확하다.
-4. 첫 구현 범위와 제외 범위를 합의한다. → 검증: 요구사항별 수용 기준을 확인할 수 있다.
+1. Collect actual startup procedures and settings from a representative project. Verify that inputs and dependencies are understood.
+2. Detail the execution and dependency model. Verify that it expresses S-01 through S-04 independently of technology choices.
+3. Decide IntelliJ integration and resource ownership. Verify responsibilities for normal runs, partial failures, retries, and shutdown.
+4. Agree on the initial implementation scope and check each requirement against its acceptance criteria.
 
-사용자의 후속 POC 착수 요청에 따라 샘플 프로젝트 기반의 최소 구현을 시작했다. 기존 프로젝트 연동과 제품 구현 범위는 여전히 별도 결정 대상이다. POC 실행 방법과 검증 현황은 `../README.md`에 기록한다.
+The minimal sample-project POC followed a user request to start implementation. Product scope and integration with existing projects remain separate decisions. See the [README](../README.md) for the current workflow.
 
-## 13. 결정 기록 규칙
+## 13. Decision records
 
-결정이 내려지면 해당 D-ID와 연결해 배경, 검토한 선택지, 선택 결과, 이유, 제약, 관련 R-ID를 기록한다. 변경 시 이전 결정을 대체하는 이유를 남긴다.
+For each decision, record the D-ID, background, options, outcome, rationale, constraints, and related R-IDs. When changing a decision, record why it supersedes the earlier one.
 
-제품의 최종 기술·아키텍처는 미확정이다. IntelliJ 디버깅, Docker 실행, WireMock 활용, 인프라 기동이라는 요구 방향을 검증하기 위한 POC 선택은 아래와 같다.
+The next sections preserve POC decisions for IntelliJ, Docker, WireMock, and infrastructure startup. Check the [project status](status.md) for later implementation.
 
-## 14. 현재 POC의 설정 관리 및 IntelliJ 연동
+## 14. POC configuration and IntelliJ integration
 
-### 14.1. 선택과 적용 범위
+### 14.1. Choice and scope
 
-- 관련 미결정 사항: D-01, D-03, D-07
-- 관련 요구사항: R-01, R-02
-- POC 선택: Python CLI가 원본 설정을 읽어 IntelliJ Application 실행 구성 XML을 생성한다.
-- 선택 이유: 별도 IDE 플러그인 없이 설정 주입과 로컬 디버깅 흐름을 검증할 수 있다.
-- 적용 범위: 현재 샘플 Maven/JVM 프로젝트. 임의의 기존 업무 프로젝트를 등록하는 기능은 아직 없다.
-- 제품 제공 형태, 기존 설정 가져오기, 팀 비밀값 관리 정책은 여전히 미결정이다.
+- Decisions D-01, D-03, and D-07. Requirements R-01 and R-02.
+- Use a Python CLI to read source settings and generate an IntelliJ Application run configuration in XML.
+- Validate JVM injection and debugging without requiring an IDE plugin.
+- The initial scope was the sample Maven/JVM project. Product packaging, import, and team secret sharing remained open.
 
-저장소 루트는 Injector 코드·테스트·설계 문서를 관리하는 개발 공간이다. 적용 대상인 Java 데모 앱은 `examples/demo/`의 별도 Maven 프로젝트이며, 소스·`pom.xml`·설정·Docker 구성을 이 디렉터리에 둔다. CLI는 루트의 `injector.py`로 실행하되 현재 POC의 기본 대상은 데모 프로젝트다.
+Injector code, tests, and docs live at the repository root. The Java target is a separate Maven project under `examples/demo/` with its own source, `pom.xml`, configuration, and Docker files.
 
-### 14.2. 원본 설정과 생성 결과
+### 14.2. Source and generated configuration
 
-관리의 기준은 생성된 XML이 아니라 대상 프로젝트의 원본 설정인 `config/project.json`이다. 현재 데모에서는 저장소 기준 `examples/demo/config/project.json`에 해당한다. 이 파일에 IntelliJ 모듈 이름, 메인 클래스, 공통 VM 옵션·환경변수, 프로필별 VM 옵션·환경변수를 정의한다.
+The legacy source of truth is `examples/demo/config/project.json`. It defines the IntelliJ module, main class, and shared and per-profile JVM options and environment variables.
 
 ```text
-examples/demo/config/project.json + 선택한 프로필(mock 또는 real)
-  → 공통값과 프로필값 합성
-  → examples/demo/.run/Injector-<프로필>.run.xml 생성
-  → IntelliJ가 실행 구성 인식
-  → 개발자가 Run / Debug
-  → JVM 시작 시 VM 옵션과 환경변수 전달
+examples/demo/config/project.json + selected profile (mock or real)
+  → Merge shared and profile settings
+  → Generate examples/demo/.run/Injector-<profile>.run.xml
+  → IntelliJ discovers the configuration
+  → Developer starts Run or Debug
+  → JVM receives options and environment variables at startup
 ```
 
-환경변수는 공통값에 프로필별 값을 덮어쓴다. VM 옵션은 공통 배열 뒤에 프로필 배열을 붙인다. 동일한 `-D` 키의 중복을 도구가 해석하거나 충돌을 해결하지는 않는다.
+Profile environment values override shared settings. The legacy JVM option arrays are concatenated in shared-then-profile order. Duplicate `-D` keys are left in the option list. For example, shared `-Xmx256m` and `-Dfile.encoding=UTF-8` plus mock `-Dinjector.profile=mock` populate the XML's `VM_PARAMETERS`. Environment variables go in the XML's `envs` elements.
 
-예를 들어 공통 옵션이 `-Xmx256m`, `-Dfile.encoding=UTF-8`이고 mock 옵션이 `-Dinjector.profile=mock`이면, 세 옵션을 합쳐 XML의 `VM_PARAMETERS` 항목에 기록한다. 각 환경변수는 같은 XML의 `envs` 아래 `env` 항목에 기록한다.
+View the generated values under Run → Edit Configurations. The app reads `injector.profile` with `System.getProperty` and `DEMO_MESSAGE` with `System.getenv`. The settings apply when starting a new JVM.
 
-IntelliJ의 Run → Edit Configurations에서 생성된 구성의 VM options와 Environment variables를 확인할 수 있다. 메인 앱은 VM 시스템 속성을 `System.getProperty("injector.profile")`로, 환경변수를 `System.getenv("DEMO_MESSAGE")`로 읽는다. 이미 실행 중인 JVM의 설정을 변경하는 기능은 아니다.
+### 14.3. Project-scoped configuration and sharing
 
-### 14.3. 프로젝트 단위 관리와 공유
+The demo generates `Injector-mock` and `Injector-real` in `examples/demo/.run/`. Open `examples/demo/pom.xml` separately to use them. The repository shares source configuration and generation code. Generated XML, Docker settings under `.local/`, and Java build outputs stay out of Git. Keep real credentials out of source settings.
 
-하나의 프로젝트에 `Injector-mock`, `Injector-real`처럼 여러 프로필의 실행 구성을 둘 수 있다. 현재 POC는 데모 프로젝트 루트의 `.run/`에 파일을 생성한다. 저장소 기준 경로는 `examples/demo/.run/`이다. IntelliJ에서는 `examples/demo/pom.xml`을 별도 프로젝트로 열어 이 실행 구성을 사용한다.
+Regeneration overwrites the corresponding generated configuration. Make persistent changes in the source. Other IntelliJ configurations are outside the generator's scope. The original proposal for work projects was to specify the path, module, and main class and generate a project configuration. Later centralized storage is tracked in [T-200](work-items/T-200.md).
 
-원본 설정과 생성 도구는 Git으로 공유하고 각 개발자가 실행 구성을 생성하는 방식이다. 대상 프로젝트의 실제 설정값이 담기는 `.run/Injector-*.run.xml`과 Docker용 생성 설정이 담기는 `.local/`은 Git에서 제외한다. 데모의 생성 파일과 Java 빌드 결과는 모두 `examples/demo/` 아래에 둔다. 개인 비밀값을 별도 저장하거나 주입하는 기능은 아직 없으므로, 원본 설정에도 실제 자격증명을 커밋해서는 안 된다.
+### 14.4. Commands and verification
 
-생성된 XML을 직접 수정하면 같은 프로필을 다시 생성할 때 덮어써진다. 유지할 변경은 원본 설정에 반영한다. 도구가 생성한 전용 구성 외의 기존 IntelliJ 실행 구성을 찾아 수정하거나 병합하지 않는다.
-
-기존 업무 프로젝트로 확장할 때는 대상 프로젝트의 경로·모듈·메인 클래스 등을 지정하고 해당 프로젝트의 `.run/`에 생성하는 방식을 검토한다. 이는 확장 방향이며 현재 구현된 기능으로 취급하지 않는다.
-
-### 14.4. 명령별 책임과 검증
-
-| 명령 또는 조작 | 책임 |
+| Command or operation | Responsibility |
 |---|---|
-| `python injector.py generate --profile mock` | 실행 구성과 Docker용 설정 생성. 인프라·메인 앱은 실행하지 않음 |
-| `python injector.py up --profile mock` | 설정 생성 후 선택한 의존성 준비. 메인 앱은 IntelliJ에서 직접 실행 |
-| IntelliJ의 `Injector-mock` Debug | 생성된 설정을 사용해 메인 JVM 실행 및 디버거 연결 |
-| `python injector.py run --profile mock` | 같은 합성 결과를 Java 명령 인자와 자식 프로세스 환경변수로 전달 |
-| `python injector.py up --profile mock --main-docker` | 같은 합성 결과를 Docker 설정에 반영하고 내부 서비스 주소로 변환해 실행 |
+| `python injector.py generate --profile mock` | Generate IntelliJ and Docker settings without starting the environment. |
+| `python injector.py up --profile mock` | Generate settings and prepare selected dependencies. Start the main app in IntelliJ. |
+| IntelliJ `Injector-mock` Debug | Launch the main JVM with the generated configuration and attach the debugger. |
+| `python injector.py run --profile mock` | Pass the same resolved settings to Java as command arguments and process environment variables. |
+| `python injector.py up --profile mock --main-docker` | Apply the same settings and container-side addresses to the Dockerized app. |
 
-현재 검증에서는 IntelliJ IDEA 2025.3.3 / JDK 21에서 두 프로필의 Debug 실행과 브레이크포인트 중단·재개, VM 옵션·환경변수 주입을 확인했다. Docker에서도 두 프로필의 API 호출을 확인했다. 실행 절차는 [README](../README.md), 검증 범위와 결과는 [POC 검증 기록](validation-history.md)에 기록한다.
+The original check verified both profiles with IntelliJ IDEA 2025.3.3 and JDK 21, including breakpoint pause and resume, VM options, and environment variables. Both API variants also worked in Docker. [README](../README.md) · [Verification history](validation-history.md)
 
-## 15. 앱 등록 정보와 재귀적 의존성 실행
+## 15. Application registry and recursive execution
 
-### 15.1. 앱과 접속 정보
+### 15.1. Applications and endpoints
 
-도구의 중심 모델은 앱·인프라의 등록 정보, 접속점, 의존 관계다. 설정 주입과 프로세스·컨테이너 실행은 이 모델을 실제 환경에 반영하는 동작이다. 최종 파일 형식은 미결정이며 다음 항목을 표현하는 모델을 설계한다.
+The central model captures apps and infrastructure, endpoints, and dependencies. Injection and process or container startup apply that model. The original file format was open. The model needs the following fields.
 
-| 항목 | 예시 및 의미 |
+| Field | Example or purpose |
 |---|---|
-| 식별자 | 주문 앱, 결제 앱, 주문 DB 등 그래프에서 대상을 식별하는 ID |
-| 실행 정의 | IntelliJ, 로컬 프로세스, Docker 등 실행 방식과 필요한 프로젝트 정보 |
-| 접속점 | 업무 API, 관리 API, 디버그 포트 등을 구분 |
-| 바인딩 정보 | 실제로 수신하는 주소와 포트 |
-| 논리 호스트 이름 | `payment.local.test.com`처럼 앱을 호출할 때 사용하는 이름 |
-| 이름 해석 | 논리 호스트 이름을 `127.0.0.1` 등에 연결하는 정의 |
-| 호출자별 주소 | 로컬 JVM과 컨테이너에서 각각 접근하는 프로토콜·호스트·포트 |
-| 의존 관계 | 어떤 앱의 어떤 접속점이 필요한지 및 실제 실행·모의 대체 선택 |
-| 주입 규칙 | 의존성 주소를 전달할 환경변수 또는 VM 옵션 키 |
-| 준비 기준 | 다음 앱을 시작해도 되는 상태를 확인하는 방법 |
+| ID | Identify Orders, Payments, or the Orders database in the graph. |
+| Execution | IntelliJ, local process, or Docker plus the required project information. |
+| Endpoint | Distinguish business APIs, management APIs, and debug ports. |
+| Bind | The listening address and port. |
+| Logical hostname | A name such as `payment.local.test.com`. |
+| Name resolution | Map the logical hostname to an address such as `127.0.0.1`. |
+| Caller address | Protocol, host, and port for a host JVM or container caller. |
+| Dependency | The required endpoint and real or mock choice. |
+| Injection | The environment variable or JVM property receiving the endpoint. |
+| Readiness | How to decide that the next app can start. |
 
-호스트 이름을 설정값에 넣는 동작과 실제 이름 해석을 구성하는 동작은 구분한다. macOS와 Windows에서 hosts의 미리보기·명시적 적용·프로젝트 항목 복원을 제공한다. prepare는 선택된 host 접속점의 등록 이름 해석을 검사한다. 외부 DNS와 컨테이너 내부 이름은 각 환경에서 관리한다. [T-160](work-items/T-160.md)
+macOS and Windows support previewing, applying, and removing project-owned hosts entries. Prepare checks name resolution for selected host endpoints. External DNS and in-container names are managed by their environments. [T-160](work-items/T-160.md)
 
-### 15.2. DFS 실행 순서
+### 15.2. DFS execution order
 
-대상 앱을 루트로 보고 의존성을 재귀적으로 방문한 후 현재 노드를 실행하는 DFS 후위 순회를 사용한다. 형제 의존성은 차례대로 처리하는 방향이며 병렬 실행은 현재 요구 범위에 포함하지 않는다.
+Use the target as the root. Visit dependencies recursively and run each node in postorder. Process sibling dependencies in order. Parallel execution is outside the current scope.
 
 ```text
-대상 앱 A
-├── 앱 B
+Target app A
+├── App B
 │   └── DB D
-└── 앱 C
-    ├── DB D (공통 의존성)
+└── App C
+    ├── DB D (shared)
     └── Redis E
 
-실행 순서 예: D → B → E → C → A
+Example order: D → B → E → C → A
 ```
 
-각 단계는 단순히 프로세스를 시작하는 것에서 끝나지 않는다. 하위 의존성 준비 완료 → 현재 앱에 접속 정보·VM 옵션·환경변수 적용 → 현재 앱 실행 → 현재 앱 준비 완료 확인의 순서를 제안한다. 마지막 대상 앱도 같은 원칙을 적용하되 IntelliJ에서 디버깅할 수 있어야 한다.
+For each node, wait for prerequisites, inject the addresses and JVM or environment settings, start the app, and check readiness. Apply the same preparation to an IntelliJ target while leaving the developer in control of Debug.
 
-사용자는 대상 앱의 실행 전에 주입·준비 작업을 요청한다. 도구는 대상 앱에 필요한 의존성만 재귀적으로 준비하는 방향이다. 현재 등록용 CLI plan은 선택된 그래프의 DFS 실행 순서까지 계산하며, 이 순서에 따른 실제 기동은 T-050·T-060에서 연결한다. 향후 IntelliJ의 Run / Debug 직전에 이 작업을 자동 호출하는 연동을 검토한다. 현재 메인 앱의 IntelliJ Debug 시작은 개발자가 직접 한다.
+The registry plan computes DFS order. T-050 and T-060 connect the plan to startup. Automatic IDE initialization before Run or Debug remains a follow-on. The developer currently starts Debug.
 
-### 15.3. 실행 계획 검증과 예외 정책 초안
+### 15.3. Proposed plan and failure rules
 
-아래는 확정된 DFS 요구를 구현하기 위한 제안이며, 아직 구현된 기능이 아니다.
+- Validate the reachable graph and calculate its order before launching resources. Report missing nodes and cycles.
+- Track in-progress and completed DFS visits and report cycles such as `A → B → A`. Handling cyclic startup requires further design.
+- Prepare a shared dependency once per plan. Flag incompatible requirements on the same ID.
+- Follow the selected mock's dependencies when substituting for a real app. A database used only by the real variant drops out unless another selected path still requires it.
+- Block dependents when a prerequisite fails to start or become ready. Define retry and cleanup separately.
+- Decide when an existing resource can be reused and how its identity and configuration are verified. An open port alone is insufficient evidence.
 
-- 실행 전에 대상에서 도달 가능한 그래프를 검사하고 DFS 실행 순서를 계산한다. 등록되지 않은 의존성과 순환 관계는 자원 기동 전에 오류로 알린다.
-- DFS의 방문 중·방문 완료 상태를 구분해 `A → B → A` 같은 순환 경로를 표시한다. 순환 의존의 특별한 기동 절차는 별도 설계 전까지 지원하지 않는다.
-- 같은 실행 정의를 공유하는 공통 의존성은 한 실행 계획에서 한 번만 준비한다. 같은 ID에 서로 다른 포트·모드·설정이 요구되면 자동으로 하나를 선택하지 않고 충돌로 처리한다.
-- 실제 앱을 모의 대체하면 선택된 대역에 필요한 하위 의존성만 탐색한다. 실제 앱 전용 DB 등을 자동 기동하지 않으며, 다른 실행 노드가 그 DB를 필요로 한다면 해당 경로에서는 준비한다.
-- 하위 의존성의 실행이나 준비 확인이 실패하면 해당 의존성을 필요로 하는 상위 앱과 대상 앱을 실행하지 않는다. 재시도·정리 정책은 후속 설계한다.
-- 기존에 실행 중인 자원을 재사용하는 조건과 소유권·설정 일치 확인 방법은 별도로 정한다. 포트가 열려 있다는 사실만으로 같은 의존성이라고 판단하지 않는다.
+Verify multilevel order, shared resource deduplication, cycle reporting, failure propagation, and variant-specific traversal. See D-01 for automatic IntelliJ startup.
 
-후속 구현의 검증 기준은 다단계 의존성의 실행 순서, 공통 의존성의 단일 기동, 순환 경로 검출, 하위 의존성 실패 시 상위 실행 방지, 모의 대체에 따른 탐색 범위 변경이다. 대상 앱의 IntelliJ 실행을 자동으로 시작하는 방법은 D-01과 함께 결정한다.
+## 16. LLM-assisted monorepo onboarding
 
-## 16. LLM을 활용한 모노레포 최초 등록
+Use the [skill](../skills/injector-register-monorepo/SKILL.md) and [draft protocol](../skills/injector-register-monorepo/references/registration-protocol.md) to investigate an existing monorepo. Any LLM that can read the protocol can use it. Automatic analysis and import are separate work.
 
-여러 앱이 있는 기존 모노레포의 초기 등록을 돕는 [스킬](../skills/injector-register-monorepo/SKILL.md)과 [등록 프로토콜](../skills/injector-register-monorepo/references/registration-protocol.md)을 제공한다. 스킬을 지원하지 않는 LLM도 프로토콜 문서를 지침으로 사용할 수 있다. 이는 등록 작업 지원 문서이며 분석·등록 엔진이 구현되었다는 의미는 아니다.
+Inputs are the monorepo path, target, profile, and mode. Extract IDs, entry points, JVM options, environment variables, endpoints, hostnames, runtime edges, and readiness from source and execution definitions. Trace transitive dependencies and record build references separately.
 
-입력은 모노레포 경로, 대상 앱, 조사할 프로필·실행 모드다. LLM은 실행 설정과 소스에서 앱 식별자, 진입점, VM 옵션·환경변수, 접속점, 호스트 이름, 의존 관계와 준비 기준을 조사한다. 런타임 의존성을 빌드 모듈 참조와 구분하고 하위 의존성을 재귀적으로 추적한다.
+Produce reviewed JSON and findings with file and line evidence, inferences, local proposals, and unknowns. Confirm hosts and ports from evidence and omit raw credentials. Report sharing, cycles, port conflicts, and profile differences.
 
-결과는 검토용 JSON과 조사 보고서로 남긴다. 값과 간선의 파일·줄 근거, 추론, 로컬 변경 제안, 미확인 항목을 구분한다. 호스트·포트를 추측으로 확정하지 않고, 비밀값은 복사하지 않는다. 공유 의존성, 순환, 포트 충돌, 프로필별 차이도 보고한다.
+Protocol v0.1 defines a draft. Runtime settings remain a separate contract. Conversion, application, name resolution, and startup are follow-on work.
 
-프로토콜 v0.1은 조사 산출물 계약이다. 현재 POC의 `project.json`을 대체하지 않으며, 생성 결과를 CLI가 자동 실행하지 않는다. 후속 단계에서 이 초안을 실행용 등록 스키마로 검증·변환하는 방법을 설계한다. 설정 적용, 이름 해석 구성, 의존성 기동과 대상 앱 실행은 조사 단계와 구분한다.
+## 17. Local prepare command and browser UI (T-050, T-060, T-150)
 
+`prepare app-id --project directory --profile name` connects DFS, configuration preflight, dependency startup, and readiness checks. For IntelliJ targets, the developer starts Debug with the generated configuration. `dummy` and `real` are profile aliases. Details and limits follow the work items.
 
-## 17. 로컬 준비 명령과 클릭 화면 (T-050·T-060·T-150)
+A loopback Python HTTP server exposes the same prepare and stop operations as the CLI. `Start-Injector.command` on macOS and `Start-Injector.vbs` on Windows open the browser. The UI selects a project, profile, and app and shows order, progress, failures, and the Debug entry point. [Registry editor](work-items/T-170.md)
 
-prepare app-id --project directory --profile name은 DFS 계획, 전체 설정 사전 검사, 의존성 실행·준비 확인을 연결한다. IntelliJ 대상은 전용 실행 구성을 만들고 개발자가 Debug를 시작한다. mode dummy/real은 등록 프로필 별칭이며 자동 추론된 대역 선택이 아니다. 실제 구현 범위와 제한은 각 작업 문서가 기준이다.
-
-HTML 단독으로는 Docker·로컬 프로세스를 실행할 수 없어 loopback Python HTTP 서버를 둔다. macOS는 Start-Injector.command, Windows는 Start-Injector.vbs로 서버와 브라우저를 연다. 화면과 CLI는 동일한 prepare/stop API를 호출한다. 화면은 프로젝트·프로필·앱을 선택하고 DFS 순서, 단계, 실패, Debug 진입 위치를 보여준다. [T-170 편집기](work-items/T-170.md)에서 registry.json의 원문을 읽고 검증한 뒤 저장할 수 있다.
-
-첫 실행 정책은 프로젝트별 단일 세션이다. 재준비는 이전 소유 자원을 종료하고 새로 준비한다. 기존 다른 서비스는 재사용하지 않고 충돌을 알린다. 실패 시 이번 세션 자원을 역순 정리한다. PID 생성 시각과 고유 Docker 라벨로 소유권을 확인하며, 볼륨·네트워크와 사용자가 IDE에서 시작한 앱은 자동 삭제하지 않는다. 다중 세션 공유·장애 복구 확대는 T-090이다.
+The initial policy uses one session per project. Reprepare replaces the previous managed resources. Conflicting services are reported. Failure cleans up the resources started by that session in reverse order. Process creation times and Docker labels identify ownership. Volumes, networks, and apps started from the IDE remain under their existing ownership. See T-090 for expanded resource sharing and recovery.
