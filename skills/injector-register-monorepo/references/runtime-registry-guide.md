@@ -12,11 +12,13 @@
 - `examples/registry/registry.json`, `examples/spring-config/registry.json`: 실제 검증 예시.
 - `injector_core/registry.py`, `resolution.py`, `rendering.py`: 계약만으로 불명확한 해석·제한 사항.
 
-루트 `registry.json`의 `nodeFiles`에 프로젝트 상대경로를 나열하면 노드마다 실행·주입 설정을 한 파일에서 관리할 수 있다. 새 모노레포 등록은 Injector 저장소의 `examples/demo/registry.json`을 참고한다. 각 파일은 `id`, `kind`, `variants`를 가진 노드 한 개다. 기존 `nodes` 인라인 등록은 유지하거나 순차적으로 옮긴다. 두 곳에 같은 ID를 정의하지 않는다.
+기본 저장 위치는 Injector 저장소의 `registries/<레포-ID>/registry.json`이다. 그 아래 `nodes/`에 앱·인프라별 파일을 두고 `nodeFiles`에는 `nodes/catalog.json`처럼 registry 폴더 기준 상대경로를 나열한다. 워크트리가 달라져도 같은 registry 폴더를 사용하고 `--project`만 바꾼다. 로컬 설정을 넣는 `registries/` 전체는 Injector Git에서 제외한다.
 
-대상과 variant 선택은 루트 `profiles`에서 유지한다. 앱의 설정은 그 앱의 variant와 `profileOverrides.<프로필>`에 둔다. 기존 루트 `profiles.<프로필>.overrides.<노드>`는 마지막에 적용되므로 이전할 때 최종 값과 VM 옵션 순서를 확인한다. 파일 참조와 작업·IDE·Compose 경로의 기준은 프로젝트 루트다.
+새 모노레포 등록은 Injector 저장소의 `examples/demo/registry.json`에서 데이터 구조를 참고한다. 각 파일은 `id`, `kind`, `variants`를 가진 노드 한 개다. 기존 `nodes` 인라인 등록은 유지하거나 순차적으로 옮긴다. 두 곳에 같은 ID를 정의하지 않는다.
 
-v1.0에서 지원하지 않는 Spring 필드를 쓸 때만 검토 후 v1.1로 올린다. 기존 ID·profile·사용자 확정값을 유지하고 변경 이유를 남긴다. 노드에 evidence 같은 미지원 속성을 붙이지 말고 근거는 `injector-onboarding/findings.md`에 기록한다.
+대상과 variant 선택은 `registry.json`의 `profiles`에서 유지한다. 앱의 설정은 그 앱의 variant와 `profileOverrides.<프로필>`에 둔다. 기존 루트 `profiles.<프로필>.overrides.<노드>`는 마지막에 적용되므로 이전할 때 최종 값과 VM 옵션 순서를 확인한다. `workingDirectory`, `projectPath`, Compose 파일의 경로 기준은 대상 소스 폴더다.
+
+v1.0에서 지원하지 않는 Spring 필드를 쓸 때만 검토 후 v1.1로 올린다. 기존 ID·profile·사용자 확정값을 유지하고 변경 이유를 남긴다. 근거는 registry 폴더의 `onboarding/findings.md`에 기록한다.
 
 IntelliJ의 projectPath는 .run을 읽는 IDE 프로젝트 루트이며 서비스 소스 폴더와 같다고 단정하지 않는다. 모노레포 전체를 하나의 프로젝트로 열면 보통 projectPath는 루트이고 module이 서비스를 구분한다. 서비스를 별도 프로젝트로 여는 흐름이면 그 프로젝트 경로를 지정한다. 실제 IDE 실행 방식을 확인해 XML이 잘못된 하위 폴더에 생성되지 않게 한다.
 
@@ -68,7 +70,7 @@ Spring 앱의 프로필·import·실행 설정과 직접 읽는 코드는 [Sprin
 
 현재 render는 IntelliJ 타입에만 제공된다. Compose 컨테이너의 YAML 마운트·경로 변환은 아직 없다. env/vmProperties의 fromEnv 실제 값을 XML에 영구 저장하는 경로도 거부한다. 이 경우 준비되지 않은 기능을 스키마 수정으로 우회하지 말고 런타임 주입의 미구현 범위를 기록한다.
 
-실제 준비는 `prepare <app-id> --project <repo> --profile <profile>`가 담당하며 등록 스킬 자체는 실행하지 않는다. 클릭 화면은 Injector 루트의 Start-Injector.vbs 또는 `serve --open`으로 연다. process·Compose·external 의존성을 DFS 순서로 준비하고 IntelliJ 대상은 Debug용 구성을 만든다. IntelliJ 타입을 하위 의존성으로 등록하면 자동 실행되지 않으므로 process/Compose variant를 조사한다. Compose에는 env만 합성하며 VM 설정은 Compose 서비스의 명령에서 정의한다. Spring YAML은 IntelliJ 대상만 지원한다. process에 vmOptions/vmProperties가 있으면 실행 파일은 java여야 한다. 기존 프로세스·컨테이너를 포트만 보고 재사용하지 않으므로 전용 Compose projectName과 충돌 없는 호스트 포트를 확인한다. `--mode dummy/real`은 프로필 별칭이며 노드를 임의로 대역으로 바꾸지 않는다.
+실제 준비는 `prepare <app-id> --project <repo> --registry <registry-folder> --profile <profile>`가 담당하며 등록 스킬 자체는 실행하지 않는다. 클릭 화면은 Injector 루트의 Start-Injector.vbs 또는 `serve --open`으로 열고 소스 폴더와 registry 폴더를 각각 지정한다. process·Compose·external 의존성을 DFS 순서로 준비하고 IntelliJ 대상은 Debug용 구성을 만든다. IntelliJ 타입을 하위 의존성으로 등록하면 자동 실행되지 않으므로 process/Compose variant를 조사한다. Compose에는 env만 합성하며 VM 설정은 Compose 서비스의 명령에서 정의한다. Spring YAML은 IntelliJ 대상만 지원한다. process에 vmOptions/vmProperties가 있으면 실행 파일은 java여야 한다. 기존 프로세스·컨테이너를 포트만 보고 재사용하지 않으므로 전용 Compose projectName과 충돌 없는 호스트 포트를 확인한다. `--mode dummy/real`은 프로필 별칭이며 노드를 임의로 대역으로 바꾸지 않는다.
 
 ## 4. 근거와 갱신 순서
 
@@ -83,12 +85,12 @@ Spring 앱의 프로필·import·실행 설정과 직접 읽는 코드는 [Sprin
 아래 명령의 Injector 경로와 target 경로는 실제 위치로 바꾼다. validate/plan은 무기동이며, resolve는 환경 참조를 읽고 redacted 출처를 출력한다. render는 생성 파일을 쓰지만 앱은 실행하지 않는다.
 
 ```text
-python <Injector>/injector.py validate --project <target>
-python <Injector>/injector.py plan <app-id> --project <target> --profile <profile>
-python <Injector>/injector.py resolve --project <target> --profile <profile> --node <node>
-python <Injector>/injector.py render --project <target> --profile <profile> --node <node>
+python <Injector>/injector.py validate --project <target> --registry <registry-folder>
+python <Injector>/injector.py plan <app-id> --project <target> --registry <registry-folder> --profile <profile>
+python <Injector>/injector.py resolve --project <target> --registry <registry-folder> --profile <profile> --node <node>
+python <Injector>/injector.py render --project <target> --registry <registry-folder> --profile <profile> --node <node>
 ```
 
-render는 `<target>/.local/injector/<profile>/<node>/spring-overrides.yml`과 앱 projectPath의 `.run/Injector-<profile>-<node>.run.xml`을 만든다. 대상 레포에서도 해당 생성 경로가 Git에서 제외되는지 확인한다. 생성물은 재생성 시 덮어쓰며 원본 입력으로 역사용하지 않는다.
+외부 registry를 쓰면 생성물은 registry 폴더의 `.local/injector/<워크트리-ID>/`에 모인다. IntelliJ에서 생성된 실행 구성을 가져와 Debug한다. 생성물은 재생성 시 덮어쓰며 원본 입력으로 역사용하지 않는다.
 
 완료 보고에는 변경한 앱·프로필, 실제 수행한 검증, 미확인 값, 지원하지 않는 읽기 방식, 실제 앱 실행 여부를 구분한다. validate·plan 성공을 실제 앱 기동 성공으로 보고하지 않는다. 회사 레포가 제공되지 않았으면 가상의 근거 경로를 실제 조사 사실로 제시하지 않는다.

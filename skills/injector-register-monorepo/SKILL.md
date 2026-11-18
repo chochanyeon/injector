@@ -14,6 +14,7 @@ description: Initialize Injector registration for a monorepo or update an existi
 ## 작업 경계
 
 - 요청한 모노레포와 대상 앱에서 시작한다. 모든 디렉터리를 무조건 읽지 말고 빌드·실행 설정을 먼저 찾아 탐색 범위를 좁힌다.
+- 기본 저장 위치는 Injector의 `registries/<레포-ID>/`다. 실행용 registry와 앱별 JSON, 조사 초안·근거를 이곳에 모으고 대상 소스·워크트리는 `--project`로 지정한다. 저장 폴더는 `--registry`로 전달한다.
 - 소스 파일을 읽어 근거를 모은다. 분석 목적으로 앱·빌드 스크립트·컨테이너를 실행하거나 hosts/DNS를 변경할 필요는 없다.
 - 현재 Injector POC의 `project.json`은 다중 앱 등록 스키마가 아니다. 이 스킬의 JSON은 조사 결과를 전달하는 초안 형식이며 CLI가 읽거나 실행하는 설정이라고 설명하지 않는다.
 - 검토용 초안과 실행용 registry.json을 구분한다. 실행 등록 모드에서는 Injector 저장소의 실제 schemas와 CLI를 확인하고 지원하는 필드만 사용한다. 미확인 값을 실행용 설정에 추측으로 채우지 않는다.

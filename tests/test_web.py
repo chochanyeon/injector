@@ -136,13 +136,36 @@ class WebTests(unittest.TestCase):
             self.assertEqual(self.request(endpoint, body)[0], 403)
             self.assertEqual(self.request(endpoint, body, {**headers, 'Origin': 'https://evil.test'})[0], 403)
             picker.assert_not_called()
-            for selected in (None, str(project)):
+            clean_worktree = project / 'worktree'
+            clean_worktree.mkdir()
+            for selected in (None, str(project), str(clean_worktree)):
                 picker.return_value = selected
                 status, response = self.request(endpoint, body, headers)
                 self.assertEqual((status, json.loads(response)), (200, {'project': selected}))
                 picker.assert_called_with(str(project))
             picker.return_value = str(project / 'missing')
             self.assertEqual(self.request(endpoint, body, headers)[0], 400)
+
+    def test_central_registry_editor_catalog_and_graph_use_the_selected_worktree(self):
+        storage = Path(self.temporary.name).resolve()
+        worktree = storage / 'source tree'
+        worktree.mkdir()
+        params = {'project': str(worktree), 'registry': str(storage)}
+        query = urlencode(params)
+        self.assertEqual(self.request('/api/project?' + query)[0], 200)
+        graph_status, graph = self.request('/api/graph?' + query + '&profile=dummy')
+        self.assertEqual(graph_status, 200)
+        self.assertEqual(json.loads(graph)['order'], ['dependency', 'main'])
+        status, opened = self.registry_request('open', **params)
+        self.assertEqual(status, 200)
+        self.assertEqual(opened['path'], str(storage / 'registry.json'))
+        data = json.loads(opened['text'])
+        data['profiles']['local'] = data['profiles']['dummy']
+        status, saved = self.registry_request('save', **params, text=json.dumps(data), revision=opened['revision'])
+        self.assertEqual(status, 200)
+        self.assertEqual(saved['registry'], str(storage))
+        self.assertIn('local', json.loads((storage / 'registry.json').read_text())['profiles'])
+        self.assertFalse(list(worktree.iterdir()))
 
     def test_registry_editor_repairs_invalid_file_and_refreshes_catalog(self):
         path = Path(self.temporary.name) / 'registry.json'
@@ -226,7 +249,7 @@ class WebTests(unittest.TestCase):
 
     def test_job_uses_runtime_and_reports_progress(self):
         token = json.loads(self.request('/api/info')[1])['token']
-        def fake(project, target, profile, emit, variants):
+        def fake(project, target, profile, emit, variants, registry):
             emit({'node': target, 'phase': 'ready'})
             return {'status': 'ready'}
         with patch('injector_core.web.prepare', side_effect=fake) as runner:
@@ -260,7 +283,7 @@ class WebTests(unittest.TestCase):
         headers = {'X-Injector-Token': token}
         gate = threading.Event()
         finished = threading.Event()
-        def waiting(*args):
+        def waiting(*args, **kwargs):
             gate.wait(3)
             finished.set()
             return {'status': 'stopped'}

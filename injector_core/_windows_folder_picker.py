@@ -39,7 +39,7 @@ def choose_folder(start):
                                                        ctypes.POINTER(pointer)]
         _check(shell.SHCreateItemFromParsingName(start, None, shell_item_interface, ctypes.byref(initial)))
         _check(_call(dialog, 12, hresult, [pointer], initial))  # SetFolder
-        _check(_call(dialog, 17, hresult, [wintypes.LPCWSTR], "Injector — 프로젝트 폴더 선택"))  # SetTitle
+        _check(_call(dialog, 17, hresult, [wintypes.LPCWSTR], "Injector — 폴더 선택"))  # SetTitle
         result = _call(dialog, 3, hresult, [wintypes.HWND], None)  # Show
         if result & 0xFFFFFFFF == 0x800704C7:  # HRESULT_FROM_WIN32(ERROR_CANCELLED)
             return None

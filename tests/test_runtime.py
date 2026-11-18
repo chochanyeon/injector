@@ -9,7 +9,7 @@ import unittest
 
 import psutil
 
-from injector_core.registry import RegistryError
+from injector_core.registry import RegistryError, runtime_directory
 from injector_core.runtime import _directory, _lock, prepare, select_plan, stop
 
 
@@ -224,6 +224,35 @@ class RuntimeTests(unittest.TestCase):
         self.assertLess(next(i for i,e in enumerate(events) if e.get('phase') == 'ready'),
                         next(i for i,e in enumerate(events) if e.get('phase') == 'debug-ready'))
         self.assertIn('probe.value=hello world', Path(result['runConfiguration']).read_text())
+
+    def test_external_registry_keeps_setup_artifacts_out_of_the_worktree(self):
+        storage = self.root / 'registry library'
+        storage.mkdir()
+        worktree = self.root / 'worktree'
+        module = worktree / 'app'
+        module.mkdir(parents=True)
+        main = self.data['nodes'].pop(0)
+        variant = main['variants']['local']
+        variant['execution'] = {'type': 'intellij', 'projectPath': 'app', 'module': 'probe',
+                                'mainClass': 'example.Main'}
+        variant['springProperties'] = {'demo.message': 'external registry'}
+        self.data['schemaVersion'] = '1.1'
+        self.data['nodeFiles'] = ['main.json']
+        (storage / 'main.json').write_text(json.dumps(main), encoding='utf-8')
+        write_registry(storage, self.data)
+        directory = runtime_directory(worktree, storage)
+        self.assertNotEqual(directory, runtime_directory(self.root, storage))
+        try:
+            result = prepare(worktree, 'main', 'dummy', registry=storage)
+            self.assertTrue(result['externalRunConfiguration'])
+            self.assertTrue(Path(result['runConfiguration']).is_relative_to(directory))
+            self.assertTrue((directory / 'dummy/main/spring-overrides.yml').is_file())
+            self.assertTrue((directory / 'session.json').is_file())
+        finally:
+            stop(worktree, registry=storage)
+        self.assertFalse((directory / 'session.json').exists())
+        self.assertEqual(list(worktree.iterdir()), [module])
+        self.assertFalse(list(module.iterdir()))
 
     def test_plain_intellij_preserves_explicit_spring_location(self):
         main = self.data['nodes'][0]['variants']['local']

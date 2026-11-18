@@ -24,14 +24,18 @@ async function api(path, body) {
 }
 const dependencyGraph = new DependencyGraph($('dependency-graph'), api);
 const registryDialog = $('registry-editor');
+function selection() {
+  return {project:$('project').value.trim(), registry:$('registry').value.trim()};
+}
 function error(message) { $('result').textContent = message; $('badge').textContent = '확인 필요'; $('badge').className = 'badge failed'; }
 function buttons() {
   const locked = busy || pickerBusy;
   $('prepare').disabled = locked || !planReady;
   $('variant-options').disabled = locked;
-  for (const id of ['load','stop','project']) $(id).disabled = locked;
+  for (const id of ['load','stop','project','registry']) $(id).disabled = locked;
   for (const id of ['target','profile']) $(id).disabled = locked || !catalog;
   $('pick-project').disabled = locked || editorBusy || !token;
+  $('pick-registry').disabled = $('pick-project').disabled;
   editorButtons();
 }
 async function plan() {
@@ -39,7 +43,7 @@ async function plan() {
   planReady = false;
   buttons();
   try {
-    const query = new URLSearchParams({project:$('project').value, target:$('target').value, profile:$('profile').value});
+    const query = new URLSearchParams({...selection(), target:$('target').value, profile:$('profile').value});
     for (const [node, variant] of Object.entries(variants)) query.append('variant', node + '=' + variant);
     const result = await api('/api/plan?' + query);
     if (generation !== planRequest) return;
@@ -65,7 +69,7 @@ async function plan() {
 function refreshPlan() {
   const name = $('profile').value;
   return Promise.all([plan(),
-    dependencyGraph.update(catalog.project, name, catalog.profiles[name].applications, variants)]);
+    dependencyGraph.update(catalog.project, name, catalog.profiles[name].applications, variants, catalog.registry)]);
 }
 async function targets(preferred) {
   const profile = catalog.profiles[$('profile').value];
@@ -102,10 +106,11 @@ async function load() {
   const profile = $('profile').value, target = $('target').value;
   catalog = null; planReady = false; planRequest++; $('variant-picker').hidden = true; buttons();
   try {
-    const result = await api('/api/project?' + new URLSearchParams({project:$('project').value}));
+    const result = await api('/api/project?' + new URLSearchParams(selection()));
     if (generation !== loadRequest) return;
     catalog = result;
     $('project').value = catalog.project;
+    $('registry').value = catalog.registry;
     $('profile').replaceChildren(...Object.keys(catalog.profiles).map(name => new Option(name,name)));
     if (Object.hasOwn(catalog.profiles, profile)) $('profile').value = profile;
     $('badge').textContent = '대기 중';
@@ -119,16 +124,16 @@ async function load() {
   }
 }
 
-async function pickProject(inEditor = false) {
+async function pickFolder(kind, inEditor = false) {
   if (busy || editorBusy || pickerBusy) return;
-  const button = $(inEditor ? 'registry-pick-project' : 'pick-project');
+  const button = $(inEditor ? 'registry-pick-project' : 'pick-' + kind);
   const caption = button.textContent;
   let project;
   pickerBusy = true;
   button.textContent = '선택 중…';
   buttons();
   try {
-    ({project} = await api('/api/project/pick', {project:(inEditor && editor?.project) || $('project').value}));
+    ({project} = await api('/api/project/pick', {kind, project:(inEditor && editor?.project) || selection()[kind]}));
   } catch (e) {
     if (inEditor) registryStatus(e.message, 'error');
     else error(e.message);
@@ -144,7 +149,7 @@ async function pickProject(inEditor = false) {
     await openEditor(project);
     if (editor?.project !== project) return;
   }
-  $('project').value = project;
+  $(kind).value = project;
   await load();
 }
 async function poll() {
@@ -159,7 +164,10 @@ async function poll() {
   });
   if (job.status==='succeeded') {
     const result=job.result;
-    $('result').textContent = result.status==='stopped' ? 'Injector가 만든 의존성을 종료했습니다. IDE에서 시작한 앱은 직접 종료하세요.' : result.runConfiguration ? `준비 완료. IntelliJ에서 Injector-${result.profile}-${result.target}를 선택하고 Debug를 누르세요.\n\n${result.runConfiguration}` : '앱과 의존성이 모두 준비되었습니다.';
+    const instruction = result.externalRunConfiguration
+      ? 'IntelliJ에서 아래 실행 구성을 가져온 뒤 Debug를 누르세요.'
+      : `IntelliJ에서 Injector-${result.profile}-${result.target}를 선택하고 Debug를 누르세요.`;
+    $('result').textContent = result.status==='stopped' ? 'Injector가 만든 의존성을 종료했습니다. IDE에서 시작한 앱은 직접 종료하세요.' : result.runConfiguration ? `준비 완료. ${instruction}\n\n${result.runConfiguration}` : '앱과 의존성이 모두 준비되었습니다.';
   } else if(job.status==='failed') error(job.error);
   else $('result').textContent='의존성을 순서대로 준비하고 있습니다…';
   if (busy) timer=setTimeout(() => poll().catch(e => error(e.message)),700);
@@ -167,7 +175,7 @@ async function poll() {
 async function run(action) {
   busy=true; buttons(); clearTimeout(timer);
   try {
-    await api('/api/'+action,{project:$('project').value,target:$('target').value,profile:$('profile').value,variants});
+    await api('/api/'+action,{...selection(),target:$('target').value,profile:$('profile').value,variants});
     await poll();
   } catch(e) { busy=false; buttons(); error(e.message); }
 }
@@ -204,9 +212,9 @@ function updateEditorFiles() {
   $('registry-file-picker').hidden = !files.length;
 }
 
-async function openEditor(project, {filename, reload = false} = {}) {
+async function openEditor(project, {filename, reload = false, registry = selection().registry} = {}) {
   if (editorBusy) return;
-  const sameProject = editor && (project === editor.project || project === editor.source);
+  const sameProject = editor && registry === editor.registry && (project === editor.project || project === editor.source);
   const file = filename ?? (sameProject ? editor.file : '');
   if (!reload && sameProject && file === editor.file) {
     if (!registryDialog.open) registryDialog.showModal();
@@ -223,10 +231,10 @@ async function openEditor(project, {filename, reload = false} = {}) {
   editorButtons();
   registryStatus('파일을 읽는 중…');
   try {
-    const result = await api('/api/registry/open', {project, file});
+    const result = await api('/api/registry/open', {project, registry, file});
     $('registry-path').textContent = result.path;
     $('registry-text').value = result.text;
-    editor = {project:result.project, source, file, files:result.files,
+    editor = {project:result.project, registry:result.registry, source, file, files:result.files,
               revision:result.revision, savedText:$('registry-text').value};
     registryStatus('파일을 불러왔습니다.');
   } catch (e) {
@@ -259,13 +267,13 @@ async function checkEditor(action) {
   registryStatus(action === 'save' ? '검증 후 저장하는 중…' : '검증하는 중…');
   let location;
   try {
-    const result = await api('/api/registry/' + action, {project:editor.project, file:editor.file, text, revision:editor.revision});
+    const result = await api('/api/registry/' + action, {project:editor.project, registry:editor.registry, file:editor.file, text, revision:editor.revision});
     if (action === 'save') {
       editor.revision = result.revision;
       editor.savedText = text;
       editor.files = result.files;
       updateEditorFiles();
-      if ($('project').value === result.project || catalog?.project === result.project) await load();
+      if (selection().project === result.project && selection().registry === result.registry) await load();
       registryStatus('저장했습니다.', 'success');
     } else {
       registryStatus(`검증 통과 · 스키마 ${result.schemaVersion} · 노드 ${result.nodes}개 · 프로필 ${result.profiles}개`, 'success');
@@ -287,18 +295,19 @@ async function checkEditor(action) {
 }
 
 $('load').onclick=load;
-$('pick-project').onclick=() => pickProject();
+$('pick-project').onclick=() => pickFolder('project');
+$('pick-registry').onclick=() => pickFolder('registry');
 $('profile').onchange=() => targets();
 $('target').onchange=plan;
-$('project').oninput=() => {catalog=null; planReady=false; planRequest++; loadRequest++; $('variant-picker').hidden=true; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
+$('project').oninput=$('registry').oninput=() => {catalog=null; planReady=false; planRequest++; loadRequest++; $('variant-picker').hidden=true; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
 $('prepare').onclick=() => run('prepare');
 $('stop').onclick=() => run('stop');
 $('edit-registry').onclick = () => openEditor($('project').value.trim());
-$('registry-pick-project').onclick = () => pickProject(true);
-$('registry-file').onchange = () => openEditor(editor.project, {filename:$('registry-file').value});
+$('registry-pick-project').onclick = () => pickFolder('project', true);
+$('registry-file').onchange = () => openEditor(editor.project, {filename:$('registry-file').value, registry:editor.registry});
 $('registry-validate').onclick = () => checkEditor('validate');
 $('registry-save').onclick = () => checkEditor('save');
-$('registry-reload').onclick = () => openEditor(editor.project, {reload:true});
+$('registry-reload').onclick = () => openEditor(editor.project, {reload:true, registry:editor.registry});
 $('registry-fold').onclick = () => hideEditor(false);
 $('registry-close').onclick = () => hideEditor(true);
 registryDialog.addEventListener('cancel', event => {
@@ -314,4 +323,14 @@ window.addEventListener('beforeunload', event => {
   event.preventDefault();
   event.returnValue = true;
 });
-(async () => {try {const info=await api('/api/info'); token=info.token; $('project').value=info.project; await load(); await poll();} catch(e) {error(e.message);}})();
+(async () => {
+  try {
+    const info=await api('/api/info');
+    token=info.token;
+    $('project').value=info.project;
+    $('registry').value=info.registry;
+    $('registries').replaceChildren(...info.registries.map(path => new Option(path, path)));
+    await load();
+    await poll();
+  } catch(e) {error(e.message);}
+})();

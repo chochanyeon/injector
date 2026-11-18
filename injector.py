@@ -93,25 +93,29 @@ def main():
     parser.add_argument("--port", type=int, default=18770, help="local UI port (serve only)")
     parser.add_argument("--open", action="store_true", help="open the local UI in a browser")
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
-    parser.add_argument("--project", type=Path, help="project directory containing registry.json")
+    parser.add_argument("--project", type=Path, help="source project or worktree directory")
+    parser.add_argument("--registry", type=Path, help="separate directory containing registry.json")
     parser.add_argument("--node", help="node to resolve or render")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")
     parser.add_argument("--with-vault", action="store_true", help="include the local Vault API mock in demo setup")
     parser.add_argument("--vault-service", help="service name for the local Vault secret path; enables the Vault mock")
     args = parser.parse_args()
+    if args.registry is not None and (args.project is None or args.command not in
+            ("validate", "resolve", "render", "plan", "prepare", "stop", "serve", "hosts")):
+        parser.error("--registry requires --project and a registry command")
     if args.variant and (args.command not in ("prepare", "plan") or not args.target):
         parser.error("--variant requires prepare or plan with an application ID")
     if args.command == "hosts":
         if args.target not in ("preview", "apply", "remove"):
             parser.error("hosts requires preview, apply, or remove")
         if args.mode or args.profile or args.infra or args.main_docker or args.with_vault or args.vault_service or args.node or args.open:
-            parser.error("hosts only accepts --project")
+            parser.error("hosts accepts --project and --registry")
         from injector_core.hostnames import manage_hosts, name_mappings
         from injector_core.registry import RegistryError, load_registry
         project = args.project or Path.cwd()
         try:
-            mappings = {} if args.target == "remove" else name_mappings(load_registry(project))
+            mappings = {} if args.target == "remove" else name_mappings(load_registry(project, registry=args.registry))
             print(json.dumps(manage_hosts(project, mappings, args.target), indent=2))
         except RegistryError as error:
             parser.exit(1, f"Injector failed: {error}\n")
@@ -129,17 +133,17 @@ def main():
         try:
             if args.command == "serve":
                 from injector_core.web import serve
-                serve(args.project or DEMO, args.port, args.open)
+                serve(args.project or DEMO, args.port, args.open, registry=args.registry)
             elif args.command == "stop":
                 from injector_core.runtime import stop
-                print(json.dumps(stop(args.project or Path.cwd()), indent=2))
+                print(json.dumps(stop(args.project or Path.cwd(), registry=args.registry), indent=2))
             else:
                 if not args.target:
                     parser.error("prepare requires an application ID")
                 from injector_core.runtime import parse_variants, prepare
                 result = prepare(args.project or Path.cwd(), args.target, args.profile, args.mode,
                                  emit=lambda event: print(json.dumps(event), flush=True),
-                                 variants=parse_variants(args.variant))
+                                 variants=parse_variants(args.variant), registry=args.registry)
                 print(json.dumps(result, indent=2))
         except (RegistryError, OSError) as error:
             parser.exit(1, f"Injector failed: {error}\n" if isinstance(error, RegistryError) else "Injector failed: local runtime operation failed\n")
@@ -157,13 +161,14 @@ def main():
         try:
             if args.command == "plan" and args.target:
                 from injector_core.runtime import parse_variants, select_plan
-                _, plan = select_plan(args.project, args.target, args.profile, variants=parse_variants(args.variant))
+                _, plan = select_plan(args.project, args.target, args.profile, variants=parse_variants(args.variant),
+                                      registry=args.registry)
                 print(json.dumps(plan, indent=2))
                 return
-            data = load_registry(args.project, args.profile)
+            data = load_registry(args.project, args.profile, registry=args.registry)
             if args.command == "render":
                 from injector_core.rendering import render_node
-                print(json.dumps(render_node(data, args.project, args.profile, args.node).describe(), indent=2))
+                print(json.dumps(render_node(data, args.project, args.profile, args.node, registry=args.registry).describe(), indent=2))
                 return
             if args.command == "plan":
                 from injector_core.planning import build_plan

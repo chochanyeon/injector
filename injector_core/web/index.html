@@ -9,10 +9,16 @@
       <h2 id="setup-title">실행 대상</h2>
       <label for="project">프로젝트 폴더</label>
       <div class="path-row">
-        <input id="project" placeholder="registry.json이 있는 폴더" spellcheck="false">
+        <input id="project" placeholder="소스 또는 워크트리 폴더" spellcheck="false">
         <button id="pick-project" class="secondary" disabled>폴더 선택</button>
-        <button id="load" class="secondary">불러오기</button>
       </div>
+      <label for="registry">Registry 폴더</label>
+      <div class="path-row">
+        <input id="registry" list="registries" placeholder="비워두면 프로젝트 폴더 사용" spellcheck="false">
+        <datalist id="registries"></datalist>
+        <button id="pick-registry" class="secondary" disabled>폴더 선택</button>
+      </div>
+      <button id="load" class="secondary registry-open">불러오기</button>
       <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-haspopup="dialog" disabled>registry.json 편집</button>
       <label for="profile">프로필</label><select id="profile" disabled><option>프로젝트를 불러오세요</option></select>
       <label for="target">애플리케이션</label><select id="target" disabled></select>

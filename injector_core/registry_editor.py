@@ -45,19 +45,24 @@ def _document(root, filename):
     return path, root_text
 
 
-def open_registry(project, filename=None):
+def open_registry(project, filename=None, *, registry=None):
     root = Path(project).resolve()
-    path, root_text = _document(root, filename)
+    storage = Path(registry).resolve() if registry is not None else root
+    path, root_text = _document(storage, filename)
     content = _read(path)
     text = content.decode("utf-8")
-    return {"project": str(root), "path": str(path), "files": declared_node_files(root_text if filename else text),
+    return {"project": str(root), "registry": str(storage) if registry is not None else "",
+            "path": str(path), "files": declared_node_files(root_text if filename else text),
             "text": text, "revision": sha256(content).hexdigest()}
 
 
-def _validate(root, root_text, filename, text):
+def _validate(root, storage, root_text, filename, text):
+    if not root.is_dir():
+        raise RegistryError("source project folder does not exist")
     if len(text.encode("utf-8")) > MAX_BYTES:
         raise RegistryError(f"{filename or 'registry.json'} exceeds the 2 MiB editor limit")
-    data = parse_registry(root_text, root, node_draft=(filename, text)) if filename else parse_registry(text, root)
+    data = (parse_registry(root_text, root, node_draft=(filename, text), registry=storage)
+            if filename else parse_registry(text, root, registry=storage))
     for profile in data["profiles"]:
         try:
             build_plan(data, profile)
@@ -67,23 +72,25 @@ def _validate(root, root_text, filename, text):
             "profiles": len(data["profiles"])}
 
 
-def validate_registry(project, text, filename=None):
+def validate_registry(project, text, filename=None, *, registry=None):
     root = Path(project).resolve()
-    _, root_text = _document(root, filename)
-    return _validate(root, root_text, filename, text)
+    storage = Path(registry).resolve() if registry is not None else root
+    _, root_text = _document(storage, filename)
+    return _validate(root, storage, root_text, filename, text)
 
 
-def save_registry(project, text, revision, filename=None):
+def save_registry(project, text, revision, filename=None, *, registry=None):
     root = Path(project).resolve()
+    storage = Path(registry).resolve() if registry is not None else root
     content = text.encode("utf-8")
-    _file(root)
-    with _lock(_directory(root)):
-        path, root_text = _document(root, filename)
+    _file(storage)
+    with _lock(_directory(storage)):
+        path, root_text = _document(storage, filename)
         original = _read(path)
         name = filename or "registry.json"
         if sha256(original).hexdigest() != revision:
             raise RegistryConflict(f"{name} changed on disk; reopen it before saving")
-        summary = _validate(root, root_text, filename, text)
+        summary = _validate(root, storage, root_text, filename, text)
         if b"\r" not in content and b"\r\n" in original and b"\n" not in original.replace(b"\r\n", b""):
             content = content.replace(b"\n", b"\r\n")
             if len(content) > MAX_BYTES:
@@ -94,11 +101,12 @@ def save_registry(project, text, revision, filename=None):
             try:
                 temporary.write_bytes(content)
                 shutil.copymode(path, temporary)
-                latest, latest_root = _document(root, filename)
+                latest, latest_root = _document(storage, filename)
                 if latest != path or latest_root != root_text or _read(latest) != original:
                     raise RegistryConflict(f"{name} changed on disk; reopen it before saving")
                 temporary.replace(path)
             finally:
                 temporary.unlink(missing_ok=True)
-    return {**summary, "project": str(root), "files": declared_node_files(root_text if filename else text),
+    return {**summary, "project": str(root), "registry": str(storage) if registry is not None else "",
+            "files": declared_node_files(root_text if filename else text),
             "revision": sha256(content).hexdigest()}

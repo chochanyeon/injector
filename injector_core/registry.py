@@ -1,5 +1,7 @@
 """Read and validate runtime registrations without launching resources."""
+from hashlib import sha256
 import json
+import os
 from pathlib import Path, PureWindowsPath
 import re
 
@@ -128,16 +130,27 @@ def _validate_references(data, root, profile):
                     raise RegistryError(f"profiles/{name}/{node_id}: unknown address context")
 
 
-def load_registry(project, profile=None):
-    """Read project/registry.json. A profile narrows profile-dependent checks."""
+def runtime_directory(project, registry=None):
     root = Path(project).resolve()
+    if registry is None:
+        return root / ".local" / "injector"
+    worktree = sha256(os.path.normcase(str(root)).encode("utf-8")).hexdigest()[:24]
+    return Path(registry).resolve() / ".local" / "injector" / worktree
+
+
+def load_registry(project, profile=None, *, registry=None):
+    """Read the registry from storage and resolve execution paths against the source."""
+    root = Path(project).resolve()
+    if registry is not None and not root.is_dir():
+        raise RegistryError("source project folder does not exist")
+    storage = Path(registry).resolve() if registry is not None else root
     try:
-        text = (root / "registry.json").read_text(encoding="utf-8")
+        text = (storage / "registry.json").read_text(encoding="utf-8")
     except OSError as error:
-        raise RegistryError("cannot read project registry.json") from error
+        raise RegistryError("cannot read registry.json; select the folder containing the registry") from error
     except UnicodeError as error:
         raise RegistryError("registry.json must be UTF-8") from error
-    return parse_registry(text, root, profile)
+    return parse_registry(text, root, profile, registry=storage)
 
 
 def _parse_json(text):
@@ -184,7 +197,7 @@ def _read_node_file(path):
         raise RegistryError("node file must be UTF-8") from error
 
 
-def parse_registry(text, root, profile=None, *, node_draft=None):
+def parse_registry(text, root, profile=None, *, node_draft=None, registry=None):
     """Assemble and validate the registry, optionally using an in-memory node draft."""
     data = _parse_json(text)
     version = data.get("schemaVersion") if isinstance(data, dict) else None
@@ -199,7 +212,7 @@ def parse_registry(text, root, profile=None, *, node_draft=None):
     nodes = data.setdefault("nodes", [])
     seen_paths = set()
     for filename in files:
-        path = node_file_path(root, filename)
+        path = node_file_path(registry if registry is not None else root, filename)
         if path in seen_paths:
             raise RegistryError(f"nodeFiles/{filename}: duplicate node file")
         seen_paths.add(path)

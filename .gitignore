@@ -1,4 +1,5 @@
 .local/
+/registries/
 .venv/
 target/
 __pycache__/

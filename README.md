@@ -49,7 +49,7 @@ python -m venv .venv
 
 두 OS 모두 `http://127.0.0.1:18770`을 사용하고 이미 실행 중이면 같은 서버를 연다. 화면을 사용하는 동안 macOS의 서버 Terminal 창을 열어 둔다. ZIP으로 받아 실행 권한이 빠졌다면 macOS에서 `chmod +x Start-Injector.command`를 한 번 실행한다.
 
-1. **폴더 선택**으로 `registry.json`이 있는 프로젝트 폴더를 고르거나 경로를 직접 입력한 뒤 **불러오기**를 누른다. 기본값은 `examples/demo`다.
+1. **프로젝트 폴더**에 소스 또는 워크트리를 지정하고 **Registry 폴더**에 설정 폴더를 지정한 뒤 **불러오기**를 누른다. 두 경로 모두 **폴더 선택**이나 직접 입력을 지원한다. **Registry 폴더**를 비우면 `examples/demo`처럼 소스 폴더에서 registry를 읽는다.
 2. 프로필(`dummy` 또는 `real`)과 `platform-service`를 선택한다.
 3. 실행 순서를 확인하고 **실행 환경 준비**를 누른다. Catalog보다 Redis가 먼저 준비되고, `real`에서는 PostgreSQL도 Catalog 전에 준비된다.
 4. 준비 완료 후 IntelliJ에서 `examples/demo/pom.xml`을 열고 **`Injector-dummy-platform-service`** 또는 **`Injector-real-platform-service`**를 Debug로 실행한다. 앱 응답은 `http://127.0.0.1:19080/demo`에서 확인한다.
@@ -219,11 +219,22 @@ python injector.py vault-demo --vault-service payments
 
 ## 실행용 앱 등록 검증
 
-버전 `1.0` 또는 `1.1`의 실행용 등록을 프로젝트 루트의 `registry.json`에 두고 검증할 수 있다. Spring YAML용 설정은 1.1에서 지원한다.
+실제 프로젝트 설정은 Injector의 `registries/<레포-ID>/registry.json`에 모아 관리한다. 앱별 설정은 같은 폴더의 `nodes/`에 둔다. `registries/`는 Git에서 제외된다. 같은 레포의 다른 워크트리로 바꿀 때는 프로젝트 폴더만 바꾼다.
+
+```text
+python injector.py validate --project "<워크트리 경로>" --registry registries/my-monorepo
+python injector.py plan platform-service --project "<워크트리 경로>" --registry registries/my-monorepo --profile local
+python injector.py prepare platform-service --project "<워크트리 경로>" --registry registries/my-monorepo --profile local
+python injector.py stop --project "<워크트리 경로>" --registry registries/my-monorepo
+```
+
+외부 registry를 쓰면 Injector가 생성하는 Spring YAML, IntelliJ 실행 XML, Compose override와 세션 파일은 registry 폴더의 `.local/injector/<워크트리-ID>/`에 저장된다. IntelliJ 대상은 결과에 표시된 실행 구성을 해당 워크트리의 IDE에서 가져와 Debug한다. [IntelliJ 실행 구성 문서](https://www.jetbrains.com/help/idea/run-debug-configuration.html#share-run-debug-configurations)
+
+기존 프로젝트 루트의 `registry.json` 형식도 지원한다. Spring YAML용 설정은 버전 1.1에서 지원한다.
 
 앱별로 분리하려면 루트의 `nodeFiles`에 `["registry/nodes/platform-service.json", "registry/nodes/catalog.json"]`처럼 파일 경로를 넣는다. 각 파일은 `id`, `kind`, `variants`를 가진 노드 한 개다. 환경 변수, VM 옵션, Spring 설정, 의존 서비스 주입 규칙은 해당 앱의 variant에 둔다. 특정 프로필에서만 필요한 앱 설정은 노드의 `profileOverrides.<프로필>`에 넣는다. 루트는 공통 기본값과 프로필의 실행 대상·variant 선택을 관리한다. 기존 `nodes`와 `profiles.<프로필>.overrides`도 계속 사용할 수 있다.
 
-파일을 나눈 뒤에도 파일 경로와 각 노드의 `projectPath`, `workingDirectory`, Compose 경로는 모두 프로젝트 루트 기준이다. [데모 registry](examples/demo/registry.json)와 [platform-service 설정](examples/demo/registry/nodes/platform-service.json)을 참고한다.
+`nodeFiles`는 `registry.json`이 있는 폴더 기준이고, `projectPath`, `workingDirectory`, Compose 경로는 소스 폴더 기준이다. [데모 registry](examples/demo/registry.json)와 [platform-service 설정](examples/demo/registry/nodes/platform-service.json)을 참고한다.
 
 ```powershell
 python injector.py validate --project examples/registry
@@ -280,7 +291,7 @@ skills/injector-register-monorepo/SKILL.md를 읽고,
 등록 JSON 초안과 미확인 사항 보고서를 만들어 줘.
 ```
 
-기본 산출물은 조사 대상 모노레포의 `injector-onboarding/registration-draft.json`과 `findings.md`다. 기존 앱 실행, hosts/DNS 변경, 실제 등록 적용까지 수행하는 작업은 아니다. 초안 JSON은 현재 CLI가 읽는 `project.json`과 별도 형식이며 자동 실행되지 않는다.
+기본 산출물은 Injector의 `registries/<레포-ID>/onboarding/registration-draft.json`과 `findings.md`다. 등록용 파일도 같은 레포 폴더에 두고 소스는 `--project`로 지정한다. 초안 작성 단계는 조사 자료를 생성하며 실행에는 검토된 `registry.json`을 사용한다.
 
 ## 작업 저장
 

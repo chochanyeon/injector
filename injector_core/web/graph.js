@@ -26,9 +26,10 @@ class DependencyGraph {
     this.status.textContent = '프로젝트를 불러오세요.';
   }
 
-  update(project, profile, apps, variants = {}) {
-    const active = this.project === project ? this.scope.value : '';
+  update(project, profile, apps, variants = {}, registry = '') {
+    const active = this.project === project && this.registry === registry ? this.scope.value : '';
     this.project = project;
+    this.registry = registry;
     this.profile = profile;
     this.variants = variants;
     this.scope.replaceChildren(new Option('전체 앱', ''), ...apps.map(app => new Option(app, app)));
@@ -48,7 +49,7 @@ class DependencyGraph {
 
   async refresh() {
     const generation = ++this.generation;
-    const query = new URLSearchParams({project: this.project, profile: this.profile});
+    const query = new URLSearchParams({project: this.project, registry: this.registry, profile: this.profile});
     if (this.scope.value) query.set('target', this.scope.value);
     for (const [node, variant] of Object.entries(this.variants)) query.append('variant', node + '=' + variant);
     this.clear();

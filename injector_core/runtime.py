@@ -18,7 +18,7 @@ import psutil
 from .hostnames import check_resolution
 from .planning import build_plan
 from .process_runner import terminate_job
-from .registry import RegistryError, _project_path, _validate_references, load_registry
+from .registry import RegistryError, _project_path, _validate_references, load_registry, runtime_directory
 from .rendering import _artifact_path, plan_render
 from .resolution import resolve_node, selected_variant
 
@@ -40,21 +40,21 @@ def _applications(data, profile):
             if node["kind"] == "application" and node["id"] in profile["selections"]]
 
 
-def project_info(project):
-    data = load_registry(project)
+def project_info(project, *, registry=None):
+    data = load_registry(project, registry=registry)
     variants = {node["id"]: list(node["variants"]) for node in data["nodes"] if len(node["variants"]) > 1}
-    return {"project": str(Path(project).resolve()), "profiles": {
+    return {"project": str(Path(project).resolve()), "registry": str(Path(registry).resolve()) if registry else "", "profiles": {
         name: {"targets": profile["targets"], "applications": _applications(data, profile),
                "variantChoices": {node: {"default": selected, "options": variants[node]}
                                   for node, selected in profile["selections"].items() if node in variants}}
         for name, profile in data["profiles"].items()}}
 
 
-def select_plan(project, target, profile=None, mode=None, *, variants=None):
+def select_plan(project, target, profile=None, mode=None, *, variants=None, registry=None):
     """Plan one app, or all apps selected by the profile when target is None."""
     if profile and mode:
         raise RegistryError("choose either profile or mode")
-    data = load_registry(project, profile)
+    data = load_registry(project, profile, registry=registry)
     if mode:
         aliases = {"dummy": ("dummy", "local-mock", "mock"), "real": ("real", "local-real")}
         candidates = [name for name in aliases.get(mode, ()) if name in data["profiles"]]
@@ -77,9 +77,9 @@ def select_plan(project, target, profile=None, mode=None, *, variants=None):
     return data, build_plan(data, profile)
 
 
-def _directory(project):
-    root = Path(project).resolve()
-    directory = root / ".local" / "injector"
+def _directory(project, registry=None):
+    root = Path(registry if registry is not None else project).resolve()
+    directory = runtime_directory(project, registry)
     _artifact_path(root, directory / "session.json")
     directory.mkdir(parents=True, exist_ok=True)
     return directory
@@ -89,7 +89,7 @@ def _directory(project):
 def _lock(directory):
     """OS lock is released even when the CLI or web server crashes."""
     path = directory / "runtime.lock"
-    _artifact_path(directory.parent.parent, path)
+    _artifact_path(directory, path)
     with path.open("a+b") as handle:
         handle.seek(0)
         if os.name == "nt":
@@ -135,7 +135,7 @@ def _containers(*filters):
 
 def _save(directory, session):
     temporary = directory / "session.tmp"
-    _artifact_path(directory.parent.parent, temporary)
+    _artifact_path(directory, temporary)
     temporary.write_text(json.dumps(session, indent=2), encoding="utf-8")
     temporary.replace(directory / "session.json")
 
@@ -210,10 +210,11 @@ def _stop(directory, emit):
     (directory / "session.json").unlink()
 
 
-def stop(project, emit=lambda event: None):
-    directory = _directory(project)
-    with _lock(directory):
-        _stop(directory, emit)
+def stop(project, emit=lambda event: None, *, registry=None):
+    if runtime_directory(project, registry).is_dir():
+        directory = _directory(project, registry)
+        with _lock(directory):
+            _stop(directory, emit)
     return {"status": "stopped", "project": str(Path(project).resolve())}
 
 
@@ -346,14 +347,14 @@ def _wait(variant, alive, healthy):
     raise RegistryError("readiness timed out")
 
 
-def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *, variants=None):
+def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *, variants=None, registry=None):
     if target is None:
         raise RegistryError("prepare requires an application target")
     root = Path(project).resolve()
-    data, plan = select_plan(root, target, profile, mode, variants=variants)
+    data, plan = select_plan(root, target, profile, mode, variants=variants, registry=registry)
     profile = plan["profile"]
     nodes = {node["id"]: node for node in data["nodes"]}
-    directory = _directory(root)
+    directory = _directory(root, registry)
     with _lock(directory):
         selected = [(step["node"], selected_variant(nodes, data["profiles"][profile], step["node"])[1])
                     for step in plan["steps"]]
@@ -371,7 +372,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
             if kind == "intellij":
                 if node != target:
                     raise RegistryError("an IntelliJ dependency needs a process or compose variant")
-                artifact, write_config = plan_render(data, root, profile, node, allow_plain=True)
+                artifact, write_config = plan_render(data, root, profile, node, allow_plain=True, registry=registry)
             else:
                 if kind != "external":
                     addresses.extend(endpoint["addresses"]["host"] for endpoint in variant["endpoints"].values()
@@ -443,7 +444,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                     variables = {key: f"INJECTOR_VALUE_{index}" for index, key in enumerate(settings.env)}
                     environment.update({variables[key]: value for key, value in settings.env.items()})
                     override = directory / f"compose-{node}.json"
-                    _artifact_path(root, override)
+                    _artifact_path(directory, override)
                     override.write_text(json.dumps({"services": {service: {
                         "environment": {key: "${" + reference + "?}" for key, reference in variables.items()},
                         "labels": {"io.injector.session": session["id"], "io.injector.node": node}}}}), encoding="utf-8")
@@ -468,7 +469,9 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                       "target": target, "order": plan["order"]}
             if prepared[-1][1]["execution"]["type"] == "intellij":
                 result["runConfiguration"] = str(artifact.run_path)
-                result["next"] = f"IntelliJ: select Injector-{profile}-{target} and press Debug"
+                result["externalRunConfiguration"] = registry is not None
+                result["next"] = ("IntelliJ: import the generated configuration and press Debug" if registry is not None
+                                  else f"IntelliJ: select Injector-{profile}-{target} and press Debug")
             return result
         except BaseException:
             emit({"phase": "rollback"})

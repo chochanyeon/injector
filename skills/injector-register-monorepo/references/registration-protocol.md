@@ -33,7 +33,7 @@ JAR 라이브러리 참조만으로 앱 간 런타임 의존성을 만들지 않
 
 ## 산출물
 
-기본 산출물은 대상 모노레포의 `injector-onboarding/registration-draft.json`과 `injector-onboarding/findings.md`다. 사용자가 다른 출력 위치를 지정하면 따른다. 기존 파일은 먼저 읽고 변경 범위를 유지한다. 이 디렉터리를 Injector가 자동으로 읽는다는 의미는 아니다.
+기본 산출물은 Injector 저장소의 `registries/<레포-ID>/onboarding/registration-draft.json`과 `findings.md`다. 레포 ID는 워크트리 사이에서 유지한다. 사용자가 다른 출력 위치를 지정하면 따른다. 기존 파일은 먼저 읽고 변경 범위를 유지한다. 실행 시 읽는 파일은 별도의 `registry.json`이다.
 
 ### JSON 구조
 

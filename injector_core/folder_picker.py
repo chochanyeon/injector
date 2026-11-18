@@ -10,7 +10,7 @@ MACOS_SCRIPT = """
 on run argv
     try
         set initialFolder to (POSIX file (item 1 of argv)) as alias
-        set selectedFolder to choose folder with prompt "registry.json이 있는 프로젝트 폴더를 선택하세요." default location initialFolder
+        set selectedFolder to choose folder with prompt "Injector에서 사용할 폴더를 선택하세요." default location initialFolder
         return POSIX path of selectedFolder
     on error messageText number errorNumber
         if errorNumber is -128 then return ""

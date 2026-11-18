@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 import yaml
 
-from .registry import RegistryError, _project_path
+from .registry import RegistryError, _project_path, runtime_directory
 from .resolution import ResolvedSettings, _spring_leaves, resolve_node, selected_variant
 
 
@@ -32,9 +32,9 @@ def _artifact_path(root, path):
             raise RegistryError("generated configuration path must not be a symbolic link")
 
 
-def render_node(data, project, profile_name, node_id, environ=None, *, allow_plain=False):
+def render_node(data, project, profile_name, node_id, environ=None, *, allow_plain=False, registry=None):
     """Create owned artifacts only; never change source YAML or launch an app."""
-    result, write = plan_render(data, project, profile_name, node_id, environ, allow_plain=allow_plain)
+    result, write = plan_render(data, project, profile_name, node_id, environ, allow_plain=allow_plain, registry=registry)
     write()
     return result
 
@@ -52,7 +52,7 @@ def _replace_file(path, content):
             temporary.unlink(missing_ok=True)
 
 
-def plan_render(data, project, profile_name, node_id, environ=None, *, allow_plain=False):
+def plan_render(data, project, profile_name, node_id, environ=None, *, allow_plain=False, registry=None):
     """Validate and serialize the artifacts before touching an existing configuration."""
     settings = resolve_node(data, profile_name, node_id, environ, defer_spring_env=True)
     nodes = {node["id"]: node for node in data["nodes"]}
@@ -79,10 +79,13 @@ def plan_render(data, project, profile_name, node_id, environ=None, *, allow_pla
     application = _project_path(root, execution["projectPath"], "IntelliJ projectPath").resolve()
     if not application.is_dir():
         raise RegistryError("IntelliJ projectPath must be an existing directory inside the project")
-    yaml_path = root / ".local" / "injector" / profile_name / node_id / "spring-overrides.yml"
-    run_path = application / ".run" / f"Injector-{profile_name}-{node_id}.run.xml"
-    _artifact_path(root, yaml_path)
-    _artifact_path(root, run_path)
+    directory = runtime_directory(root, registry)
+    storage = Path(registry).resolve() if registry is not None else root
+    yaml_path = directory / profile_name / node_id / "spring-overrides.yml"
+    run_folder = directory / ".run" if registry is not None else application / ".run"
+    run_path = run_folder / f"Injector-{profile_name}-{node_id}.run.xml"
+    _artifact_path(storage, yaml_path)
+    _artifact_path(storage, run_path)
     if settings.spring_properties:
         settings.vm_properties[managed] = yaml_path.as_uri()
         settings.origins["vmProperties"][managed] = "generated/spring-overrides.yml"
@@ -109,9 +112,9 @@ def plan_render(data, project, profile_name, node_id, environ=None, *, allow_pla
 
     def write():
         try:
-            _artifact_path(root, run_path)
+            _artifact_path(storage, run_path)
             if yaml_path:
-                _artifact_path(root, yaml_path)
+                _artifact_path(storage, yaml_path)
                 previous = yaml_path.read_bytes() if yaml_path.exists() else None
                 _replace_file(yaml_path, content)
             try:
