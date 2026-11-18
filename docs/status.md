@@ -29,7 +29,7 @@
 | 일반화된 실행·준비 상태 확인 | 완료(첫 범위) | process/Compose/external, HTTP/TCP/healthcheck, 소유 자원 정리 | T-050 |
 | 의존성 전체 준비 후 대상 앱 실행 | 구현·부분 검증 | prepare 파이프라인과 IDE Debug 준비. 새 구성의 IDE 직접 검증 남음 | T-060 |
 | 클릭 준비 화면 | 구현·부분 검증 | 더블클릭 launcher, 로컬 API·화면. 실제 브라우저 확인 남음 | T-150 |
-| registry.json 편집 | 구현·부분 검증 | 파일 열기·검증·저장·외부 변경 감지. 좁은 브라우저 화면 확인, 휴대폰 원격 미리보기 확인 남음 | T-170 |
+| registry.json 편집 | 구현·부분 검증 | 파일 열기·검증·저장·외부 변경 감지와 OS 기본 폴더 선택. macOS 폴더 선택 창·휴대폰 원격 미리보기 확인 남음 | T-170 |
 | 의존성 그래프 | 구현·부분 검증 | 프로필·앱 필터, 노드의 직접 연결 강조. 데모 화면 검증 완료, 작은 화면·대형 그래프 확인 남음 | T-180 |
 | 사용자 정의 이름 해석 | 구현·부분 검증 | macOS·Windows hosts 미리보기·적용·복원과 이름 해석 확인. 관리자 시스템 파일 적용 검증 남음 | T-070, T-160 |
 | macOS·Windows 시작 | 구현·부분 검증 | macOS Finder 실행 파일, Windows VBS, 두 OS의 CI. Finder 실기기 확인 남음 | T-160 |
@@ -60,7 +60,7 @@
 
 ## 4. 검증 수준
 
-- 자동 검증: Windows에서 실제 Spring Boot와 WireMock Vault를 포함해 107개 통과. Linux에서 런타임 16개 통과.
+- 자동 검증: Windows에서 실제 Spring Boot와 WireMock Vault를 포함해 108개 통과. Linux에서 런타임 16개 통과.
 - 수동 통합 검증: CLI dummy/real과 화면 API dummy 전환으로 실제 Docker 의존성 준비·정리를 확인했다. 생성 XML의 인자·환경으로 Java Main→실제 Catalog 응답도 확인했다.
 - IntelliJ: 기존 데모 Debug는 분리 전 검증. Spring XML은 생성·파싱을 검증하고, 동일 JVM 인자로 실제 Boot 앱을 확인했다. 새 XML의 IDE UI 실행은 미수행.
 - 스킬: 형식 검사, 예시 JSON 파싱·참조 무결성 확인. 실제 업무 모노레포 적용 검증은 아직 없다.

@@ -49,7 +49,7 @@ python -m venv .venv
 
 두 OS 모두 `http://127.0.0.1:18770`을 사용하고 이미 실행 중이면 같은 서버를 연다. 화면을 사용하는 동안 macOS의 서버 Terminal 창을 열어 둔다. ZIP으로 받아 실행 권한이 빠졌다면 macOS에서 `chmod +x Start-Injector.command`를 한 번 실행한다.
 
-1. `registry.json`이 있는 프로젝트 폴더를 불러온다. 기본값은 `examples/demo`다.
+1. **폴더 선택**으로 `registry.json`이 있는 프로젝트 폴더를 고르거나 경로를 직접 입력한 뒤 **불러오기**를 누른다. 기본값은 `examples/demo`다.
 2. 프로필(`dummy` 또는 `real`)과 `platform-service`를 선택한다.
 3. 실행 순서를 확인하고 **실행 환경 준비**를 누른다. Catalog보다 Redis가 먼저 준비되고, `real`에서는 PostgreSQL도 Catalog 전에 준비된다.
 4. 준비 완료 후 IntelliJ에서 `examples/demo/pom.xml`을 열고 **`Injector-dummy-platform-service`** 또는 **`Injector-real-platform-service`**를 Debug로 실행한다. 앱 응답은 `http://127.0.0.1:19080/demo`에서 확인한다.
@@ -78,11 +78,13 @@ python injector.py serve --open
 
 ## 화면에서 registry.json 확인·수정하기
 
-1. 프로젝트 폴더를 입력하고 **registry.json 편집**을 누르면 모달이 열린다. 문법 오류가 있는 기존 파일도 열 수 있다.
+1. 프로젝트 폴더를 지정하고 **registry.json 편집**을 누르면 모달이 열린다. 문법 오류가 있는 기존 파일도 열 수 있다. 모달의 **폴더 변경**으로 다른 워크트리의 파일을 열 수 있다.
 2. **검증**을 누르면 JSON 문법, 스키마, 앱·의존성 참조, 각 프로필의 실행 계획에 있는 순환을 확인한다. 문법 오류에는 줄·열이 표시된다.
 3. **저장**을 누르면 다시 검증하고, 통과한 경우에만 파일을 쓴다. 저장 후 앱·프로필 목록이 갱신된다.
 
 **접기**는 화면을 가리지 않고 초안을 유지한다. 같은 프로젝트의 **registry.json 편집**을 다시 누르면 이어서 편집한다. **닫기**나 `Esc`를 쓰면 저장하지 않은 변경을 버릴지 확인한다.
+
+폴더 선택 창은 Injector 서버가 실행 중인 Windows 또는 macOS 데스크톱에서 열린다. 원격 미리보기에서 그 데스크톱에 접근할 수 없으면 프로젝트 경로를 직접 입력한다.
 
 열어 둔 파일을 다른 편집기에서 수정하면 저장이 거부된다. **파일 다시 읽기**로 최신 내용을 확인할 수 있다. 새 서버 API를 사용하려면 이전에 열어 둔 Injector 서버를 종료한 뒤 다시 실행한다.
 

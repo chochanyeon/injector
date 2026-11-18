@@ -126,6 +126,24 @@ class WebTests(unittest.TestCase):
         status, response = self.request('/api/registry/' + action, body, {'X-Injector-Token': token})
         return status, json.loads(response)
 
+    def test_project_folder_picker_requires_token_and_handles_selection(self):
+        endpoint = '/api/project/pick'
+        project = Path(self.temporary.name).resolve()
+        token = json.loads(self.request('/api/info')[1])['token']
+        headers = {'X-Injector-Token': token}
+        body = {'project': str(project)}
+        with patch('injector_core.web.choose_project_folder') as picker:
+            self.assertEqual(self.request(endpoint, body)[0], 403)
+            self.assertEqual(self.request(endpoint, body, {**headers, 'Origin': 'https://evil.test'})[0], 403)
+            picker.assert_not_called()
+            for selected in (None, str(project)):
+                picker.return_value = selected
+                status, response = self.request(endpoint, body, headers)
+                self.assertEqual((status, json.loads(response)), (200, {'project': selected}))
+                picker.assert_called_with(str(project))
+            picker.return_value = str(project / 'missing')
+            self.assertEqual(self.request(endpoint, body, headers)[0], 400)
+
     def test_registry_editor_repairs_invalid_file_and_refreshes_catalog(self):
         path = Path(self.temporary.name) / 'registry.json'
         data = json.loads(path.read_bytes())

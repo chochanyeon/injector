@@ -8,7 +8,11 @@
     <section class="card settings" aria-labelledby="setup-title">
       <h2 id="setup-title">실행 대상</h2>
       <label for="project">프로젝트 폴더</label>
-      <div class="path-row"><input id="project" placeholder="registry.json이 있는 폴더" spellcheck="false"><button id="load" class="secondary">불러오기</button></div>
+      <div class="path-row">
+        <input id="project" placeholder="registry.json이 있는 폴더" spellcheck="false">
+        <button id="pick-project" class="secondary" disabled>폴더 선택</button>
+        <button id="load" class="secondary">불러오기</button>
+      </div>
       <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-haspopup="dialog" disabled>registry.json 편집</button>
       <label for="profile">프로필</label><select id="profile" disabled><option>프로젝트를 불러오세요</option></select>
       <label for="target">애플리케이션</label><select id="target" disabled></select>
@@ -58,7 +62,10 @@
         <button id="registry-close" class="secondary">닫기</button>
       </div>
     </div>
-    <p id="registry-path" class="registry-path"></p>
+    <div class="registry-location">
+      <p id="registry-path" class="registry-path"></p>
+      <button id="registry-pick-project" class="secondary" disabled>폴더 변경</button>
+    </div>
     <textarea id="registry-text" aria-label="registry.json 편집" aria-describedby="registry-path registry-status"
               rows="22" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" disabled></textarea>
     <div class="registry-actions">

@@ -18,7 +18,11 @@
 .registry-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .registry-heading h2 { margin: 0; }
 .registry-window-actions { display: flex; gap: 6px; }
-.registry-path { color: #52645a; font-size: 12px; overflow-wrap: anywhere; }
+.registry-location { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.registry-path { flex: 1; min-width: 0; margin: 0; color: #52645a; font-size: 12px; overflow-wrap: anywhere; }
+@media(max-width:480px) {
+  .path-row { flex-wrap: wrap; }
+}
 #registry-text {
   display: block;
   width: 100%;

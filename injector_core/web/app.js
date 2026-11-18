@@ -1,7 +1,7 @@
 const $ = id => document.getElementById(id);
 let token, catalog, busy = false, timer;
-let editor, editorBusy = false;
-let variants = {}, planReady = false, planRequest = 0;
+let editor, editorBusy = false, pickerBusy = false;
+let variants = {}, planReady = false, planRequest = 0, loadRequest = 0;
 const phases = {starting:'시작 중', waiting:'준비 확인 중', ready:'준비 완료', 'debug-ready':'Debug 가능', stopping:'종료 중'};
 async function api(path, body) {
   const endpoint = path.split('?')[0];
@@ -26,10 +26,12 @@ const dependencyGraph = new DependencyGraph($('dependency-graph'), api);
 const registryDialog = $('registry-editor');
 function error(message) { $('result').textContent = message; $('badge').textContent = '확인 필요'; $('badge').className = 'badge failed'; }
 function buttons() {
-  $('prepare').disabled = busy || !planReady;
-  $('variant-options').disabled = busy;
-  for (const id of ['load','stop','project']) $(id).disabled = busy;
-  for (const id of ['target','profile']) $(id).disabled = busy || !catalog;
+  const locked = busy || pickerBusy;
+  $('prepare').disabled = locked || !planReady;
+  $('variant-options').disabled = locked;
+  for (const id of ['load','stop','project']) $(id).disabled = locked;
+  for (const id of ['target','profile']) $(id).disabled = locked || !catalog;
+  $('pick-project').disabled = locked || editorBusy || !token;
   editorButtons();
 }
 async function plan() {
@@ -96,10 +98,13 @@ async function targets(preferred) {
   await refreshPlan();
 }
 async function load() {
+  const generation = ++loadRequest;
   const profile = $('profile').value, target = $('target').value;
   catalog = null; planReady = false; planRequest++; $('variant-picker').hidden = true; buttons();
   try {
-    catalog = await api('/api/project?' + new URLSearchParams({project:$('project').value}));
+    const result = await api('/api/project?' + new URLSearchParams({project:$('project').value}));
+    if (generation !== loadRequest) return;
+    catalog = result;
     $('project').value = catalog.project;
     $('profile').replaceChildren(...Object.keys(catalog.profiles).map(name => new Option(name,name)));
     if (Object.hasOwn(catalog.profiles, profile)) $('profile').value = profile;
@@ -107,7 +112,40 @@ async function load() {
     $('badge').className = 'badge';
     $('result').textContent = '실행 환경을 준비할 수 있습니다.';
     buttons(); await targets($('profile').value === profile ? target : undefined);
-  } catch(e) { dependencyGraph.reset(); error(e.message); }
+  } catch(e) {
+    if (generation !== loadRequest) return;
+    dependencyGraph.reset();
+    error(e.message);
+  }
+}
+
+async function pickProject(inEditor = false) {
+  if (busy || editorBusy || pickerBusy) return;
+  const button = $(inEditor ? 'registry-pick-project' : 'pick-project');
+  const caption = button.textContent;
+  let project;
+  pickerBusy = true;
+  button.textContent = '선택 중…';
+  buttons();
+  try {
+    ({project} = await api('/api/project/pick', {project:(inEditor && editor?.project) || $('project').value}));
+  } catch (e) {
+    if (inEditor) registryStatus(e.message, 'error');
+    else error(e.message);
+    return;
+  } finally {
+    pickerBusy = false;
+    button.textContent = caption;
+    buttons();
+    button.focus();
+  }
+  if (!project) return;
+  if (inEditor) {
+    await openEditor(project);
+    if (editor?.project !== project) return;
+  }
+  $('project').value = project;
+  await load();
 }
 async function poll() {
   const job = await api('/api/job'); busy = job.status === 'running'; buttons();
@@ -139,11 +177,13 @@ function draftChanged() {
 }
 
 function editorButtons() {
-  $('edit-registry').disabled = !token || editorBusy || !$('project').value.trim();
-  $('registry-text').disabled = editorBusy || !editor;
-  $('registry-fold').disabled = $('registry-close').disabled = editorBusy;
-  for (const id of ['registry-reload', 'registry-validate']) $(id).disabled = editorBusy || !editor;
-  $('registry-save').disabled = busy || editorBusy || !draftChanged();
+  const locked = editorBusy || pickerBusy;
+  $('edit-registry').disabled = !token || locked || !$('project').value.trim();
+  $('registry-pick-project').disabled = busy || locked || !token;
+  $('registry-text').disabled = locked || !editor;
+  $('registry-fold').disabled = $('registry-close').disabled = locked;
+  for (const id of ['registry-reload', 'registry-validate']) $(id).disabled = locked || !editor;
+  $('registry-save').disabled = busy || locked || !draftChanged();
 }
 
 function registryStatus(message, state = '') {
@@ -190,7 +230,7 @@ async function openEditor(project, reload = false) {
 }
 
 function hideEditor(discard) {
-  if (editorBusy || (discard && !discardDraft())) return;
+  if (editorBusy || pickerBusy || (discard && !discardDraft())) return;
   if (discard) {
     editor = null;
     $('registry-text').value = '';
@@ -234,12 +274,14 @@ async function checkEditor(action) {
 }
 
 $('load').onclick=load;
+$('pick-project').onclick=() => pickProject();
 $('profile').onchange=() => targets();
 $('target').onchange=plan;
-$('project').oninput=() => {catalog=null; planReady=false; planRequest++; $('variant-picker').hidden=true; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
+$('project').oninput=() => {catalog=null; planReady=false; planRequest++; loadRequest++; $('variant-picker').hidden=true; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
 $('prepare').onclick=() => run('prepare');
 $('stop').onclick=() => run('stop');
 $('edit-registry').onclick = () => openEditor($('project').value.trim());
+$('registry-pick-project').onclick = () => pickProject(true);
 $('registry-validate').onclick = () => checkEditor('validate');
 $('registry-save').onclick = () => checkEditor('save');
 $('registry-reload').onclick = () => openEditor(editor.project, true);

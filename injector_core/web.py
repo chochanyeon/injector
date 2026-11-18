@@ -9,8 +9,9 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.request import ProxyHandler, build_opener
 import webbrowser
 
+from .folder_picker import choose_project_folder
 from .registry import RegistryError
-from .registry_editor import MAX_BYTES, RegistryConflict, open_registry, save_registry, validate_registry
+from .registry_editor import MAX_BYTES, RegistryConflict, _file as registry_file, open_registry, save_registry, validate_registry
 from .runtime import parse_variants, prepare, project_info, select_plan, stop
 
 ASSETS = Path(__file__).resolve().parent / "web"
@@ -28,11 +29,29 @@ class Control:
         self.project = str(Path(project).resolve())
         self.token = secrets.token_urlsafe(32)
         self.lock = threading.Lock()
+        self.picker_lock = threading.Lock()
         self.job = {"status": "idle", "events": []}
 
     def snapshot(self):
         with self.lock:
             return json.loads(json.dumps(self.job))
+
+    def pick_project(self, body):
+        initial = body.get("project", "")
+        if not isinstance(initial, str):
+            raise RegistryError("project path must be a string")
+        if not self.picker_lock.acquire(blocking=False):
+            raise RegistryConflict("폴더 선택 창이 이미 열려 있습니다.")
+        try:
+            selected = choose_project_folder(initial.strip() or self.project)
+            if selected is None:
+                return {"project": None}
+            try:
+                return {"project": str(registry_file(selected).parent)}
+            except (OSError, RegistryError) as error:
+                raise RegistryError("registry.json이 있는 프로젝트 폴더를 선택하세요.") from error
+        finally:
+            self.picker_lock.release()
 
     def edit_registry(self, action, body):
         project = body.get("project")
@@ -152,7 +171,7 @@ def make_server(project, port=18770):
             if not self.allowed(mutation=True):
                 return
             editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save")
-            if not editor and self.path not in ("/api/prepare", "/api/stop"):
+            if not editor and self.path not in ("/api/project/pick", "/api/prepare", "/api/stop"):
                 return self.respond(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -163,6 +182,8 @@ def make_server(project, port=18770):
                 if not isinstance(body, dict):
                     raise ValueError()
                 action = self.path.rsplit("/", 1)[1]
+                if action == "pick":
+                    return self.respond(200, control.pick_project(body))
                 if editor:
                     return self.respond(200, control.edit_registry(action, body))
                 control.start(action, body)
