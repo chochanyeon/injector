@@ -33,11 +33,7 @@ IntelliJ의 projectPath는 .run을 읽는 IDE 프로젝트 루트이며 서비�
 | YAML 파일을 직접 열어 자체 파싱 | Spring 외부 설정으로 덮어쓸 수 있다고 단정하지 않음. 별도 입력 경로 확인 |
 | Vault API 클라이언트 | 요청 경로·응답 키 조사 후 서비스 ID별 대역. 실제 비밀값 조회와 구분 |
 
-먼저 빌드 정의에서 Spring Boot 버전을 확인한다. `application.yml`, `application-{profile}.yml`, multi-document YAML, `spring.config.activate.on-profile`, active/include/group, import/location/additional-location, bootstrap 설정을 따라간다. Gradle/Maven의 profile과 Spring active profile을 혼동하지 않는다.
-
-기존 .run XML·실행 스크립트의 -D, env, 프로그램 인자도 확인한다. 명령행 인자, SPRING_APPLICATION_JSON, JAVA_TOOL_OPTIONS, 코드의 setProperty/custom PropertySource가 기존 값에 영향을 주는지 기록한다. 설정 파일 하나를 읽었다는 이유로 최종값이 확인되었다고 보고하지 않는다.
-
-검색 단서 예: `System.getProperty`, `System.getenv`, `@ConfigurationProperties`, `@Value`, `Environment`, `spring.config`, `spring.profiles`, `${...}`. 래퍼 호출·공통 라이브러리도 필요한 범위까지 추적한다.
+Spring 앱의 프로필·import·실행 설정과 직접 읽는 코드는 [Spring 설정 조사 체크리스트](spring-configuration-audit.md)로 대조한다.
 
 ## 3. Spring 설정 배치
 
@@ -62,7 +58,7 @@ IntelliJ의 projectPath는 .run을 읽는 IDE 프로젝트 루트이며 서비�
 적용 규칙:
 
 - springProperties의 최상위 키는 Spring property 이름이다. 숫자·boolean·리스트·맵은 JSON 타입을 유지한다. 필요한 leaf별 override를 하려면 dotted key로 나눈다.
-- Injector는 defaults → 선택 variant → profile override 순서로 같은 최상위 키를 교체한다. 리스트·맵을 임의로 deep merge하지 않는다. 생성 YAML을 원래 설정과 합치는 단계의 Spring 바인딩 규칙은 해당 버전에서 따로 확인한다.
+- Injector는 defaults → 선택 variant → 노드의 profileOverrides → 루트 프로필의 overrides 순서로 같은 최상위 키를 교체한다. 리스트·맵 값은 키 단위로 교체하며, 생성 YAML과 원래 설정의 결합은 해당 버전의 Spring 바인딩 규칙을 따른다.
 - env·vmProperties가 같은 Spring 키를 덮지 않는지 확인한다. 도구는 정확한 VM 키와 기본 env 이름 변환의 충돌을 검사하지만, 모든 relaxed binding 별칭·상속 환경·프로그램 인자를 분석하는 것은 아니다.
 - System.getProperty 전용 값은 Spring YAML로 옮기지 않는다. YAML 값은 JVM 시스템 속성으로 자동 등록되지 않는다.
 - 의존 주소는 literal로 복사하기보다 injections의 springProperty 채널과 node/endpoint/context/component 참조를 사용한다. 이 채널은 v1.1부터 지원한다.
@@ -88,7 +84,7 @@ IntelliJ의 projectPath는 .run을 읽는 IDE 프로젝트 루트이며 서비�
 
 ```text
 python <Injector>/injector.py validate --project <target>
-python <Injector>/injector.py plan --project <target> --profile <profile>
+python <Injector>/injector.py plan <app-id> --project <target> --profile <profile>
 python <Injector>/injector.py resolve --project <target> --profile <profile> --node <node>
 python <Injector>/injector.py render --project <target> --profile <profile> --node <node>
 ```

@@ -1,13 +1,15 @@
 ---
 name: injector-register-monorepo
-description: Analyze monorepos for Injector onboarding and maintain reviewed runtime registries with source evidence, endpoints, dependencies, and Spring or JVM injection rules. Use for application registration and registry updates; this workflow does not launch services.
+description: Initialize Injector registration for a monorepo or update an existing registry. Discover runnable modules, trace Spring and JVM configuration to its sources, and record dependencies and injection rules with evidence. The workflow does not launch services.
 ---
 
 # Injector 모노레포 등록
 
 모노레포의 기존 실행 정보를 조사해 사람이 검토할 수 있는 앱 등록 초안을 만든다. Injector는 앱·인프라의 접속 정보를 관리하고, 대상 앱의 의존성을 DFS 후위 순서로 준비한 뒤 설정을 주입해 실행하는 도구를 지향한다.
 
-최초 조사·미확인 값 정리는 [등록 프로토콜](references/registration-protocol.md)을 읽고 [예시 JSON](assets/registration-draft.example.json)을 참고한다. 사용자가 실행용 registry 작성·갱신을 요청하면 [실행 등록 관리 가이드](references/runtime-registry-guide.md)를 읽는다. 예시의 앱·주소·포트는 가상이며 실제 프로젝트의 기본값이 아니다.
+- 모노레포 최초 등록은 [모노레포 탐색 가이드](references/monorepo-initialization.md)를 따른다. 전체 앱 후보를 훑은 뒤 우선 디버그할 앱과 그 하위 의존성을 한 묶음씩 조사한다.
+- Spring 앱을 조사할 때는 [Spring 설정 조사 체크리스트](references/spring-configuration-audit.md)로 선택한 실행 방식의 설정 출처와 읽는 코드를 대조한다.
+- 조사 초안이 필요하면 [등록 프로토콜](references/registration-protocol.md)과 [예시 JSON](assets/registration-draft.example.json)을 참고한다. 실행용 registry 작성·갱신을 요청받으면 [실행 등록 관리 가이드](references/runtime-registry-guide.md)로 파일 구조와 무기동 검증 명령을 확인한다.
 
 ## 작업 경계
 

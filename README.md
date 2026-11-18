@@ -267,6 +267,8 @@ python injector.py render --project examples/spring-config --profile local --nod
 
 [등록 스킬](skills/injector-register-monorepo/SKILL.md)과 [등록 프로토콜](skills/injector-register-monorepo/references/registration-protocol.md)을 준비했다. 스킬 기능이 없는 LLM에도 이 문서를 제공해 사용할 수 있다.
 
+처음 적용할 때는 실행 앱을 식별하고 대상 앱의 인프라와 앱 간 연결을 순서대로 조사한다. Spring 앱은 선택한 실행 방식에서 실제로 적용되는 설정 출처를 함께 추적한다. [모노레포 탐색 가이드](skills/injector-register-monorepo/references/monorepo-initialization.md) · [Spring 설정 조사 체크리스트](skills/injector-register-monorepo/references/spring-configuration-audit.md)
+
 검토된 실행용 registry를 작성·수정하는 요청에는 [AI 실행 등록 관리 가이드](skills/injector-register-monorepo/references/runtime-registry-guide.md)를 사용한다. 앱의 읽는 코드·YAML profile·VM 옵션을 추적해 채널을 구분하고, 실제 스키마 확인 → 변경 → validate/plan/resolve/render 검증 순서로 관리하도록 했다. LLM 초안 자동 변환 엔진은 아직 없다.
 
 예시 요청:
