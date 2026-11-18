@@ -5,7 +5,6 @@ import json
 import os
 from pathlib import Path
 import signal
-import shutil
 import socket
 import subprocess
 import sys
@@ -274,13 +273,20 @@ def _process_command(execution, working, environment):
         candidates = [working / command]
     else:
         search_path = environment.get("PATH", os.defpath).split(os.pathsep)
-        if os.name == "nt":
+        if os.name == "nt" and "NODEFAULTCURRENTDIRECTORYINEXEPATH" not in environment:
             search_path.insert(0, "")
         candidates = [working / directory / command for directory in search_path]
+    extensions = [""]
+    if os.name == "nt":
+        # Python 3.10's shutil.which does not try PATHEXT on explicit paths.
+        suffixes = environment.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep)
+        if Path(command).suffix.lower() not in {suffix.lower() for suffix in suffixes}:
+            extensions.extend(suffixes)
     for candidate in candidates:
-        executable = shutil.which(str(candidate))
-        if executable is not None:
-            return [executable, *arguments]
+        for extension in extensions:
+            executable = Path(str(candidate) + extension)
+            if executable.is_file() and os.access(executable, os.X_OK):
+                return [str(executable), *arguments]
     raise RegistryError("process command or working directory is unavailable")
 
 

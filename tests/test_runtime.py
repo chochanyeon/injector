@@ -191,6 +191,10 @@ class RuntimeTests(unittest.TestCase):
             launcher.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} worker.py\n', encoding='utf-8')
             launcher.chmod(0o755)
         dependency['execution'].update(command=['./' + launcher.name], workingDirectory=working.name)
+        dependency['env'] = {'PATH': '.'}
+        write_registry(self.root, self.data)
+        self.assertEqual(prepare(self.root, 'main', mode='dummy')['status'], 'ready')
+        dependency['execution']['command'] = [launcher.stem if os.name == 'nt' else launcher.name]
         write_registry(self.root, self.data)
         self.assertEqual(prepare(self.root, 'main', mode='dummy')['status'], 'ready')
 
