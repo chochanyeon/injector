@@ -86,3 +86,5 @@ python <Injector>/injector.py render --project <target> --registry <registry-fol
 With external storage, outputs go under `.local/injector/<worktree-id>/` in the registry directory. Import the generated configuration into IntelliJ for Debug. Regeneration replaces generated files.
 
 Report changed apps and profiles, performed checks, unknown inputs, unsupported readers, and whether the app was started. Use real source evidence from the project provided.
+
+`validate` and `plan` can pass even when a required `fromEnv` variable is unavailable. If `resolve` reports a missing reference without naming it, inspect the selected node's effective settings and list the applicable reference names and source locations. Where authorized, check presence in the intended launch environment without printing values. The current shell and the IntelliJ launch may have different environments. Ask who supplies any remaining variable and record the blocked scope.

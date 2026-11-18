@@ -11,7 +11,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | Work ID | Work item | Design | Development | Verification |
 |---|---|---|---|---|
 | [T-000](work-items/T-000.md) | Single-demo POC | Complete for POC | Complete | Complete for documented scope |
-| [T-005](work-items/T-005.md) | LLM monorepo onboarding and Spring configuration audit | Complete for discovery | Complete | Format, links, and examples verified |
+| [T-005](work-items/T-005.md) | LLM monorepo onboarding and Spring configuration audit | Complete for discovery | Complete | Format, examples, and scoped walkthrough verified |
 | [T-010](work-items/T-010.md) | Application registry schema | Complete | Complete | Schema verified |
 | [T-020](work-items/T-020.md) | Registry loading, validation, and project selection | Complete | Complete | Loading and references verified |
 | [T-030](work-items/T-030.md) | Endpoint resolution and settings injection | Complete | Complete | Resolution and merge verified |

@@ -67,7 +67,7 @@
 - 자동 검증: Windows에서 실제 Spring Boot와 WireMock Vault를 포함해 113개 통과. Linux에서 런타임 16개 통과.
 - 수동 통합 검증: CLI dummy/real과 화면 API dummy 전환으로 실제 Docker 의존성 준비·정리를 확인했다. 생성 XML의 인자·환경으로 Java Main→실제 Catalog 응답도 확인했다.
 - IntelliJ: 기존 데모 Debug는 분리 전 검증. Spring XML은 생성·파싱을 검증하고, 동일 JVM 인자로 실제 Boot 앱을 확인했다. 새 XML의 IDE UI 실행은 미수행.
-- 스킬: 형식·상대 링크 확인, 데모 앱별 계획과 Spring 설정 채널 확인. 실제 업무 모노레포 적용 검증은 아직 없다.
+- 스킬: 형식·상대 링크, 데모 실행 계획과 Spring 설정 채널, Gradle 경로 재매핑과 미확인 설정이 있는 부분 등록 절차를 확인했다. 독립적인 스킬 실행과 실제 업무 모노레포 적용 검증은 남아 있다.
 
 환경과 과거 절차는 [기존 검증 이력](validation-history.ko.md), 작업별 최신 결과는 인덱스의 해당 작업 문서를 따른다. 이전 검증을 현재 실행 환경의 정상 동작 보장으로 해석하지 않는다.
 

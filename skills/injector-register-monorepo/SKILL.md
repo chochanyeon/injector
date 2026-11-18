@@ -9,7 +9,7 @@ description: Initialize Injector registration for a monorepo or update an existi
 
 Discover existing runtime definitions and produce a reviewable draft or a reviewed runtime registry when requested.
 
-- For first-time registration, follow the [monorepo discovery guide](references/monorepo-initialization.md). Inventory candidates, then focus on the first app and its transitive dependencies.
+- For first-time registration, follow the [monorepo discovery guide](references/monorepo-initialization.md). Start with the requested app or subtree, reconstruct its chosen launch, and follow only relevant cross-boundary dependencies.
 - For Spring apps, use the [Spring configuration checklist](references/spring-configuration-audit.md) to compare sources and consumers for the selected runner.
 - For drafts, use the [registration protocol](references/registration-protocol.md) and [example JSON](assets/registration-draft.example.json). For reviewed runtime files, use the [runtime registry guide](references/runtime-registry-guide.md) to check the schema and commands.
 
@@ -31,4 +31,4 @@ When updating, preserve node IDs and user-confirmed values. Report differences i
 
 ## Completion
 
-Check JSON, references, file and line evidence, and DFS order. Set `startupOrder` to `null` when cycles or unknown edges prevent ordering and record the reason. Mark unknown readiness or launch commands as unresolved.
+Check JSON, references, file and line evidence, and DFS order. Set `startupOrder` to `null` when cycles or unknown edges prevent ordering and record the reason. Keep partial findings and exact questions for unresolved inputs. For runtime registration, compare the actual `plan` to the intended local scenario and report remaining configuration or startup checks separately.

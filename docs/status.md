@@ -67,7 +67,7 @@ The installed skill copy lives outside Git. Synchronize changes from the reposit
 - Windows passed 113 tests including real Spring Boot and WireMock Vault integration. The Linux runtime check passed 16 tests.
 - Actual Docker dependencies were prepared and cleaned up using CLI dummy and real profiles and the web API. Java Main successfully called real Catalog using generated JVM arguments and environment.
 - Legacy IntelliJ Debug was verified before moving the demo. Spring XML generation and parsing were verified and real Spring Boot received the equivalent JVM arguments. The new IntelliJ UI path still needs a check.
-- Skill checks covered format, links, demo planning, and Spring configuration channels. A work monorepo has yet to be onboarded.
+- Skill checks covered format, links, demo planning, Spring configuration channels, and a scoped first-registration walkthrough with a Gradle path mapping and unresolved configuration. Independent execution and a work monorepo remain pending.
 
 See the [verification history](validation-history.md) for historical environments and procedures. Each work item records its latest evidence.
 

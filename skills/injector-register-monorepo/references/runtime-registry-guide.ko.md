@@ -96,3 +96,5 @@ python <Injector>/injector.py render --project <target> --registry <registry-fol
 외부 registry를 쓰면 생성물은 registry 폴더의 `.local/injector/<워크트리-ID>/`에 모인다. IntelliJ에서 생성된 실행 구성을 가져와 Debug한다. 생성물은 재생성 시 덮어쓰며 원본 입력으로 역사용하지 않는다.
 
 완료 보고에는 변경한 앱·프로필, 실제 수행한 검증, 미확인 값, 지원하지 않는 읽기 방식, 실제 앱 실행 여부를 구분한다. validate·plan 성공을 실제 앱 기동 성공으로 보고하지 않는다. 회사 레포가 제공되지 않았으면 가상의 근거 경로를 실제 조사 사실로 제시하지 않는다.
+
+필수 `fromEnv` 변수가 없어도 `validate`와 `plan`은 통과할 수 있다. `resolve` 오류에 변수 이름이 없으면 선택된 노드에 실제로 적용되는 설정에서 참조 변수 이름과 출처를 찾는다. 확인 권한이 있으면 최종 실행 환경에서 값의 존재 여부만 확인한다. 현재 셸과 IntelliJ가 사용하는 환경은 다를 수 있다. 남은 변수는 누가 공급하는지 묻고 어떤 검증이 막혔는지 기록한다.

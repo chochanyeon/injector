@@ -9,7 +9,7 @@ description: Initialize Injector registration for a monorepo or update an existi
 
 모노레포의 기존 실행 정보를 조사해 사람이 검토할 수 있는 앱 등록 초안을 만든다. Injector는 앱·인프라의 접속 정보를 관리하고, 대상 앱의 의존성을 DFS 후위 순서로 준비한 뒤 설정을 주입해 실행하는 도구를 지향한다.
 
-- 모노레포 최초 등록은 [모노레포 탐색 가이드](references/monorepo-initialization.ko.md)를 따른다. 전체 앱 후보를 훑은 뒤 우선 디버그할 앱과 그 하위 의존성을 한 묶음씩 조사한다.
+- 모노레포 최초 등록은 [모노레포 탐색 가이드](references/monorepo-initialization.ko.md)를 따른다. 요청받은 앱이나 하위 폴더에서 시작해 선택한 실행 방식을 재구성하고, 관련된 범위 밖 의존성만 추적한다.
 - Spring 앱을 조사할 때는 [Spring 설정 조사 체크리스트](references/spring-configuration-audit.ko.md)로 선택한 실행 방식의 설정 출처와 읽는 코드를 대조한다.
 - 조사 초안이 필요하면 [등록 프로토콜](references/registration-protocol.ko.md)과 [예시 JSON](assets/registration-draft.example.json)을 참고한다. 실행용 registry 작성·갱신을 요청받으면 [실행 등록 관리 가이드](references/runtime-registry-guide.ko.md)로 파일 구조와 무기동 검증 명령을 확인한다.
 
@@ -33,4 +33,4 @@ description: Initialize Injector registration for a monorepo or update an existi
 
 ## 완료 기준
 
-JSON 파싱, 참조 무결성, 근거 경로·줄의 유효성, 선택한 그래프의 DFS 순서를 확인한다. 순환이나 미확인 의존성 때문에 순서를 확정할 수 없으면 `startupOrder`를 `null`로 두고 원인을 기록한다. 준비 상태와 실행 명령이 미확인인 경우에도 실행 가능한 등록으로 표현하지 않는다.
+JSON 파싱, 참조 무결성, 근거 경로·줄의 유효성, 선택한 그래프의 DFS 순서를 확인한다. 순환이나 미확인 의존성 때문에 순서를 확정할 수 없으면 `startupOrder`를 `null`로 두고 원인을 기록한다. 일부만 확인됐어도 조사 결과와 구체적인 질문을 남긴다. 실행용 등록에서는 실제 `plan`을 의도한 로컬 시나리오와 대조하고 남은 설정·기동 검증을 따로 알린다.
