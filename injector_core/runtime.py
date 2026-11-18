@@ -4,9 +4,11 @@ from copy import deepcopy
 import json
 import os
 from pathlib import Path
+import signal
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from urllib.error import URLError
 from urllib.request import ProxyHandler, build_opener
@@ -16,8 +18,9 @@ import psutil
 
 from .hostnames import check_resolution
 from .planning import build_plan
+from .process_runner import terminate_job
 from .registry import RegistryError, _project_path, _validate_references, load_registry
-from .rendering import _artifact_path, render_node
+from .rendering import _artifact_path, plan_render
 from .resolution import resolve_node, selected_variant
 
 _processes = {}
@@ -138,11 +141,65 @@ def _save(directory, session):
     temporary.replace(directory / "session.json")
 
 
-def _stop(directory, emit):
+def _session(directory):
     path = directory / "session.json"
-    if not path.exists():
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def _owned_process(resource):
+    try:
+        process = psutil.Process(resource["pid"])
+        if process.create_time() != resource["created"]:
+            raise RegistryError("process identity changed; refusing to stop an unrelated process")
+        return process
+    except psutil.NoSuchProcess:
+        return None
+
+
+def _stop_process(resource):
+    pid = resource["pid"]
+    runner = resource.get("runner")
+    process = _owned_process(resource)
+    try:
+        if runner and os.name == "nt":
+            # If the runner has not joined its job yet, it cannot launch anything.
+            if not terminate_job(runner) and process is not None:
+                process.terminate()
+                process.wait(timeout=3)
+                terminate_job(runner)
+        elif runner and process is not None:
+            try:
+                processes = [*process.children(recursive=True), process]
+                os.killpg(pid, signal.SIGTERM)
+                _, alive = psutil.wait_procs(processes, timeout=3)
+                if alive:
+                    os.killpg(pid, signal.SIGKILL)
+                    psutil.wait_procs(alive, timeout=3)
+            except ProcessLookupError:
+                pass
+        elif process is not None:
+            processes = [*process.children(recursive=True), process]
+            for child in processes:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+            _, alive = psutil.wait_procs(processes, timeout=3)
+            for child in alive:
+                child.kill()
+            psutil.wait_procs(alive, timeout=3)
+    except psutil.NoSuchProcess:
+        pass
+    handle = _processes.get(pid)
+    if handle is not None:
+        handle.wait(timeout=3)
+        _processes.pop(pid)
+
+
+def _stop(directory, emit):
+    session = _session(directory)
+    if session is None:
         return
-    session = json.loads(path.read_text(encoding="utf-8"))
     for resource in reversed(session["resources"]):
         emit({"node": resource["node"], "phase": "stopping"})
         if resource["type"] == "compose":
@@ -150,26 +207,8 @@ def _stop(directory, emit):
             if ids:
                 _docker(["rm", "-f", *ids])
         else:
-            try:
-                process = psutil.Process(resource["pid"])
-                if process.create_time() != resource["created"]:
-                    raise RegistryError("process identity changed; refusing to stop an unrelated process")
-                processes = [*process.children(recursive=True), process]
-                for child in processes:
-                    try:
-                        child.terminate()
-                    except psutil.NoSuchProcess:
-                        pass
-                _, alive = psutil.wait_procs(processes, timeout=3)
-                for child in alive:
-                    child.kill()
-                psutil.wait_procs(alive, timeout=3)
-            except psutil.NoSuchProcess:
-                pass
-            handle = _processes.pop(resource["pid"], None)
-            if handle is not None:
-                handle.wait(timeout=3)
-    path.unlink()
+            _stop_process(resource)
+    (directory / "session.json").unlink()
 
 
 def stop(project, emit=lambda event: None):
@@ -188,6 +227,88 @@ def _endpoint(variant):
     if not address or address["host"] in ("0.0.0.0", "::", "*"):
         raise RegistryError("readiness needs a concrete host address")
     return address
+
+
+def _occupied(address):
+    try:
+        with socket.create_connection((address["host"], address["port"]), timeout=0.2) as connection:
+            return connection.getpeername()[:2]
+    except (ConnectionError, TimeoutError, socket.gaierror):
+        return None
+
+
+def _owned_listeners(session):
+    listeners = set()
+    if session is None:
+        return listeners
+    for resource in session["resources"]:
+        if resource["type"] == "compose":
+            ids = _containers("io.injector.session=" + session["id"], "io.injector.node=" + resource["node"])
+            for container in ids:
+                ports = json.loads(_docker(["inspect", "--format", "{{json .NetworkSettings.Ports}}", container]))
+                for protocol, bindings in (ports or {}).items():
+                    if protocol.endswith("/tcp"):
+                        listeners.update((entry["HostIp"], int(entry["HostPort"])) for entry in bindings or [])
+        else:
+            process = _owned_process(resource)
+            if process is None:
+                continue
+            try:
+                members = [process, *process.children(recursive=True)]
+            except psutil.NoSuchProcess:
+                continue
+            for member in members:
+                try:
+                    listeners.update((conn.laddr.ip, conn.laddr.port) for conn in member.net_connections("tcp")
+                                     if conn.status == psutil.CONN_LISTEN)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+    return listeners
+
+
+def _process_command(execution, working, environment):
+    command, *arguments = execution["command"]
+    if not working.is_dir():
+        raise RegistryError("process command or working directory is unavailable")
+    if os.path.dirname(command):
+        candidates = [working / command]
+    else:
+        search_path = environment.get("PATH", os.defpath).split(os.pathsep)
+        if os.name == "nt":
+            search_path.insert(0, "")
+        candidates = [working / directory / command for directory in search_path]
+    for candidate in candidates:
+        executable = shutil.which(str(candidate))
+        if executable is not None:
+            return [executable, *arguments]
+    raise RegistryError("process command or working directory is unavailable")
+
+
+def _start_process(directory, session, node, command, working, environment):
+    runner = f"Injector-{session['id']}-{node}"
+    try:
+        process = subprocess.Popen([sys.executable, "-I", str(Path(__file__).with_name("process_runner.py")), runner, *command],
+            cwd=working, env=environment, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=os.name == "posix",
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    except OSError as error:
+        raise RegistryError("could not start managed process runner") from error
+    try:
+        created = psutil.Process(process.pid).create_time()
+        session["resources"].append({"node": node, "type": "process", "pid": process.pid,
+                                     "created": created, "runner": runner})
+        _processes[process.pid] = process
+        _save(directory, session)
+        process.stdin.write(b"1")
+        process.stdin.flush()
+    except (OSError, psutil.NoSuchProcess) as error:
+        raise RegistryError("could not start managed process") from error
+    finally:
+        try:
+            process.stdin.close()
+        except BrokenPipeError:
+            pass
+    return process
 
 
 def _wait(variant, alive, healthy):
@@ -233,24 +354,28 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
         check_resolution(data, (variant for _, variant in selected), root)
         prepared = []
         compose_keys = set()
+        addresses = []
         # Resolve every node and validate runners before starting any resources.
         for node, variant in selected:
             execution = variant["execution"]
             kind = execution["type"]
             settings = resolve_node(data, profile, node, defer_spring_env=kind == "intellij")
             _endpoint(variant)
+            command = working = None
             if kind == "intellij":
                 if node != target:
                     raise RegistryError("an IntelliJ dependency needs a process or compose variant")
-                artifact = render_node(data, root, profile, node, allow_plain=True)
+                artifact, write_config = plan_render(data, root, profile, node, allow_plain=True)
             else:
+                if kind != "external":
+                    addresses.extend(endpoint["addresses"]["host"] for endpoint in variant["endpoints"].values()
+                                     if "host" in endpoint["addresses"])
                 if settings.spring_properties:
                     raise RegistryError("runtime Spring YAML currently requires an IntelliJ target")
                 if kind == "process":
                     working = _project_path(root, execution["workingDirectory"], "process workingDirectory")
-                    if not working.is_dir() or not shutil.which(execution["command"][0]):
-                        raise RegistryError("process command or working directory is unavailable")
-                    if settings.jvm_arguments() and Path(execution["command"][0]).stem.lower() != "java":
+                    command = _process_command(execution, working, {**os.environ, **settings.env})
+                    if settings.jvm_arguments() and Path(command[0]).stem.lower() != "java":
                         raise RegistryError("VM settings on a process require a java executable")
                 elif kind == "compose":
                     if settings.jvm_arguments():
@@ -271,41 +396,37 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                         raise RegistryError("compose readiness requires a healthcheck")
                 elif kind != "external":
                     raise RegistryError("unsupported runner")
-            prepared.append((node, variant, settings))
+            prepared.append((node, variant, settings, command, working))
 
+        occupied = {peer for address in addresses if (peer := _occupied(address)) is not None}
+        if occupied:
+            listeners = _owned_listeners(_session(directory))
+            for host, port in occupied:
+                wildcard = "::" if ":" in host else "0.0.0.0"
+                if (host, port) not in listeners and (wildcard, port) not in listeners:
+                    raise RegistryError("registered host port is already in use")
         emit({"phase": "planned", "order": plan["order"]})
         _stop(directory, emit)
         session = {"id": uuid.uuid4().hex, "profile": profile, "target": target, "resources": []}
         _save(directory, session)
         try:
-            for node, variant, settings in prepared:
+            for node, variant, settings, command, working in prepared:
                 execution = variant["execution"]
                 kind = execution["type"]
                 emit({"node": node, "phase": "starting"})
                 if kind == "intellij":
+                    write_config()
                     emit({"node": node, "phase": "debug-ready"})
                     continue
                 if kind != "external":
                     for endpoint in variant["endpoints"].values():
                         address = endpoint["addresses"].get("host")
-                        if address:
-                            try:
-                                with socket.create_connection((address["host"], address["port"]), timeout=0.2):
-                                    raise RegistryError("registered host port is already in use")
-                            except (ConnectionError, TimeoutError, socket.gaierror):
-                                pass
+                        if address and _occupied(address):
+                            raise RegistryError("registered host port is already in use")
                 environment = {**os.environ, **settings.env}
                 if kind == "process":
-                    command = execution["command"]
-                    process = subprocess.Popen([command[0], *settings.jvm_arguments(), *command[1:]],
-                        cwd=_project_path(root, execution["workingDirectory"], "process workingDirectory"), env=environment,
-                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                        start_new_session=os.name == "posix",
-                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-                    _processes[process.pid] = process
-                    session["resources"].append({"node": node, "type": kind, "pid": process.pid,
-                                                  "created": psutil.Process(process.pid).create_time()})
-                    _save(directory, session)
+                    process = _start_process(directory, session, node,
+                        [command[0], *settings.jvm_arguments(), *command[1:]], working, environment)
                     alive = lambda: process.poll() is None
                     healthy = lambda: False
                 elif kind == "compose":

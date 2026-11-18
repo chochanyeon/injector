@@ -1,6 +1,8 @@
 """Generate local Spring configuration and an IntelliJ Application config."""
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 import xml.etree.ElementTree as ET
 
 import yaml
@@ -32,6 +34,26 @@ def _artifact_path(root, path):
 
 def render_node(data, project, profile_name, node_id, environ=None, *, allow_plain=False):
     """Create owned artifacts only; never change source YAML or launch an app."""
+    result, write = plan_render(data, project, profile_name, node_id, environ, allow_plain=allow_plain)
+    write()
+    return result
+
+
+def _replace_file(path, content):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+        temporary = Path(handle.name)
+        try:
+            handle.write(content)
+            handle.close()
+            os.replace(temporary, path)
+        finally:
+            handle.close()
+            temporary.unlink(missing_ok=True)
+
+
+def plan_render(data, project, profile_name, node_id, environ=None, *, allow_plain=False):
+    """Validate and serialize the artifacts before touching an existing configuration."""
     settings = resolve_node(data, profile_name, node_id, environ, defer_spring_env=True)
     nodes = {node["id"]: node for node in data["nodes"]}
     _, variant = selected_variant(nodes, data["profiles"][profile_name], node_id)
@@ -82,13 +104,26 @@ def render_node(data, project, profile_name, node_id, environ=None, *, allow_pla
     method = ET.SubElement(run, "method", v="2")
     ET.SubElement(method, "option", name="Make", enabled="true")
     ET.indent(component)
-    content = yaml.safe_dump(settings.spring_properties, allow_unicode=True, sort_keys=False)
-    try:
-        if yaml_path:
-            yaml_path.parent.mkdir(parents=True, exist_ok=True)
-            yaml_path.write_text(content, encoding="utf-8")
-        run_path.parent.mkdir(parents=True, exist_ok=True)
-        ET.ElementTree(component).write(run_path, encoding="utf-8", xml_declaration=True)
-    except OSError as error:
-        raise RegistryError("cannot write generated Spring configuration") from error
-    return RenderedConfig(yaml_path, run_path, settings)
+    xml = ET.tostring(component, encoding="utf-8", xml_declaration=True)
+    content = yaml.safe_dump(settings.spring_properties, allow_unicode=True, sort_keys=False).encode("utf-8")
+
+    def write():
+        try:
+            _artifact_path(root, run_path)
+            if yaml_path:
+                _artifact_path(root, yaml_path)
+                previous = yaml_path.read_bytes() if yaml_path.exists() else None
+                _replace_file(yaml_path, content)
+            try:
+                _replace_file(run_path, xml)
+            except OSError:
+                if yaml_path:
+                    if previous is None:
+                        yaml_path.unlink()
+                    else:
+                        _replace_file(yaml_path, previous)
+                raise
+        except OSError as error:
+            raise RegistryError("cannot write generated Spring configuration") from error
+
+    return RenderedConfig(yaml_path, run_path, settings), write

@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import shlex
 import socket
 import sys
 import tempfile
@@ -150,6 +151,25 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(RegistryError, 'exited'):
             prepare(self.root, 'main', mode='dummy')
 
+    def test_launcher_exit_cleans_up_child_process(self):
+        pid_file = self.root / 'child.pid'
+        script = ('import pathlib,subprocess,sys; '
+                  'child=subprocess.Popen([sys.executable,"-c","import time; time.sleep(60)"]); '
+                  f'pathlib.Path({str(pid_file)!r}).write_text(str(child.pid))')
+        self.data['nodes'][1]['variants']['local']['execution']['command'] = [sys.executable, '-c', script]
+        write_registry(self.root, self.data)
+        with self.assertRaisesRegex(RegistryError, 'exited'):
+            prepare(self.root, 'main', mode='dummy')
+        try:
+            child = psutil.Process(int(pid_file.read_text()))
+        except psutil.NoSuchProcess:
+            return
+        try:
+            child.wait(timeout=3)
+        finally:
+            if child.is_running():
+                child.kill()
+
     def test_preflight_checks_all_commands_before_starting(self):
         self.data['nodes'][0]['variants']['local']['execution']['command'] = ['nonexistent-injector-test-command']
         write_registry(self.root, self.data)
@@ -157,6 +177,22 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(RegistryError, 'unavailable'):
             prepare(self.root, 'main', mode='dummy', emit=events.append)
         self.assertEqual(events, [])
+
+    def test_relative_executable_is_resolved_from_working_directory(self):
+        working = self.root / 'module with spaces'
+        working.mkdir()
+        dependency = self.data['nodes'][1]['variants']['local']
+        (working / 'worker.py').write_text(dependency['execution']['command'][2], encoding='utf-8')
+        if os.name == 'nt':
+            launcher = working / 'launch.cmd'
+            launcher.write_text(f'@"{sys.executable}" worker.py\n', encoding='utf-8')
+        else:
+            launcher = working / 'launch.sh'
+            launcher.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} worker.py\n', encoding='utf-8')
+            launcher.chmod(0o755)
+        dependency['execution'].update(command=['./' + launcher.name], workingDirectory=working.name)
+        write_registry(self.root, self.data)
+        self.assertEqual(prepare(self.root, 'main', mode='dummy')['status'], 'ready')
 
     def test_busy_port_does_not_touch_foreign_listener(self):
         port = self.data['nodes'][1]['variants']['local']['endpoints']['http']['bind']['port']
@@ -198,6 +234,45 @@ class RuntimeTests(unittest.TestCase):
         old = json.loads((self.root / '.local/injector/session.json').read_text())
         prepare(self.root, 'main', mode='dummy')
         self.assertTrue(all(not psutil.pid_exists(r['pid']) for r in old['resources']))
+
+    def test_reprepare_with_foreign_port_preserves_session_and_ide_settings(self):
+        main = self.data['nodes'][0]['variants']['local']
+        main['execution'] = {'type': 'intellij', 'projectPath': '.', 'module': 'probe', 'mainClass': 'example.Main'}
+        write_registry(self.root, self.data)
+        config = Path(prepare(self.root, 'main', mode='dummy')['runConfiguration'])
+        session = self.root / '.local/injector/session.json'
+        old_session, old_config = session.read_bytes(), config.read_bytes()
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', 0))
+            listener.listen()
+            self.data['nodes'][1]['variants']['local'] = process_variant(listener.getsockname()[1])
+            main['env']['PROBE_VALUE'] = 'must not be published'
+            write_registry(self.root, self.data)
+            with self.assertRaisesRegex(RegistryError, 'already in use'):
+                prepare(self.root, 'main', mode='dummy')
+        self.assertEqual(session.read_bytes(), old_session)
+        self.assertEqual(config.read_bytes(), old_config)
+        self.assertTrue(all(psutil.pid_exists(resource['pid']) for resource in json.loads(old_session)['resources']))
+
+    def test_failed_start_does_not_publish_ide_settings(self):
+        self.data['schemaVersion'] = '1.1'
+        main = self.data['nodes'][0]['variants']['local']
+        main['execution'] = {'type': 'intellij', 'projectPath': '.', 'module': 'probe', 'mainClass': 'example.Main'}
+        main['springProperties'] = {'demo.message': 'original value'}
+        write_registry(self.root, self.data)
+        config = Path(prepare(self.root, 'main', mode='dummy')['runConfiguration'])
+        spring = self.root / '.local/injector/dummy/main/spring-overrides.yml'
+        old_config = config.read_bytes()
+        old_spring = spring.read_bytes()
+        main['env']['PROBE_VALUE'] = 'must not be published'
+        main['springProperties']['demo.message'] = 'replacement value'
+        dependency = self.data['nodes'][1]['variants']['local']
+        dependency['execution']['command'] = [sys.executable, '-c', 'raise SystemExit(3)']
+        write_registry(self.root, self.data)
+        with self.assertRaisesRegex(RegistryError, 'exited'):
+            prepare(self.root, 'main', mode='dummy')
+        self.assertEqual(config.read_bytes(), old_config)
+        self.assertEqual(spring.read_bytes(), old_spring)
 
     def test_pid_reuse_guard(self):
         directory = self.root / '.local/injector'
