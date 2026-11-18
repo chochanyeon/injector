@@ -180,6 +180,7 @@ function editorButtons() {
   const locked = editorBusy || pickerBusy;
   $('edit-registry').disabled = !token || locked || !$('project').value.trim();
   $('registry-pick-project').disabled = busy || locked || !token;
+  $('registry-file').disabled = locked;
   $('registry-text').disabled = locked || !editor;
   $('registry-fold').disabled = $('registry-close').disabled = locked;
   for (const id of ['registry-reload', 'registry-validate']) $(id).disabled = locked || !editor;
@@ -195,35 +196,44 @@ function discardDraft() {
   return !draftChanged() || window.confirm('저장하지 않은 변경을 버릴까요?');
 }
 
-async function openEditor(project, reload = false) {
+function updateEditorFiles() {
+  const files = editor?.files ?? [];
+  const selector = $('registry-file');
+  selector.replaceChildren(new Option('registry.json', ''), ...files.map(file => new Option(file, file)));
+  selector.value = editor?.file ?? '';
+  $('registry-file-picker').hidden = !files.length;
+}
+
+async function openEditor(project, {filename, reload = false} = {}) {
   if (editorBusy) return;
   const sameProject = editor && (project === editor.project || project === editor.source);
-  if (!reload && sameProject) {
+  const file = filename ?? (sameProject ? editor.file : '');
+  if (!reload && sameProject && file === editor.file) {
     if (!registryDialog.open) registryDialog.showModal();
     $('registry-text').focus({preventScroll:true});
     return;
   }
-  if (!discardDraft()) return;
-  const source = sameProject ? editor.source : project;
-  if (!sameProject) {
-    editor = null;
-    $('registry-text').value = '';
-    $('registry-path').textContent = '';
+  if (!discardDraft()) {
+    $('registry-file').value = editor.file;
+    return;
   }
+  const source = sameProject ? editor.source : project;
   editorBusy = true;
   if (!registryDialog.open) registryDialog.showModal();
   editorButtons();
   registryStatus('파일을 읽는 중…');
   try {
-    const result = await api('/api/registry/open', {project});
+    const result = await api('/api/registry/open', {project, file});
     $('registry-path').textContent = result.path;
     $('registry-text').value = result.text;
-    editor = {project:result.project, source, revision:result.revision, savedText:$('registry-text').value};
+    editor = {project:result.project, source, file, files:result.files,
+              revision:result.revision, savedText:$('registry-text').value};
     registryStatus('파일을 불러왔습니다.');
   } catch (e) {
     registryStatus(e.message, 'error');
   } finally {
     editorBusy = false;
+    updateEditorFiles();
     editorButtons();
     if (editor) $('registry-text').focus({preventScroll:true});
   }
@@ -235,6 +245,7 @@ function hideEditor(discard) {
     editor = null;
     $('registry-text').value = '';
     $('registry-path').textContent = '';
+    updateEditorFiles();
   }
   registryDialog.close();
   editorButtons();
@@ -248,10 +259,12 @@ async function checkEditor(action) {
   registryStatus(action === 'save' ? '검증 후 저장하는 중…' : '검증하는 중…');
   let location;
   try {
-    const result = await api('/api/registry/' + action, {project:editor.project, text, revision:editor.revision});
+    const result = await api('/api/registry/' + action, {project:editor.project, file:editor.file, text, revision:editor.revision});
     if (action === 'save') {
       editor.revision = result.revision;
       editor.savedText = text;
+      editor.files = result.files;
+      updateEditorFiles();
       if ($('project').value === result.project || catalog?.project === result.project) await load();
       registryStatus('저장했습니다.', 'success');
     } else {
@@ -259,7 +272,7 @@ async function checkEditor(action) {
     }
   } catch (e) {
     registryStatus(e.message, 'error');
-    location = /line (\d+), column (\d+)/.exec(e.message);
+    location = /^invalid JSON at line (\d+), column (\d+)/.exec(e.message);
   } finally {
     editorBusy = false;
     editorButtons();
@@ -282,9 +295,10 @@ $('prepare').onclick=() => run('prepare');
 $('stop').onclick=() => run('stop');
 $('edit-registry').onclick = () => openEditor($('project').value.trim());
 $('registry-pick-project').onclick = () => pickProject(true);
+$('registry-file').onchange = () => openEditor(editor.project, {filename:$('registry-file').value});
 $('registry-validate').onclick = () => checkEditor('validate');
 $('registry-save').onclick = () => checkEditor('save');
-$('registry-reload').onclick = () => openEditor(editor.project, true);
+$('registry-reload').onclick = () => openEditor(editor.project, {reload:true});
 $('registry-fold').onclick = () => hideEditor(false);
 $('registry-close').onclick = () => hideEditor(true);
 registryDialog.addEventListener('cancel', event => {

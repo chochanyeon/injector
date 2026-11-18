@@ -57,20 +57,23 @@ class Control:
         project = body.get("project")
         if not isinstance(project, str) or not project.strip():
             raise RegistryError("project path is required")
+        filename = body.get("file")
+        if filename is not None and not isinstance(filename, str):
+            raise RegistryError("registry file must be a string")
         if action == "open":
-            return open_registry(project)
+            return open_registry(project, filename)
         text = body.get("text")
         if not isinstance(text, str):
             raise RegistryError("registry text is required")
         if action == "validate":
-            return validate_registry(project, text)
+            return validate_registry(project, text, filename)
         revision = body.get("revision")
         if not isinstance(revision, str):
             raise RegistryError("open the registry before saving")
         with self.lock:
             if self.job["status"] == "running":
                 raise RegistryConflict("wait for the running job before saving")
-            return save_registry(project, text, revision)
+            return save_registry(project, text, revision, filename)
 
     def start(self, action, body):
         project = body.get("project", self.project)

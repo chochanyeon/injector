@@ -1,0 +1,35 @@
+{
+  "id": "vault-mock",
+  "kind": "infrastructure",
+  "variants": {
+    "local": {
+      "execution": {
+        "type": "compose",
+        "file": "docker/prepare-compose.yaml",
+        "service": "vault-mock",
+        "projectName": "injector-prepare-demo"
+      },
+      "endpoints": {
+        "main": {
+          "protocol": "http",
+          "bind": {
+            "host": "127.0.0.1",
+            "port": 19083
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19083,
+              "scheme": "http"
+            }
+          }
+        }
+      },
+      "dependencies": [],
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 90
+      }
+    }
+  }
+}

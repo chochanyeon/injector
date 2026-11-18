@@ -24,6 +24,7 @@
 | [T-160](work-items/T-160.md) | macOS와 Windows 실행 환경 지원 | 완료 | 완료 | 부분 검증(Finder·IDE 수동 확인 남음) |
 | [T-170](work-items/T-170.md) | 로컬 registry.json 편집기 | 완료 | 완료 | 부분 검증(macOS 폴더 선택 창·휴대폰 원격 미리보기 확인 남음) |
 | [T-180](work-items/T-180.md) | registry 기반 의존성 그래프 | 완료 | 완료 | 부분 검증(작은 화면·대형 그래프 확인 남음) |
+| [T-190](work-items/T-190.md) | 앱별 실행·주입 설정 파일 | 완료 | 완료 | 완료(호환성·편집·프로세스) |
 | [T-080](work-items/T-080.md) | 의존성별 실제 실행·모의 대체 | 완료 | 완료 | 완료(기본 데모·프로세스) |
 | [T-090](work-items/T-090.md) | 세션·실패 처리·종료 정책 | 부분 확정 | 부분 완료 | 부분 검증(Windows·Linux·데모 Compose) |
 | [T-100](work-items/T-100.md) | LLM 등록 초안의 검증·변환 | 초안 | 미착수 | 미수행 |
@@ -50,7 +51,7 @@ T-080과 T-090의 포트 충돌·프로세스 정리·상대 경로 수정을 �
 1. `git status --short --branch`와 최근 커밋을 확인한다. 미커밋 변경의 주체와 범위를 파악한다.
 2. 인덱스에서 작업을 선택하고 그 문서의 설계 → 개발 → 검증 → 재개 지점을 읽는다. 필요한 공통 배경만 아래 참고 자료에서 추가 확인한다.
 3. 선행 작업과 완료 기준을 확인하고 작업한다. 사용자 최신 지시가 문서보다 우선한다.
-4. `python -m unittest discover -s tests -v`로 현재 기준을 확인한다. Windows에서 Vault URL과 Spring JAR/JDK를 지정한 전체 108개 테스트를 통과했다. 먼저 `python -m pip install -r requirements.txt`로 의존성을 준비하고, 선택한 작업의 검증을 추가로 수행한다.
+4. `python -m unittest discover -s tests -v`로 현재 기준을 확인한다. Windows에서 Vault URL과 Spring JAR/JDK를 지정한 전체 111개 테스트를 통과했다. 먼저 `python -m pip install -r requirements.txt`로 의존성을 준비하고, 선택한 작업의 검증을 추가로 수행한다.
 5. 같은 작업 문서에 설계 결정·개발 결과·검증 증거·다음 조치를 기록하고 이 인덱스의 단계별 상태 및 전체 현황을 갱신한다.
 6. 커밋·푸시 후 원격 동기화를 확인한다. 중단한다면 작업 문서의 재개 지점을 먼저 남긴다.
 

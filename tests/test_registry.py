@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import injector
 from injector_core.registry import RegistryError, load_registry
+from injector_core.resolution import resolve_node
 
 EXAMPLE = json.loads((Path(__file__).resolve().parents[1] / "examples/registry/registry.json")
                      .read_text(encoding="utf-8"))
@@ -48,6 +49,48 @@ class RegistryTest(unittest.TestCase):
         self.data["nodes"].append(copy.deepcopy(self.data["nodes"][0]))
         with self.assertRaisesRegex(RegistryError, "duplicate node ID"):
             self.load()
+
+    def test_node_files_share_the_registry_graph_and_resolve_app_overrides(self):
+        node = self.data["nodes"].pop(0)
+        node_id = node["id"]
+        profile, selection = next(iter(self.data["profiles"].items()))
+        self.data["schemaVersion"] = "1.1"
+        variant = node["variants"][selection["selections"][node_id]]
+        variant.setdefault("env", {})["LOCAL_LABEL"] = "variant"
+        node["profileOverrides"] = {profile: {"env": {"LOCAL_LABEL": "app"},
+                                              "springProperties": {"demo.label": "app"}}}
+        filename = self.project / "app settings" / "app.json"
+        filename.parent.mkdir()
+        filename.write_text(json.dumps(node), encoding="utf-8")
+        self.data["nodeFiles"] = ["app settings/app.json"]
+        data = self.load(profile)
+        settings = resolve_node(data, profile, node_id, environ={"LOCAL_DB_PASSWORD": "placeholder"})
+        self.assertEqual(settings.env["LOCAL_LABEL"], "app")
+        self.assertEqual(settings.spring_properties["demo.label"], "app")
+        selection.setdefault("overrides", {}).setdefault(node_id, {}).setdefault("env", {})["LOCAL_LABEL"] = "root"
+        settings = resolve_node(self.load(profile), profile, node_id, environ={"LOCAL_DB_PASSWORD": "placeholder"})
+        self.assertEqual(settings.env["LOCAL_LABEL"], "root")
+        self.data["nodes"].append(node)
+        with self.assertRaisesRegex(RegistryError, "duplicate node ID"):
+            self.load(profile)
+
+    def test_node_file_errors_name_the_file_and_reject_outside_paths(self):
+        del self.data["nodes"]
+        self.data["nodeFiles"] = ["../outside.json"]
+        with self.assertRaisesRegex(RegistryError, "escapes the project root"):
+            self.load()
+        self.data["nodeFiles"] = ["bad.json"]
+        with self.assertRaisesRegex(RegistryError, r"bad\.json: cannot read node file"):
+            self.load()
+        filename = self.project / "bad.json"
+        filename.write_text('{"id":', encoding="utf-8")
+        with self.assertRaisesRegex(RegistryError, r"bad\.json: invalid JSON at line 1"):
+            self.load()
+        filename.write_text('{"unsupported": "private-value"}', encoding="utf-8")
+        with self.assertRaises(RegistryError) as failure:
+            self.load()
+        self.assertIn("bad.json:", str(failure.exception))
+        self.assertNotIn("private-value", str(failure.exception))
 
     def test_missing_dependency_is_rejected(self):
         self.data["nodes"][0]["variants"]["real"]["dependencies"].append("missing")

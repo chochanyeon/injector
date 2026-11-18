@@ -79,6 +79,7 @@ python injector.py serve --open
 ## 화면에서 registry.json 확인·수정하기
 
 1. 프로젝트 폴더를 지정하고 **registry.json 편집**을 누르면 모달이 열린다. 문법 오류가 있는 기존 파일도 열 수 있다. 모달의 **폴더 변경**으로 다른 워크트리의 파일을 열 수 있다.
+   `nodeFiles`를 쓴 프로젝트에서는 **설정 파일** 목록에서 루트나 앱 파일을 선택한다. 새 앱 파일은 프로젝트에 만든 뒤 루트의 `nodeFiles`에 경로를 추가한다.
 2. **검증**을 누르면 JSON 문법, 스키마, 앱·의존성 참조, 각 프로필의 실행 계획에 있는 순환을 확인한다. 문법 오류에는 줄·열이 표시된다.
 3. **저장**을 누르면 다시 검증하고, 통과한 경우에만 파일을 쓴다. 저장 후 앱·프로필 목록이 갱신된다.
 
@@ -219,6 +220,10 @@ python injector.py vault-demo --vault-service payments
 ## 실행용 앱 등록 검증
 
 버전 `1.0` 또는 `1.1`의 실행용 등록을 프로젝트 루트의 `registry.json`에 두고 검증할 수 있다. Spring YAML용 설정은 1.1에서 지원한다.
+
+앱별로 분리하려면 루트의 `nodeFiles`에 `["registry/nodes/platform-service.json", "registry/nodes/catalog.json"]`처럼 파일 경로를 넣는다. 각 파일은 `id`, `kind`, `variants`를 가진 노드 한 개다. 환경 변수, VM 옵션, Spring 설정, 의존 서비스 주입 규칙은 해당 앱의 variant에 둔다. 특정 프로필에서만 필요한 앱 설정은 노드의 `profileOverrides.<프로필>`에 넣는다. 루트는 공통 기본값과 프로필의 실행 대상·variant 선택을 관리한다. 기존 `nodes`와 `profiles.<프로필>.overrides`도 계속 사용할 수 있다.
+
+파일을 나눈 뒤에도 파일 경로와 각 노드의 `projectPath`, `workingDirectory`, Compose 경로는 모두 프로젝트 루트 기준이다. [데모 registry](examples/demo/registry.json)와 [platform-service 설정](examples/demo/registry/nodes/platform-service.json)을 참고한다.
 
 ```powershell
 python injector.py validate --project examples/registry

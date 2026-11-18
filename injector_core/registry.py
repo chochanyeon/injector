@@ -36,6 +36,19 @@ def _project_path(root, value, field):
     return root / relative
 
 
+def node_file_path(root, filename):
+    field = f"nodeFiles/{filename}"
+    try:
+        path = _project_path(root, filename, field).resolve()
+    except RegistryError:
+        raise
+    except (OSError, ValueError, RuntimeError) as error:
+        raise RegistryError(f"{field}: invalid node file path") from error
+    if path == root / "registry.json" or path.suffix.lower() != ".json":
+        raise RegistryError(f"{field}: expected a separate JSON file")
+    return path
+
+
 def _validate_references(data, root, profile):
     nodes = {}
     for node in data["nodes"]:
@@ -44,6 +57,9 @@ def _validate_references(data, root, profile):
         nodes[node["id"]] = node
 
     for node in nodes.values():
+        for name in node.get("profileOverrides", {}):
+            if name not in data["profiles"]:
+                raise RegistryError(f"nodes/{node['id']}/profileOverrides: unknown profile {name}")
         for name, variant in node["variants"].items():
             field = f"nodes/{node['id']}/variants/{name}"
             execution = variant["execution"]
@@ -124,10 +140,9 @@ def load_registry(project, profile=None):
     return parse_registry(text, root, profile)
 
 
-def parse_registry(text, root, profile=None):
-    """Validate a UTF-8 registry draft against the same rules as the CLI."""
+def _parse_json(text):
     try:
-        data = json.loads(text, object_pairs_hook=_object, parse_constant=_constant)
+        return json.loads(text, object_pairs_hook=_object, parse_constant=_constant)
     except json.JSONDecodeError as error:
         raise RegistryError(f"invalid JSON at line {error.lineno}, column {error.colno}") from error
     except RecursionError as error:
@@ -137,15 +152,66 @@ def parse_registry(text, root, profile=None):
     except ValueError as error:
         raise RegistryError("invalid JSON number") from error
 
-    version = data.get("schemaVersion") if isinstance(data, dict) else None
-    if not isinstance(version, str) or version not in SCHEMA_PATHS:
-        raise RegistryError("missing or unsupported schemaVersion")
-    schema = json.loads(SCHEMA_PATHS[version].read_text(encoding="utf-8"))
-    error = best_match(Draft202012Validator(schema).iter_errors(data))
+
+def declared_node_files(text):
+    """List referenced files even if a node draft or the root schema is invalid."""
+    try:
+        data = _parse_json(text)
+    except RegistryError:
+        return []
+    files = data.get("nodeFiles") if isinstance(data, dict) else None
+    if not isinstance(files, list):
+        return []
+    return list(dict.fromkeys(name for name in files if isinstance(name, str) and name))
+
+
+def _check_schema(errors):
+    error = best_match(errors)
     if error is not None:
         pointer = "/" + "/".join(str(part).replace("~", "~0").replace("/", "~1")
                                   for part in error.absolute_path)
         raise RegistryError(f"{pointer}: schema {error.validator} check failed")
+
+
+def _read_node_file(path):
+    try:
+        if not path.is_file():
+            raise OSError()
+        return path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise RegistryError("cannot read node file") from error
+    except UnicodeError as error:
+        raise RegistryError("node file must be UTF-8") from error
+
+
+def parse_registry(text, root, profile=None, *, node_draft=None):
+    """Assemble and validate the registry, optionally using an in-memory node draft."""
+    data = _parse_json(text)
+    version = data.get("schemaVersion") if isinstance(data, dict) else None
+    if not isinstance(version, str) or version not in SCHEMA_PATHS:
+        raise RegistryError("missing or unsupported schemaVersion")
+    schema = json.loads(SCHEMA_PATHS[version].read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema)
+    _check_schema(validator.iter_errors(data))
+    files = data.get("nodeFiles", [])
+    if node_draft is not None and node_draft[0] not in files:
+        raise RegistryError("node file is not declared in registry.json")
+    nodes = data.setdefault("nodes", [])
+    seen_paths = set()
+    for filename in files:
+        path = node_file_path(root, filename)
+        if path in seen_paths:
+            raise RegistryError(f"nodeFiles/{filename}: duplicate node file")
+        seen_paths.add(path)
+        is_draft = node_draft is not None and filename == node_draft[0]
+        try:
+            node = _parse_json(node_draft[1] if is_draft else _read_node_file(path))
+            _check_schema(validator.descend(node, schema["$defs"]["node"]))
+        except RegistryError as error:
+            if is_draft:
+                raise
+            raise RegistryError(f"{filename}: {error}") from error
+        nodes.append(node)
     if data.get("nameMappings"):
         from .hostnames import name_mappings
         name_mappings(data)

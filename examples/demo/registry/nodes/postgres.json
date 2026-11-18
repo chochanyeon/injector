@@ -1,0 +1,34 @@
+{
+  "id": "postgres",
+  "kind": "infrastructure",
+  "variants": {
+    "local": {
+      "execution": {
+        "type": "compose",
+        "file": "docker/prepare-compose.yaml",
+        "service": "postgres",
+        "projectName": "injector-prepare-demo"
+      },
+      "endpoints": {
+        "main": {
+          "protocol": "tcp",
+          "bind": {
+            "host": "127.0.0.1",
+            "port": 19432
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19432
+            }
+          }
+        }
+      },
+      "dependencies": [],
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 90
+      }
+    }
+  }
+}

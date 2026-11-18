@@ -12,7 +12,9 @@
 - `examples/registry/registry.json`, `examples/spring-config/registry.json`: 실제 검증 예시.
 - `injector_core/registry.py`, `resolution.py`, `rendering.py`: 계약만으로 불명확한 해석·제한 사항.
 
-현재 로더는 프로젝트 디렉터리의 단일 `registry.json`을 읽는다. 여러 서비스 파일 include 기능이나 serviceFiles 필드를 만들어 넣지 않는다. 조사 자료는 서비스별로 나눠도 실행용 데이터는 지원하는 한 파일에 모은다. 형식 자체를 바꿔야 하면 별도 개발 작업으로 버전·로더·테스트·작업 기록을 함께 변경한다.
+루트 `registry.json`의 `nodeFiles`에 프로젝트 상대경로를 나열하면 노드마다 실행·주입 설정을 한 파일에서 관리할 수 있다. 새 모노레포 등록은 Injector 저장소의 `examples/demo/registry.json`을 참고한다. 각 파일은 `id`, `kind`, `variants`를 가진 노드 한 개다. 기존 `nodes` 인라인 등록은 유지하거나 순차적으로 옮긴다. 두 곳에 같은 ID를 정의하지 않는다.
+
+대상과 variant 선택은 루트 `profiles`에서 유지한다. 앱의 설정은 그 앱의 variant와 `profileOverrides.<프로필>`에 둔다. 기존 루트 `profiles.<프로필>.overrides.<노드>`는 마지막에 적용되므로 이전할 때 최종 값과 VM 옵션 순서를 확인한다. 파일 참조와 작업·IDE·Compose 경로의 기준은 프로젝트 루트다.
 
 v1.0에서 지원하지 않는 Spring 필드를 쓸 때만 검토 후 v1.1로 올린다. 기존 ID·profile·사용자 확정값을 유지하고 변경 이유를 남긴다. 노드에 evidence 같은 미지원 속성을 붙이지 말고 근거는 `injector-onboarding/findings.md`에 기록한다.
 

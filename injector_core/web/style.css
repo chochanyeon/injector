@@ -18,6 +18,8 @@
 .registry-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .registry-heading h2 { margin: 0; }
 .registry-window-actions { display: flex; gap: 6px; }
+.registry-file-picker:not([hidden]) { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.registry-file-picker label { flex-shrink: 0; margin: 0; }
 .registry-location { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
 .registry-path { flex: 1; min-width: 0; margin: 0; color: #52645a; font-size: 12px; overflow-wrap: anywhere; }
 @media(max-width:480px) {

@@ -62,11 +62,15 @@
         <button id="registry-close" class="secondary">닫기</button>
       </div>
     </div>
+    <div id="registry-file-picker" class="registry-file-picker" hidden>
+      <label for="registry-file">설정 파일</label>
+      <select id="registry-file"></select>
+    </div>
     <div class="registry-location">
       <p id="registry-path" class="registry-path"></p>
       <button id="registry-pick-project" class="secondary" disabled>폴더 변경</button>
     </div>
-    <textarea id="registry-text" aria-label="registry.json 편집" aria-describedby="registry-path registry-status"
+    <textarea id="registry-text" aria-label="JSON 설정 편집" aria-describedby="registry-path registry-status"
               rows="22" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" disabled></textarea>
     <div class="registry-actions">
       <button id="registry-reload" class="secondary" disabled>파일 다시 읽기</button>

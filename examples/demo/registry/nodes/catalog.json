@@ -1,0 +1,69 @@
+{
+  "id": "catalog",
+  "kind": "application",
+  "variants": {
+    "dummy": {
+      "execution": {
+        "type": "compose",
+        "file": "docker/prepare-compose.yaml",
+        "service": "catalog-dummy",
+        "projectName": "injector-prepare-demo"
+      },
+      "endpoints": {
+        "main": {
+          "protocol": "http",
+          "bind": {
+            "host": "127.0.0.1",
+            "port": 19081
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19081,
+              "scheme": "http"
+            }
+          }
+        }
+      },
+      "dependencies": [
+        "redis"
+      ],
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 90
+      }
+    },
+    "real": {
+      "execution": {
+        "type": "compose",
+        "file": "docker/prepare-compose.yaml",
+        "service": "catalog-real",
+        "projectName": "injector-prepare-demo"
+      },
+      "endpoints": {
+        "main": {
+          "protocol": "http",
+          "bind": {
+            "host": "127.0.0.1",
+            "port": 19082
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19082,
+              "scheme": "http"
+            }
+          }
+        }
+      },
+      "dependencies": [
+        "redis",
+        "postgres"
+      ],
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 90
+      }
+    }
+  }
+}

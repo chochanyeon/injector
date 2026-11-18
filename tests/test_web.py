@@ -169,6 +169,33 @@ class WebTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), corrected.replace('\n', '\r\n').encode())
         self.assertIn('updated', json.loads(self.request('/api/project')[1])['profiles'])
 
+    def test_registry_editor_repairs_a_declared_node_file_without_rewriting_root(self):
+        root = Path(self.temporary.name)
+        registry = root / 'registry.json'
+        data = json.loads(registry.read_text(encoding='utf-8'))
+        node = data['nodes'].pop(0)
+        data['nodeFiles'] = ['app.json']
+        original = json.dumps(data).encode()
+        registry.write_bytes(original)
+        filename = root / 'app.json'
+        filename.write_text('{"id":', encoding='utf-8')
+        status, opened = self.registry_request('open')
+        self.assertEqual(status, 200)
+        self.assertEqual(opened['files'], ['app.json'])
+        self.assertEqual(self.request('/api/project')[0], 400)
+        self.assertEqual(self.registry_request('open', file='other.json')[0], 400)
+        status, opened = self.registry_request('open', file='app.json')
+        self.assertEqual(status, 200)
+        self.assertEqual(opened['text'], '{"id":')
+        body = {'file': 'app.json', 'text': json.dumps(node), 'revision': opened['revision']}
+        self.assertEqual(self.registry_request('validate', **body)[0], 200)
+        self.assertEqual(filename.read_text(encoding='utf-8'), '{"id":')
+        self.assertEqual(self.registry_request('save', **body)[0], 200)
+        self.assertEqual(self.registry_request('save', **body)[0], 409)
+        self.assertEqual(registry.read_bytes(), original)
+        self.assertEqual(json.loads(filename.read_text(encoding='utf-8')), node)
+        self.assertEqual(self.request('/api/project')[0], 200)
+
     def test_registry_editor_validates_schema_references_and_cycles(self):
         original = json.loads((Path(self.temporary.name) / 'registry.json').read_bytes())
         for key, pattern in (('schema', '/nodes/0'), ('missing', 'unknown dependency'), ('cycle', 'dependency cycle')):

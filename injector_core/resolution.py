@@ -126,6 +126,8 @@ def resolve_node(data, profile_name, node_id, environ=None, defer_spring_env=Fal
     options = []
     layers = [(data.get("defaults", {}), "defaults"),
               (variant, f"nodes/{node_id}/variants/{name}"),
+              (nodes[node_id].get("profileOverrides", {}).get(profile_name, {}),
+               f"nodes/{node_id}/profileOverrides/{profile_name}"),
               (profile.get("overrides", {}).get(node_id, {}), f"profiles/{profile_name}/overrides/{node_id}")]
     for layer, location in layers:
         for channel in maps:
