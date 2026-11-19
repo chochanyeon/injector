@@ -199,6 +199,14 @@ class RegistryTest(unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue())["status"], "valid")
         self.assertNotIn("LOCAL_DB_PASSWORD", output.getvalue())
 
+    def test_cli_validates_explicit_registry_without_a_json_extension(self):
+        self.load()
+        registry = (self.project / "registry.json").rename(self.project / "local settings")
+        with patch("sys.argv", ["injector.py", "validate", "--project", str(self.project),
+                                "--registry", str(registry)]), contextlib.redirect_stdout(io.StringIO()) as output:
+            injector.main()
+        self.assertEqual(json.loads(output.getvalue())["status"], "valid")
+
     def test_cli_rejects_execution_options_and_legacy_project_switch(self):
         for arguments in (["validate", "--project", str(self.project), "--main-docker"],
                           ["validate", "--project", str(self.project), "--with-vault"],

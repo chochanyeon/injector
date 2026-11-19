@@ -12,14 +12,14 @@
         <input id="project" placeholder="소스 또는 워크트리 폴더" spellcheck="false">
         <button id="pick-project" class="secondary" disabled>폴더 선택</button>
       </div>
-      <label for="registry">registry.json</label>
+      <label for="registry">Registry 파일</label>
       <div class="path-row">
         <input id="registry" list="registries" placeholder="파일 경로 · 비워두면 프로젝트 폴더 사용" spellcheck="false">
         <datalist id="registries"></datalist>
         <button id="pick-registry" class="secondary" disabled>파일 선택</button>
       </div>
       <button id="load" class="secondary registry-open">불러오기</button>
-      <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-haspopup="dialog" disabled>registry.json 편집</button>
+      <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-haspopup="dialog" disabled>Registry 편집</button>
       <label for="profile">프로필</label><select id="profile" disabled><option>프로젝트를 불러오세요</option></select>
       <label for="target">애플리케이션</label><select id="target" disabled></select>
       <details id="variant-picker" hidden>
@@ -64,7 +64,7 @@
   </details>
   <dialog id="registry-editor" class="card registry-editor" aria-labelledby="registry-title">
     <div class="registry-heading">
-      <h2 id="registry-title">registry.json</h2>
+      <h2 id="registry-title">Registry 편집</h2>
       <div class="registry-window-actions">
         <button id="registry-fold" class="secondary" title="초안을 유지하고 편집기 접기">접기</button>
         <button id="registry-close" class="secondary">닫기</button>

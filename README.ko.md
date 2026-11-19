@@ -51,7 +51,7 @@ python -m venv .venv
 
 두 OS 모두 `http://127.0.0.1:18770`을 사용하고 이미 실행 중이면 같은 서버를 연다. 화면을 사용하는 동안 macOS의 서버 Terminal 창을 열어 둔다. ZIP으로 받아 실행 권한이 빠졌다면 macOS에서 `chmod +x Start-Injector.command`를 한 번 실행한다.
 
-1. **프로젝트 폴더**에서 소스 또는 워크트리를 선택한다. **registry.json** 옆의 **파일 선택**에서는 해당 파일을 고른다. 경로를 직접 입력했다면 **불러오기**를 누른다. registry 입력란에 `registry.json`이 들어 있는 폴더를 입력해도 된다. 입력란을 비우면 `examples/demo`처럼 소스 폴더에서 registry를 읽는다.
+1. **프로젝트 폴더**에서 소스 또는 워크트리를 선택한다. **Registry 파일** 옆의 **파일 선택**에서는 Injector 스키마에 맞는 JSON 파일을 고른다. 파일명과 확장자는 자유다. 경로를 직접 입력했다면 **불러오기**를 누른다. 폴더 경로를 지정하면 그 안의 `registry.json`을 읽는다. 입력란을 비우면 소스 폴더의 `registry.json`을 읽는다.
 2. 프로필(`dummy` 또는 `real`)과 `platform-service`를 선택한다.
 3. 실행 순서를 확인하고 **실행 환경 준비**를 누른다. Catalog보다 Redis가 먼저 준비되고, `real`에서는 PostgreSQL도 Catalog 전에 준비된다.
 4. 준비 완료 후 IntelliJ에서 `examples/demo/pom.xml`을 열고 **`Injector-dummy-platform-service`** 또는 **`Injector-real-platform-service`**를 Debug로 실행한다. 앱 응답은 `http://127.0.0.1:19080/demo`에서 확인한다.
@@ -84,12 +84,12 @@ python injector.py serve --open
 
 ## 화면에서 registry.json 확인·수정하기
 
-1. 프로젝트 폴더를 지정하고 **registry.json 편집**을 누르면 모달이 열린다. 문법 오류가 있는 기존 파일도 열 수 있다. 모달의 **폴더 변경**으로 다른 워크트리의 파일을 열 수 있다.
+1. 프로젝트 폴더와 Registry 파일을 지정하고 **Registry 편집**을 누르면 모달이 열린다. 문법 오류가 있는 기존 파일도 열 수 있다. 모달의 **폴더 변경**으로 다른 워크트리의 파일을 열 수 있다.
    `nodeFiles`를 쓴 프로젝트에서는 **설정 파일** 목록에서 루트나 앱 파일을 선택한다. 새 앱 파일은 registry 폴더에 만든 뒤 루트의 `nodeFiles`에 경로를 추가한다.
 2. **검증**을 누르면 JSON 문법, 스키마, 앱·의존성 참조, 각 프로필의 실행 계획에 있는 순환을 확인한다. 문법 오류에는 줄·열이 표시된다.
 3. **저장**을 누르면 다시 검증하고, 통과한 경우에만 파일을 쓴다. 저장 후 앱·프로필 목록이 갱신된다.
 
-**접기**는 화면을 가리지 않고 초안을 유지한다. 같은 프로젝트의 **registry.json 편집**을 다시 누르면 이어서 편집한다. **닫기**나 `Esc`를 쓰면 저장하지 않은 변경을 버릴지 확인한다.
+**접기**는 화면을 가리지 않고 초안을 유지한다. 같은 프로젝트의 **Registry 편집**을 다시 누르면 이어서 편집한다. **닫기**나 `Esc`를 쓰면 저장하지 않은 변경을 버릴지 확인한다.
 
 파일·폴더 선택 창은 Injector 서버가 실행 중인 Windows 또는 macOS 데스크톱에서 열린다. 원격 미리보기에서 그 데스크톱에 접근할 수 없으면 경로를 직접 입력한다.
 
@@ -234,13 +234,13 @@ python injector.py prepare platform-service --project "<워크트리 경로>" --
 python injector.py stop --project "<워크트리 경로>" --registry registries/my-monorepo
 ```
 
-외부 registry를 쓰면 Injector가 생성하는 Spring YAML, IntelliJ 실행 XML, Compose override와 세션 파일은 registry 폴더의 `.local/injector/<워크트리-ID>/`에 저장된다. IntelliJ 대상은 결과에 표시된 실행 구성을 해당 워크트리의 IDE에서 가져와 Debug한다. [IntelliJ 실행 구성 문서](https://www.jetbrains.com/help/idea/run-debug-configuration.html#share-run-debug-configurations)
+CLI에서도 `--registry registries/my-monorepo/local-dev.json`처럼 파일을 직접 지정할 수 있다. 외부 Registry를 쓰면 Injector가 생성하는 Spring YAML, IntelliJ 실행 XML, Compose override와 세션 파일은 Registry 폴더의 `.local/injector/` 아래에서 Registry 파일과 워크트리 조합별로 저장된다. IntelliJ 대상은 결과에 표시된 실행 구성을 해당 워크트리의 IDE에서 가져와 Debug한다. [IntelliJ 실행 구성 문서](https://www.jetbrains.com/help/idea/run-debug-configuration.html#share-run-debug-configurations)
 
 기존 프로젝트 루트의 `registry.json` 형식도 지원한다. Spring YAML용 설정은 버전 1.1에서 지원한다.
 
 앱별로 분리하려면 루트의 `nodeFiles`에 `["registry/nodes/platform-service.json", "registry/nodes/catalog.json"]`처럼 파일 경로를 넣는다. 각 파일은 `id`, `kind`, `variants`를 가진 노드 한 개다. 환경 변수, VM 옵션, Spring 설정, 의존 서비스 주입 규칙은 해당 앱의 variant에 둔다. 특정 프로필에서만 필요한 앱 설정은 노드의 `profileOverrides.<프로필>`에 넣는다. 루트는 공통 기본값과 프로필의 실행 대상·variant 선택을 관리한다. 기존 `nodes`와 `profiles.<프로필>.overrides`도 계속 사용할 수 있다.
 
-`nodeFiles`는 `registry.json`이 있는 폴더 기준이고, `projectPath`, `workingDirectory`, Compose 경로는 소스 폴더 기준이다. [데모 registry](examples/demo/registry.json)와 [platform-service 설정](examples/demo/registry/nodes/platform-service.json)을 참고한다.
+`nodeFiles`는 선택한 Registry 파일의 상위 폴더 기준이고, `projectPath`, `workingDirectory`, Compose 경로는 소스 폴더 기준이다. [데모 registry](examples/demo/registry.json)와 [platform-service 설정](examples/demo/registry/nodes/platform-service.json)을 참고한다.
 
 ```powershell
 python injector.py validate --project examples/registry

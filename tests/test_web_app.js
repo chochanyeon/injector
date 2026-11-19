@@ -10,7 +10,7 @@ function browser(fetch) {
   const elements = new Map();
   const timers = [];
   const element = id => {
-    if (!elements.has(id)) elements.set(id, {value: '', textContent: '', children: [], addEventListener() {}});
+    if (!elements.has(id)) elements.set(id, {value: '', textContent: '', children: [], addEventListener() {}, focus() {}});
     return elements.get(id);
   };
   const context = vm.createContext({
@@ -54,4 +54,14 @@ test('IntelliJ results identify the module and main class for IDE confirmation',
   });
   await page.run('checkRequirements()');
   assert.match(page.element('check-result').textContent, /^IDE 확인 필요 .*missing-module.*example\.Absent/);
+});
+
+test('registry selection loads the exact path returned by the picker', async () => {
+  const registry = 'C:\\registries\\app\\local settings.json';
+  const page = browser(async url => {
+    assert.equal(url, '/api/project/pick');
+    return {ok: true, json: async () => ({project: registry})};
+  });
+  const loadedPath = await page.run('let loaded; load = () => { loaded = selection().registry; }; pickPath("registry").then(() => loaded)');
+  assert.equal(loadedPath, registry);
 });

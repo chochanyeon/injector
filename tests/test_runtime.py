@@ -282,16 +282,20 @@ class RuntimeTests(unittest.TestCase):
         self.data['nodeFiles'] = ['main.json']
         (storage / 'main.json').write_text(json.dumps(main), encoding='utf-8')
         write_registry(storage, self.data)
-        directory = runtime_directory(worktree, storage)
+        registry = storage / 'my registry.json'
+        (storage / 'registry.json').rename(registry)
+        directory = runtime_directory(worktree, registry)
+        self.assertEqual(runtime_directory(worktree, storage), runtime_directory(worktree, storage / 'registry.json'))
+        self.assertNotEqual(directory, runtime_directory(worktree, storage))
         self.assertNotEqual(directory, runtime_directory(self.root, storage))
         try:
-            result = prepare(worktree, 'main', 'dummy', registry=storage)
+            result = prepare(worktree, 'main', 'dummy', registry=registry)
             self.assertTrue(result['externalRunConfiguration'])
             self.assertTrue(Path(result['runConfiguration']).is_relative_to(directory))
             self.assertTrue((directory / 'dummy/main/spring-overrides.yml').is_file())
             self.assertTrue((directory / 'session.json').is_file())
         finally:
-            stop(worktree, registry=storage)
+            stop(worktree, registry=registry)
         self.assertFalse((directory / 'session.json').exists())
         self.assertEqual(list(worktree.iterdir()), [module])
         self.assertFalse(list(module.iterdir()))

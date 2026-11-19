@@ -18,7 +18,7 @@ import psutil
 from .hostnames import check_resolution
 from .planning import build_plan
 from .process_runner import terminate_job
-from .registry import RegistryError, _project_path, _validate_references, load_registry, runtime_directory
+from .registry import RegistryError, _project_path, _validate_references, load_registry, registry_path, runtime_directory
 from .rendering import _artifact_path, plan_render
 from .resolution import resolve_node, selected_variant
 
@@ -43,7 +43,7 @@ def _applications(data, profile):
 def project_info(project, *, registry=None):
     data = load_registry(project, registry=registry)
     variants = {node["id"]: list(node["variants"]) for node in data["nodes"] if len(node["variants"]) > 1}
-    return {"project": str(Path(project).resolve()), "registry": str(Path(registry).resolve()) if registry else "", "profiles": {
+    return {"project": str(Path(project).resolve()), "registry": str(registry_path(project, registry)) if registry is not None else "", "profiles": {
         name: {"targets": profile["targets"], "applications": _applications(data, profile),
                "variantChoices": {node: {"default": selected, "options": variants[node]}
                                   for node, selected in profile["selections"].items() if node in variants}}
@@ -78,7 +78,7 @@ def select_plan(project, target, profile=None, mode=None, *, variants=None, regi
 
 
 def _directory(project, registry=None):
-    root = Path(registry if registry is not None else project).resolve()
+    root = registry_path(project, registry).parent
     directory = runtime_directory(project, registry)
     _artifact_path(root, directory / "session.json")
     directory.mkdir(parents=True, exist_ok=True)

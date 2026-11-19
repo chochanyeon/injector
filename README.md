@@ -49,7 +49,7 @@ python -m venv .venv
 
 Both use `http://127.0.0.1:18770` and reuse a running Injector server. Keep the server's Terminal window open on macOS. If a ZIP download lost the executable bit, run `chmod +x Start-Injector.command` once.
 
-1. Under **Project folder** (**프로젝트 폴더**), choose the source checkout or worktree. Under **registry.json**, use **Choose file** (**파일 선택**) to select the registry file. Click **Load** (**불러오기**) after typing either path by hand. The registry field also accepts a directory containing `registry.json`. Leave it empty for projects such as `examples/demo` that keep their registry in the source folder.
+1. Under **Project folder** (**프로젝트 폴더**), choose the source checkout or worktree. Under **Registry file** (**Registry 파일**), use **Choose file** (**파일 선택**) to select any valid Injector registry JSON. The filename and extension are unrestricted. Click **Load** (**불러오기**) after typing either path by hand. A directory path uses the `registry.json` inside it. Leave the field empty to load `registry.json` from the source folder.
 2. Select `dummy` or `real` and choose `platform-service`.
 3. Review the execution order and click **Prepare environment** (**실행 환경 준비**). Redis starts before Catalog. With `real`, PostgreSQL also starts before Catalog.
 4. After preparation, open `examples/demo/pom.xml` and Debug **`Injector-dummy-platform-service`** or **`Injector-real-platform-service`**. Check the response at `http://127.0.0.1:19080/demo`.
@@ -82,7 +82,7 @@ Dependencies can use process, Compose, or external runners. Targets can use Inte
 
 ## Edit registry files
 
-1. Select the source and registry folders and click **Edit registry.json** (**registry.json 편집**). The editor can open existing files with JSON syntax errors. **Change folder** (**폴더 변경**) opens another worktree. For a split registry, choose the root or a node file from **Configuration file** (**설정 파일**). Create new node files in the registry directory and add them to `nodeFiles`.
+1. Select the source folder and the registry file and click **Edit registry** (**Registry 편집**). The editor can open existing files with JSON syntax errors. **Change folder** (**폴더 변경**) opens another worktree. For a split registry, choose the root or a node file from **Configuration file** (**설정 파일**). Create new node files in the registry directory and add them to `nodeFiles`.
 2. **Validate** (**검증**) checks JSON syntax, schema, references, and cycles in the profile plans. Syntax errors show the line and column.
 3. **Save** (**저장**) validates again before writing and refreshes the application and profile lists.
 
@@ -225,11 +225,11 @@ python injector.py prepare platform-service --project "<worktree path>" --regist
 python injector.py stop --project "<worktree path>" --registry registries/my-monorepo
 ```
 
-With an external registry, Injector saves generated Spring YAML, IntelliJ XML, Compose overrides, and session files in `.local/injector/<worktree-id>/` under the registry directory. Import the generated run configuration into the IDE for that worktree, then start Debug. [IntelliJ run configuration documentation](https://www.jetbrains.com/help/idea/run-debug-configuration.html#share-run-debug-configurations)
+The CLI also accepts an explicit file such as `--registry registries/my-monorepo/local-dev.json`. With an external registry, Injector saves generated Spring YAML, IntelliJ XML, Compose overrides, and session files in a directory under `.local/injector/` scoped to the registry file and worktree. Import the generated run configuration into the IDE for that worktree, then start Debug. [IntelliJ run configuration documentation](https://www.jetbrains.com/help/idea/run-debug-configuration.html#share-run-debug-configurations)
 
 Injector also supports a source-root `registry.json`. Use registry schema 1.1 for Spring YAML settings. For multiple node files, list paths such as `["registry/nodes/platform-service.json", "registry/nodes/catalog.json"]` in `nodeFiles`. Each file contains one node with `id`, `kind`, and `variants`. A variant contains the environment, JVM settings, Spring settings, and injection rules. Put app-specific profile settings in `profileOverrides.<profile>`. The root contains shared defaults and the profile targets and variant selections. Inline `nodes` and root-level `profiles.<profile>.overrides` remain supported.
 
-Resolve `nodeFiles` relative to `registry.json`, and resolve `projectPath`, `workingDirectory`, and Compose paths relative to the source directory. [Demo registry](examples/demo/registry.json) · [Platform service settings](examples/demo/registry/nodes/platform-service.json)
+Resolve `nodeFiles` relative to the selected registry file's directory, and resolve `projectPath`, `workingDirectory`, and Compose paths relative to the source directory. [Demo registry](examples/demo/registry.json) · [Platform service settings](examples/demo/registry/nodes/platform-service.json)
 
 ```powershell
 python injector.py validate --project examples/registry

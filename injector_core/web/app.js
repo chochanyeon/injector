@@ -25,14 +25,6 @@ async function api(path, body) {
 }
 const dependencyGraph = new DependencyGraph($('dependency-graph'), api);
 const registryDialog = $('registry-editor');
-function registryFile(folder) {
-  if (!folder) return '';
-  const separator = folder.startsWith('/') || !folder.includes('\\') ? '/' : '\\';
-  return folder + (folder.endsWith(separator) ? '' : separator) + 'registry.json';
-}
-function sameRegistry(input, folder) {
-  return input === folder || input === registryFile(folder);
-}
 function selection() {
   return {project:$('project').value.trim(), registry:$('registry').value.trim()};
 }
@@ -142,7 +134,7 @@ async function load() {
     if (generation !== loadRequest) return;
     catalog = result;
     $('project').value = catalog.project;
-    $('registry').value = registryFile(catalog.registry);
+    $('registry').value = catalog.registry;
     $('profile').replaceChildren(...Object.keys(catalog.profiles).map(name => new Option(name,name)));
     if (Object.hasOwn(catalog.profiles, profile)) $('profile').value = profile;
     $('badge').textContent = '대기 중';
@@ -181,7 +173,7 @@ async function pickPath(kind, inEditor = false) {
     await openEditor(project);
     if (editor?.project !== project) return;
   }
-  $(kind).value = kind === 'registry' ? registryFile(project) : project;
+  $(kind).value = project;
   await load();
 }
 async function poll() {
@@ -247,14 +239,15 @@ function discardDraft() {
 function updateEditorFiles() {
   const files = editor?.files ?? [];
   const selector = $('registry-file');
-  selector.replaceChildren(new Option('registry.json', ''), ...files.map(file => new Option(file, file)));
+  const rootName = editor?.registry.split(/[\\/]/).pop() || 'registry.json';
+  selector.replaceChildren(new Option(rootName, ''), ...files.map(file => new Option(file, file)));
   selector.value = editor?.file ?? '';
   $('registry-file-picker').hidden = !files.length;
 }
 
 async function openEditor(project, {filename, reload = false, registry = selection().registry} = {}) {
   if (editorBusy) return;
-  const sameProject = editor && sameRegistry(registry, editor.registry)
+  const sameProject = editor && (registry === editor.registry || registry === editor.sourceRegistry)
     && (project === editor.project || project === editor.source);
   const file = filename ?? (sameProject ? editor.file : '');
   if (!reload && sameProject && file === editor.file) {
@@ -267,6 +260,7 @@ async function openEditor(project, {filename, reload = false, registry = selecti
     return;
   }
   const source = sameProject ? editor.source : project;
+  const sourceRegistry = sameProject ? editor.sourceRegistry : registry;
   editorBusy = true;
   if (!registryDialog.open) registryDialog.showModal();
   editorButtons();
@@ -275,7 +269,7 @@ async function openEditor(project, {filename, reload = false, registry = selecti
     const result = await api('/api/registry/open', {project, registry, file});
     $('registry-path').textContent = result.path;
     $('registry-text').value = result.text;
-    editor = {project:result.project, registry:result.registry, source, file, files:result.files,
+    editor = {project:result.project, registry:result.registry, source, sourceRegistry, file, files:result.files,
               revision:result.revision, savedText:$('registry-text').value};
     registryStatus('파일을 불러왔습니다.');
   } catch (e) {
@@ -314,7 +308,9 @@ async function checkEditor(action) {
       editor.savedText = text;
       editor.files = result.files;
       updateEditorFiles();
-      if (selection().project === result.project && sameRegistry(selection().registry, result.registry)) await load();
+      const current = selection();
+      if ((current.project === result.project || current.project === editor.source)
+          && (current.registry === result.registry || current.registry === editor.sourceRegistry)) await load();
       registryStatus('저장했습니다.', 'success');
     } else {
       registryStatus(`검증 통과 · 스키마 ${result.schemaVersion} · 노드 ${result.nodes}개 · 프로필 ${result.profiles}개`, 'success');
@@ -370,8 +366,8 @@ window.addEventListener('beforeunload', event => {
     const info=await api('/api/info');
     token=info.token;
     $('project').value=info.project;
-    $('registry').value=registryFile(info.registry);
-    $('registries').replaceChildren(...info.registries.map(folder => registryFile(folder)).map(path => new Option(path, path)));
+    $('registry').value=info.registry;
+    $('registries').replaceChildren(...info.registries.map(path => new Option(path, path)));
     await load();
     await poll();
   } catch(e) {error(e.message);}

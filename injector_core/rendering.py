@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 import yaml
 
-from .registry import RegistryError, _project_path, runtime_directory
+from .registry import RegistryError, _project_path, registry_path, runtime_directory
 from .resolution import ResolvedSettings, _spring_leaves, resolve_node, selected_variant
 
 
@@ -80,7 +80,7 @@ def plan_render(data, project, profile_name, node_id, environ=None, *, allow_pla
     if not application.is_dir():
         raise RegistryError("IntelliJ projectPath must be an existing directory inside the project")
     directory = runtime_directory(root, registry)
-    storage = Path(registry).resolve() if registry is not None else root
+    storage = registry_path(root, registry).parent
     yaml_path = directory / profile_name / node_id / "spring-overrides.yml"
     run_folder = directory / ".run" if registry is not None else application / ".run"
     run_path = run_folder / f"Injector-{profile_name}-{node_id}.run.xml"

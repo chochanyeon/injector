@@ -194,28 +194,36 @@ class WebTests(unittest.TestCase):
         storage = Path(self.temporary.name).resolve()
         worktree = storage / 'source tree'
         worktree.mkdir()
-        params = {'project': str(worktree), 'registry': str(storage / 'registry.json')}
+        default = storage / 'registry.json'
+        original = default.read_bytes()
+        selected = storage / 'local settings.json'
+        selected.write_bytes(original)
+        params = {'project': str(worktree), 'registry': str(selected)}
+        for registry, expected in ((storage, default), (default, default), (selected, selected)):
+            query = urlencode({**params, 'registry': str(registry)})
+            status, catalog = self.request('/api/project?' + query)
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(catalog)['registry'], str(expected))
         query = urlencode(params)
-        for registry in (str(storage), params['registry']):
-            self.assertEqual(self.request('/api/project?' + urlencode({**params, 'registry': registry}))[0], 200)
         graph_status, graph = self.request('/api/graph?' + query + '&profile=dummy')
         self.assertEqual(graph_status, 200)
         self.assertEqual(json.loads(graph)['order'], ['dependency', 'main'])
         status, opened = self.registry_request('open', **params)
         self.assertEqual(status, 200)
-        self.assertEqual(opened['path'], str(storage / 'registry.json'))
+        self.assertEqual(opened['path'], str(selected))
         data = json.loads(opened['text'])
         data['profiles']['local'] = data['profiles']['dummy']
         status, saved = self.registry_request('save', **params, text=json.dumps(data), revision=opened['revision'])
         self.assertEqual(status, 200)
-        self.assertEqual(saved['registry'], str(storage))
-        self.assertIn('local', json.loads((storage / 'registry.json').read_text())['profiles'])
+        self.assertEqual(saved['registry'], str(selected))
+        self.assertIn('local', json.loads(selected.read_bytes())['profiles'])
+        self.assertEqual(default.read_bytes(), original)
         self.assertFalse(list(worktree.iterdir()))
 
-    def test_registry_picker_accepts_only_registry_json(self):
+    def test_registry_picker_accepts_files_and_load_checks_the_content(self):
         storage = Path(self.temporary.name).resolve()
         registry = storage / 'registry.json'
-        other = storage / 'other.json'
+        other = storage / 'other registry'
         other.write_text('{}', encoding='utf-8')
         token = json.loads(self.request('/api/info')[1])['token']
         headers = {'X-Injector-Token': token}
@@ -224,14 +232,18 @@ class WebTests(unittest.TestCase):
         with patch('injector_core.web.choose_registry_file') as picker:
             self.assertEqual(self.request(endpoint, body)[0], 403)
             picker.assert_not_called()
-            for selected, expected in ((None, None), (str(registry), str(storage))):
+            for selected in (None, str(registry), str(other)):
                 picker.return_value = selected
                 status, response = self.request(endpoint, body, headers)
-                self.assertEqual((status, json.loads(response)), (200, {'project': expected}))
+                self.assertEqual((status, json.loads(response)), (200, {'project': selected}))
                 picker.assert_called_with(str(registry))
-            for selected in (other, storage, storage / 'missing' / 'registry.json'):
+            for selected in (storage, storage / 'missing' / 'registry.json'):
                 picker.return_value = str(selected)
                 self.assertEqual(self.request(endpoint, body, headers)[0], 400)
+        query = urlencode({'project': str(storage), 'registry': str(other)})
+        status, response = self.request('/api/project?' + query)
+        self.assertEqual(status, 400)
+        self.assertIn('unsupported schemaVersion', json.loads(response)['error'])
 
     def test_registry_editor_repairs_invalid_file_and_refreshes_catalog(self):
         path = Path(self.temporary.name) / 'registry.json'

@@ -38,7 +38,8 @@ def _project_path(root, value, field):
     return root / relative
 
 
-def node_file_path(root, filename):
+def node_file_path(registry, filename):
+    root = registry.parent
     field = f"nodeFiles/{filename}"
     try:
         path = _project_path(root, filename, field).resolve()
@@ -46,7 +47,7 @@ def node_file_path(root, filename):
         raise
     except (OSError, ValueError, RuntimeError) as error:
         raise RegistryError(f"{field}: invalid node file path") from error
-    if path == root / "registry.json" or path.suffix.lower() != ".json":
+    if path == registry or path.suffix.lower() != ".json":
         raise RegistryError(f"{field}: expected a separate JSON file")
     return path
 
@@ -130,12 +131,26 @@ def _validate_references(data, root, profile):
                     raise RegistryError(f"profiles/{name}/{node_id}: unknown address context")
 
 
+def registry_path(project, registry=None):
+    if registry is None:
+        return Path(project).resolve() / "registry.json"
+    path = Path(registry)
+    if path.is_dir():
+        return path.resolve() / "registry.json"
+    return path.parent.resolve() / path.name
+
+
 def runtime_directory(project, registry=None):
     root = Path(project).resolve()
     if registry is None:
         return root / ".local" / "injector"
-    worktree = sha256(os.path.normcase(str(root)).encode("utf-8")).hexdigest()[:24]
-    return Path(registry).resolve() / ".local" / "injector" / worktree
+    path = registry_path(root, registry)
+    identity = os.path.normcase(str(root))
+    name = os.path.normcase(path.name)
+    if name != "registry.json":
+        identity += "\x00" + name
+    worktree = sha256(identity.encode("utf-8")).hexdigest()[:24]
+    return path.parent / ".local" / "injector" / worktree
 
 
 def load_registry(project, profile=None, *, registry=None):
@@ -143,14 +158,16 @@ def load_registry(project, profile=None, *, registry=None):
     root = Path(project).resolve()
     if registry is not None and not root.is_dir():
         raise RegistryError("source project folder does not exist")
-    storage = Path(registry).resolve() if registry is not None else root
+    path = registry_path(root, registry)
+    if not path.is_file():
+        raise RegistryError(f"cannot read registry file {path.name}")
     try:
-        text = (storage / "registry.json").read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
     except OSError as error:
-        raise RegistryError("cannot read registry.json; select the folder containing the registry") from error
+        raise RegistryError(f"cannot read registry file {path.name}") from error
     except UnicodeError as error:
-        raise RegistryError("registry.json must be UTF-8") from error
-    return parse_registry(text, root, profile, registry=storage)
+        raise RegistryError("registry file must be UTF-8") from error
+    return parse_registry(text, root, path, profile)
 
 
 def _parse_json(text):
@@ -159,7 +176,7 @@ def _parse_json(text):
     except json.JSONDecodeError as error:
         raise RegistryError(f"invalid JSON at line {error.lineno}, column {error.colno}") from error
     except RecursionError as error:
-        raise RegistryError("registry.json is nested too deeply") from error
+        raise RegistryError("registry JSON is nested too deeply") from error
     except RegistryError:
         raise
     except ValueError as error:
@@ -197,7 +214,7 @@ def _read_node_file(path):
         raise RegistryError("node file must be UTF-8") from error
 
 
-def parse_registry(text, root, profile=None, *, node_draft=None, registry=None):
+def parse_registry(text, root, registry, profile=None, *, node_draft=None):
     """Assemble and validate the registry, optionally using an in-memory node draft."""
     data = _parse_json(text)
     version = data.get("schemaVersion") if isinstance(data, dict) else None
@@ -208,11 +225,11 @@ def parse_registry(text, root, profile=None, *, node_draft=None, registry=None):
     _check_schema(validator.iter_errors(data))
     files = data.get("nodeFiles", [])
     if node_draft is not None and node_draft[0] not in files:
-        raise RegistryError("node file is not declared in registry.json")
+        raise RegistryError("node file is not declared in the registry")
     nodes = data.setdefault("nodes", [])
     seen_paths = set()
     for filename in files:
-        path = node_file_path(registry if registry is not None else root, filename)
+        path = node_file_path(registry, filename)
         if path in seen_paths:
             raise RegistryError(f"nodeFiles/{filename}: duplicate node file")
         seen_paths.add(path)

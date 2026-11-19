@@ -11,7 +11,7 @@ on run argv
     try
         set initialFolder to (POSIX file (item 1 of argv)) as alias
         if (item 2 of argv) is "registry" then
-            set selectedItem to choose file with prompt "registry.json 파일을 선택하세요." default location initialFolder
+            set selectedItem to choose file with prompt "Registry 파일을 선택하세요." default location initialFolder
         else
             set selectedItem to choose folder with prompt "Injector에서 사용할 폴더를 선택하세요." default location initialFolder
         end if
@@ -35,7 +35,7 @@ def choose_registry_file(initial):
 def _choose_path(initial, kind):
     try:
         start = Path(initial).resolve()
-        if kind == "registry" and start.name == "registry.json" and not start.is_dir():
+        if kind == "registry" and not start.is_dir():
             start = start.parent
         if not start.is_dir():
             start = Path.home()

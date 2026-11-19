@@ -94,7 +94,7 @@ def main():
     parser.add_argument("--open", action="store_true", help="open the local UI in a browser")
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
     parser.add_argument("--project", type=Path, help="source project or worktree directory")
-    parser.add_argument("--registry", type=Path, help="separate directory containing registry.json")
+    parser.add_argument("--registry", type=Path, help="registry file or a directory containing registry.json")
     parser.add_argument("--node", help="node to resolve or render")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")

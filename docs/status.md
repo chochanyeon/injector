@@ -33,7 +33,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Browser preparation | Partially verified | Double-click launchers, loopback API, and UI. Manual browser checks remain. | T-150 |
 | Registry editor | Partially verified | Opens, validates, and saves files, detects external edits, and uses OS pickers. macOS and mobile remote preview remain. | T-170 |
 | Per-app files | Implemented | Combines `nodeFiles` and edits individual files in the browser. | T-190 |
-| Central registry storage | Partially verified | Select `registry.json` separately from the source folder. Shares settings from Injector's `registries/` and isolates runtime state per worktree. | T-200 |
+| Central registry storage | Partially verified | Select a registry file separately from the source folder. Shares settings from Injector's `registries/` and isolates runtime state per file and worktree. | T-200 |
 | Registry execution check | Implemented | Checks declared settings and required Compose dependencies. Reports the IntelliJ module and main class for IDE confirmation. | T-220, T-230 |
 | Dependency graph | Partially verified | Profile and app filters and direct connection highlighting. Small and large layout checks remain. | T-180 |
 | Custom hostnames | Partially verified | Preview, apply, remove, and resolution checks on Windows and macOS. Elevated system application remains. | T-070, T-160 |
