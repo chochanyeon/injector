@@ -133,7 +133,8 @@ def main():
         try:
             if args.command == "serve":
                 from injector_core.web import serve
-                serve(args.project or DEMO, args.port, args.open, registry=args.registry)
+                serve(args.project or DEMO, args.port, args.open, registry=args.registry,
+                      restore_selection=args.project is None)
             elif args.command == "stop":
                 from injector_core.runtime import stop
                 print(json.dumps(stop(args.project or Path.cwd(), registry=args.registry), indent=2))

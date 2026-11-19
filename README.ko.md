@@ -57,6 +57,8 @@ python -m venv .venv
 4. 준비 완료 후 IntelliJ에서 `examples/demo/pom.xml`을 열고 **`Injector-dummy-platform-service`** 또는 **`Injector-real-platform-service`**를 Debug로 실행한다. 앱 응답은 `http://127.0.0.1:19080/demo`에서 확인한다.
 5. 앱은 IDE에서 종료한다. 화면의 **이 프로젝트의 의존성 종료**로 Injector가 만든 프로세스·컨테이너를 종료한다. 브라우저를 닫는 것만으로 의존성이나 화면 서버가 종료되지는 않는다.
 
+마지막으로 불러오기에 성공한 프로젝트 폴더와 Registry 파일을 다음 실행 때 자동으로 선택하고 불러온다. 새 서버를 시작하면서 `serve --project`를 지정하면 해당 경로를 우선한다. 두 경로만 Injector의 Git 제외 파일 `.local/web-selection.json`에 저장한다.
+
 프로필을 전환하기 전에는 IDE에서 실행 중인 앱을 종료한다. 다시 준비하면 해당 프로젝트의 이전 Injector 세션 자원을 종료하고 새 설정으로 준비한다. 다른 프로그램의 열린 포트나 이미 존재하는 Compose 서비스는 충돌로 처리한다. 컨테이너 볼륨과 Compose 네트워크는 보존한다.
 
 준비하기 전에 **Registry 실행 조건 검사**를 누르면 선택한 앱, 프로필, variant와 관련 의존성을 검사한다. 등록된 설정이나 실행 정의에서 발견한 첫 번째 문제를 표시한다. 검사 중 서비스 상태와 생성 파일은 그대로 유지된다. 호스트 이름 해석, 포트 충돌, 서비스 응답 여부는 실행 환경 준비 단계에서 확인한다.

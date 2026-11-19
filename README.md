@@ -55,6 +55,8 @@ Both use `http://127.0.0.1:18770` and reuse a running Injector server. Keep the 
 4. After preparation, open `examples/demo/pom.xml` and Debug **`Injector-dummy-platform-service`** or **`Injector-real-platform-service`**. Check the response at `http://127.0.0.1:19080/demo`.
 5. Stop the app in the IDE. Use **Stop this project's dependencies** (**이 프로젝트의 의존성 종료**) to stop Injector-managed processes and containers. Closing the browser leaves both the server and the dependencies running.
 
+Injector remembers the last successfully loaded project folder and registry file. The next launch preselects and loads them. An explicit `serve --project` takes precedence when starting a new server. Injector stores only the paths in its Git-ignored `.local/web-selection.json`.
+
 Stop the app in the IDE before changing profiles. Preparing again replaces resources from the previous Injector session for that project. Ports in use by other programs and existing Compose services are treated as conflicts. Container volumes and Compose networks are preserved.
 
 Use **Check registry execution requirements** (**Registry 실행 조건 검사**) before preparing to check the selected app, profile, variants, and their dependencies. The result identifies the first blocker in the declared settings or execution definitions. The check leaves services and generated files untouched. Prepare still checks host resolution, port conflicts, and service readiness.

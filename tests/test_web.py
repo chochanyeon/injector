@@ -15,16 +15,24 @@ from test_runtime import fixture
 class WebTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        fixture(Path(self.temporary.name))
-        self.server = make_server(self.temporary.name, 0)
+        root = Path(self.temporary.name)
+        fixture(root)
+        self.selection_file = root / '.local' / 'web-selection.json'
+        self.start_server()
+
+    def start_server(self, **kwargs):
+        self.server = make_server(self.temporary.name, 0, selection_file=self.selection_file, **kwargs)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.port = self.server.server_port
 
-    def tearDown(self):
+    def stop_server(self):
         self.server.shutdown()
         self.server.server_close()
         self.thread.join()
+
+    def tearDown(self):
+        self.stop_server()
         self.temporary.cleanup()
 
     def request(self, path, body=None, headers=None):
@@ -163,6 +171,55 @@ class WebTests(unittest.TestCase):
         status, response = self.request('/api/project?project=%00')
         self.assertEqual(status, 400)
         self.assertIn('error', json.loads(response))
+
+    def test_loaded_selection_is_restored_across_server_restarts(self):
+        root = Path(self.temporary.name).resolve()
+        worktree = root / 'another worktree'
+        worktree.mkdir()
+        registry = (root / 'registry.json').rename(root / 'local settings.json')
+        initial = json.loads(self.request('/api/info')[1])
+        headers = {'X-Injector-Token': initial['token']}
+        selected = {'project': str(worktree), 'registry': str(registry)}
+        self.assertEqual(self.request('/api/project', selected)[0], 403)
+        self.assertEqual(self.request('/api/project?' + urlencode(selected))[0], 200)
+        self.assertFalse(self.selection_file.exists())
+        self.assertEqual(self.request('/api/project', selected, headers)[0], 200)
+        self.assertEqual(json.loads(self.selection_file.read_bytes()), selected)
+        self.assertEqual(self.request('/api/project', {**selected, 'registry': str(root / 'missing')}, headers)[0], 400)
+        self.assertEqual(json.loads(self.selection_file.read_bytes()), selected)
+        self.assertEqual(list(worktree.iterdir()), [])
+
+        self.stop_server()
+        self.start_server()
+        restored = json.loads(self.request('/api/info')[1])
+        self.assertEqual({key: restored[key] for key in selected}, selected)
+        self.assertNotEqual(restored['token'], initial['token'])
+        self.assertEqual(self.request('/api/project')[0], 200)
+        self.assertEqual(json.loads(self.request('/api/job')[1])['status'], 'idle')
+
+        self.stop_server()
+        self.start_server(registry=registry, restore_selection=False)
+        explicit = json.loads(self.request('/api/info')[1])
+        self.assertEqual(explicit['project'], str(root))
+        self.assertEqual(explicit['registry'], str(registry))
+        self.assertEqual(json.loads(self.selection_file.read_bytes()), selected)
+
+        registry.unlink()
+        self.stop_server()
+        self.start_server()
+        info = json.loads(self.request('/api/info')[1])
+        self.assertEqual({key: info[key] for key in selected}, selected)
+        self.assertEqual(self.request('/api/project')[0], 400)
+
+    def test_malformed_saved_selection_falls_back_to_startup_default(self):
+        self.selection_file.parent.mkdir()
+        self.selection_file.write_text('{', encoding='utf-8')
+        self.stop_server()
+        self.start_server()
+        info = json.loads(self.request('/api/info')[1])
+        self.assertEqual(info['project'], str(Path(self.temporary.name).resolve()))
+        self.assertEqual(info['registry'], '')
+        self.assertEqual(self.request('/api/project')[0], 200)
 
     def registry_request(self, action, **payload):
         token = json.loads(self.request('/api/info')[1])['token']

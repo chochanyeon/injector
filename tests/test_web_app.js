@@ -10,13 +10,16 @@ function browser(fetch) {
   const elements = new Map();
   const timers = [];
   const element = id => {
-    if (!elements.has(id)) elements.set(id, {value: '', textContent: '', children: [], addEventListener() {}, focus() {}});
+    if (!elements.has(id)) elements.set(id, {
+      value: '', textContent: '', children: [], addEventListener() {}, focus() {}, replaceChildren() {}
+    });
     return elements.get(id);
   };
   const context = vm.createContext({
     document: {getElementById: element},
     window: {addEventListener() {}},
     DependencyGraph: class {},
+    URLSearchParams,
     setTimeout: callback => timers.push(callback),
     fetch: (url, options) => url === '/api/info' ? new Promise(() => {}) : fetch(url, options)
   });
@@ -62,6 +65,39 @@ test('registry selection loads the exact path returned by the picker', async () 
     assert.equal(url, '/api/project/pick');
     return {ok: true, json: async () => ({project: registry})};
   });
-  const loadedPath = await page.run('let loaded; load = () => { loaded = selection().registry; }; pickPath("registry").then(() => loaded)');
-  assert.equal(loadedPath, registry);
+  const selection = await page.run('let loaded; load = remember => { loaded = [selection().registry, remember]; }; pickPath("registry").then(() => loaded)');
+  assert.deepEqual(Array.from(selection), [registry, true]);
+});
+
+test('manual load saves both paths while startup loads them without saving', async () => {
+  const paths = {project: 'C:\\source tree', registry: 'C:\\registries\\local.json'};
+  const requests = [];
+  const page = browser(async (url, options) => {
+    requests.push({url, options});
+    return {ok: true, json: async () => ({...paths, profiles: {}})};
+  });
+  page.element('project').value = paths.project;
+  page.element('registry').value = paths.registry;
+  await page.run('token = "secret"; targets = () => {}; load()');
+  await page.element('load').onclick();
+  assert.equal(requests[0].url, '/api/project?' + new URLSearchParams(paths));
+  assert.equal(requests[1].url, '/api/project');
+  assert.equal(requests[1].options.headers['X-Injector-Token'], 'secret');
+  assert.deepEqual(JSON.parse(requests[1].options.body), paths);
+});
+
+test('blocked persistence still allows loading the selection read-only', async () => {
+  const paths = {project: 'C:\\source', registry: 'C:\\registry.json'};
+  const requests = [];
+  const page = browser(async (url, options) => {
+    requests.push(url);
+    return options.method === 'POST'
+      ? {ok: false, json: async () => ({error: 'local control token required'})}
+      : {ok: true, json: async () => ({...paths, profiles: {}})};
+  });
+  page.element('project').value = paths.project;
+  page.element('registry').value = paths.registry;
+  await page.run('targets = () => {}; load(true)');
+  assert.deepEqual(requests, ['/api/project', '/api/project?' + new URLSearchParams(paths)]);
+  assert.match(page.element('result').textContent, /경로를 불러왔습니다/);
 });

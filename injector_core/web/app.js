@@ -124,13 +124,23 @@ async function targets(preferred) {
   $('variant-picker').hidden = !options.children.length;
   await refreshPlan();
 }
-async function load() {
+async function load(remember = false) {
   const generation = ++loadRequest;
   const profile = $('profile').value, target = $('target').value;
   catalog = null; planReady = false; planRequest++; $('variant-picker').hidden = true; buttons();
   $('check-result').textContent = '';
   try {
-    const result = await api('/api/project?' + new URLSearchParams(selection()));
+    const paths = selection();
+    let result;
+    if (remember) {
+      try { result = await api('/api/project', paths); }
+      catch { /* A read-only preview may reject the save request. */ }
+    }
+    if (generation !== loadRequest) return;
+    if (!result) {
+      result = await api('/api/project?' + new URLSearchParams(paths));
+      if (remember) result.remembered = false;
+    }
     if (generation !== loadRequest) return;
     catalog = result;
     $('project').value = catalog.project;
@@ -139,7 +149,9 @@ async function load() {
     if (Object.hasOwn(catalog.profiles, profile)) $('profile').value = profile;
     $('badge').textContent = '대기 중';
     $('badge').className = 'badge';
-    $('result').textContent = '실행 환경을 준비할 수 있습니다.';
+    $('result').textContent = result.remembered === false
+      ? '경로를 불러왔습니다. 이 선택이 저장됐는지는 확인할 수 없습니다.'
+      : '실행 환경을 준비할 수 있습니다.';
     buttons(); await targets($('profile').value === profile ? target : undefined);
   } catch(e) {
     if (generation !== loadRequest) return;
@@ -174,7 +186,7 @@ async function pickPath(kind, inEditor = false) {
     if (editor?.project !== project) return;
   }
   $(kind).value = project;
-  await load();
+  await load(true);
 }
 async function poll() {
   let job;
@@ -310,7 +322,7 @@ async function checkEditor(action) {
       updateEditorFiles();
       const current = selection();
       if ((current.project === result.project || current.project === editor.source)
-          && (current.registry === result.registry || current.registry === editor.sourceRegistry)) await load();
+          && (current.registry === result.registry || current.registry === editor.sourceRegistry)) await load(true);
       registryStatus('저장했습니다.', 'success');
     } else {
       registryStatus(`검증 통과 · 스키마 ${result.schemaVersion} · 노드 ${result.nodes}개 · 프로필 ${result.profiles}개`, 'success');
@@ -331,7 +343,7 @@ async function checkEditor(action) {
   }
 }
 
-$('load').onclick=load;
+$('load').onclick=() => load(true);
 $('pick-project').onclick=() => pickPath('project');
 $('pick-registry').onclick=() => pickPath('registry');
 $('profile').onchange=() => targets();

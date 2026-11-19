@@ -12,10 +12,12 @@ import webbrowser
 from .folder_picker import choose_project_folder, choose_registry_file
 from .registry import RegistryError, registry_path
 from .registry_editor import MAX_BYTES, RegistryConflict, open_registry, save_registry, validate_registry
+from .rendering import _artifact_path, _replace_file
 from .runtime import check_requirements, parse_variants, prepare, project_info, select_plan, stop
 
 ASSETS = Path(__file__).resolve().parent / "web"
 REGISTRIES = ASSETS.parent.parent / "registries"
+WEB_SELECTION = ASSETS.parent.parent / ".local" / "web-selection.json"
 
 
 class LoopbackHTTPServer(ThreadingHTTPServer):
@@ -26,9 +28,22 @@ class LoopbackHTTPServer(ThreadingHTTPServer):
 
 
 class Control:
-    def __init__(self, project, registry=None):
-        self.project = str(Path(project).resolve())
-        self.registry = str(registry_path(project, registry)) if registry is not None else ""
+    def __init__(self, project, registry, selection_file, restore_selection):
+        self.selection = {"project": str(Path(project).resolve()),
+                          "registry": str(registry_path(project, registry)) if registry is not None else ""}
+        self.selection_file = selection_file
+        if selection_file is not None and restore_selection:
+            try:
+                _artifact_path(selection_file.parent.parent, selection_file)
+                saved = json.loads(selection_file.read_text(encoding="utf-8"))
+                if isinstance(saved, dict):
+                    source, settings = saved.get("project"), saved.get("registry")
+                    if (isinstance(source, str) and Path(source).is_absolute() and "\x00" not in source
+                            and isinstance(settings, str) and "\x00" not in settings
+                            and (not settings or Path(settings).is_absolute())):
+                        self.selection = {"project": source, "registry": settings}
+            except (OSError, ValueError, RuntimeError):
+                pass
         self.token = secrets.token_urlsafe(32)
         self.lock = threading.Lock()
         self.picker_lock = threading.Lock()
@@ -37,6 +52,21 @@ class Control:
     def snapshot(self):
         with self.lock:
             return json.loads(json.dumps(self.job))
+
+    def load_project(self, body):
+        project = body.get("project")
+        if not isinstance(project, str) or not project.strip():
+            raise RegistryError("project path is required")
+        result = project_info(project, registry=self.registry_for(body))
+        with self.lock:
+            self.selection = {key: result[key] for key in ("project", "registry")}
+            if self.selection_file is not None:
+                try:
+                    _artifact_path(self.selection_file.parent.parent, self.selection_file)
+                    _replace_file(self.selection_file, json.dumps(self.selection, ensure_ascii=False).encode("utf-8"))
+                except (OSError, ValueError, RuntimeError):
+                    result["remembered"] = False
+        return result
 
     def pick_project(self, body):
         initial = body.get("project", "")
@@ -48,9 +78,9 @@ class Control:
         if not self.picker_lock.acquire(blocking=False):
             raise RegistryConflict("선택 창이 이미 열려 있습니다.")
         try:
-            default = self.project
+            default = self.selection["project"]
             if kind == "registry":
-                default = self.registry or str(REGISTRIES if REGISTRIES.is_dir() else REGISTRIES.parent)
+                default = self.selection["registry"] or str(REGISTRIES if REGISTRIES.is_dir() else REGISTRIES.parent)
             picker = choose_registry_file if kind == "registry" else choose_project_folder
             selected = picker(initial.strip() or default)
             if selected is None:
@@ -68,7 +98,7 @@ class Control:
             self.picker_lock.release()
 
     def registry_for(self, body):
-        registry = body.get("registry", self.registry)
+        registry = body.get("registry", self.selection["registry"])
         if not isinstance(registry, str):
             raise RegistryError("registry path must be a string")
         return registry.strip() or None
@@ -97,7 +127,7 @@ class Control:
             return save_registry(project, text, revision, filename, registry=registry)
 
     def start(self, action, body):
-        project = body.get("project", self.project)
+        project = body.get("project", self.selection["project"])
         if not isinstance(project, str) or not project:
             raise RegistryError("project path is required")
         registry = self.registry_for(body)
@@ -129,8 +159,8 @@ class Control:
         threading.Thread(target=run, daemon=True).start()
 
 
-def make_server(project, port=18770, *, registry=None):
-    control = Control(project, registry)
+def make_server(project, port=18770, *, registry=None, selection_file=None, restore_selection=True):
+    control = Control(project, registry, selection_file, restore_selection)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -167,17 +197,18 @@ def make_server(project, port=18770, *, registry=None):
             try:
                 url = urlsplit(self.path)
                 query = parse_qs(url.query, keep_blank_values=True)
-                registry = query.get("registry", [control.registry])[0].strip() or None
+                selection = control.selection
+                registry = query.get("registry", [selection["registry"]])[0].strip() or None
                 if url.path == "/api/info":
                     registries = (sorted(str(path / "registry.json") for path in REGISTRIES.iterdir()
                                          if (path / "registry.json").is_file()) if REGISTRIES.is_dir() else [])
-                    return self.respond(200, {"project": control.project, "registry": control.registry,
+                    return self.respond(200, {**selection,
                                               "registries": registries, "token": control.token,
                                               "injectorRoot": str(ASSETS.parent.parent)})
                 if url.path == "/api/job":
                     return self.respond(200, control.snapshot())
                 if url.path == "/api/project":
-                    return self.respond(200, project_info(query.get("project", [control.project])[0], registry=registry))
+                    return self.respond(200, project_info(query.get("project", [selection["project"]])[0], registry=registry))
                 if url.path in ("/api/plan", "/api/graph"):
                     target = query["target"][0] if url.path == "/api/plan" else query.get("target", [None])[0]
                     variants = parse_variants(query.get("variant", []))
@@ -200,7 +231,7 @@ def make_server(project, port=18770, *, registry=None):
             if not self.allowed(mutation=True):
                 return
             editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save")
-            if not editor and self.path not in ("/api/project/pick", "/api/check", "/api/prepare", "/api/stop"):
+            if not editor and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop"):
                 return self.respond(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -213,6 +244,8 @@ def make_server(project, port=18770, *, registry=None):
                 action = self.path.rsplit("/", 1)[1]
                 if action == "pick":
                     return self.respond(200, control.pick_project(body))
+                if action == "project":
+                    return self.respond(200, control.load_project(body))
                 if editor:
                     return self.respond(200, control.edit_registry(action, body))
                 if action == "check":
@@ -238,7 +271,7 @@ def make_server(project, port=18770, *, registry=None):
     return LoopbackHTTPServer(("127.0.0.1", port), Handler)
 
 
-def serve(project, port=18770, open_browser=False, *, registry=None):
+def serve(project, port=18770, open_browser=False, *, registry=None, restore_selection=True):
     if open_browser and port:
         url = f"http://127.0.0.1:{port}"
         try:
@@ -252,7 +285,8 @@ def serve(project, port=18770, open_browser=False, *, registry=None):
                 return
         except (OSError, ValueError):
             pass
-    server = make_server(project, port, registry=registry)
+    server = make_server(project, port, registry=registry, selection_file=WEB_SELECTION,
+                         restore_selection=restore_selection)
     url = f"http://127.0.0.1:{server.server_port}"
     if open_browser:
         webbrowser.open(url)
