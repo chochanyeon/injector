@@ -150,9 +150,10 @@ class WebTests(unittest.TestCase):
         storage = Path(self.temporary.name).resolve()
         worktree = storage / 'source tree'
         worktree.mkdir()
-        params = {'project': str(worktree), 'registry': str(storage)}
+        params = {'project': str(worktree), 'registry': str(storage / 'registry.json')}
         query = urlencode(params)
-        self.assertEqual(self.request('/api/project?' + query)[0], 200)
+        for registry in (str(storage), params['registry']):
+            self.assertEqual(self.request('/api/project?' + urlencode({**params, 'registry': registry}))[0], 200)
         graph_status, graph = self.request('/api/graph?' + query + '&profile=dummy')
         self.assertEqual(graph_status, 200)
         self.assertEqual(json.loads(graph)['order'], ['dependency', 'main'])
@@ -166,6 +167,27 @@ class WebTests(unittest.TestCase):
         self.assertEqual(saved['registry'], str(storage))
         self.assertIn('local', json.loads((storage / 'registry.json').read_text())['profiles'])
         self.assertFalse(list(worktree.iterdir()))
+
+    def test_registry_picker_accepts_only_registry_json(self):
+        storage = Path(self.temporary.name).resolve()
+        registry = storage / 'registry.json'
+        other = storage / 'other.json'
+        other.write_text('{}', encoding='utf-8')
+        token = json.loads(self.request('/api/info')[1])['token']
+        headers = {'X-Injector-Token': token}
+        body = {'kind': 'registry', 'project': str(registry)}
+        endpoint = '/api/project/pick'
+        with patch('injector_core.web.choose_registry_file') as picker:
+            self.assertEqual(self.request(endpoint, body)[0], 403)
+            picker.assert_not_called()
+            for selected, expected in ((None, None), (str(registry), str(storage))):
+                picker.return_value = selected
+                status, response = self.request(endpoint, body, headers)
+                self.assertEqual((status, json.loads(response)), (200, {'project': expected}))
+                picker.assert_called_with(str(registry))
+            for selected in (other, storage, storage / 'missing' / 'registry.json'):
+                picker.return_value = str(selected)
+                self.assertEqual(self.request(endpoint, body, headers)[0], 400)
 
     def test_registry_editor_repairs_invalid_file_and_refreshes_catalog(self):
         path = Path(self.temporary.name) / 'registry.json'

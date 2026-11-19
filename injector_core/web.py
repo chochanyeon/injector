@@ -9,13 +9,22 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.request import ProxyHandler, build_opener
 import webbrowser
 
-from .folder_picker import choose_project_folder
+from .folder_picker import choose_project_folder, choose_registry_file
 from .registry import RegistryError
 from .registry_editor import MAX_BYTES, RegistryConflict, open_registry, save_registry, validate_registry
 from .runtime import parse_variants, prepare, project_info, select_plan, stop
 
 ASSETS = Path(__file__).resolve().parent / "web"
 REGISTRIES = ASSETS.parent.parent / "registries"
+
+
+def _registry_directory(value):
+    if not value.strip():
+        return None
+    path = Path(value.strip())
+    if path.name == "registry.json" and not path.is_dir():
+        return str(path.parent)
+    return str(path)
 
 
 class LoopbackHTTPServer(ThreadingHTTPServer):
@@ -44,16 +53,22 @@ class Control:
             raise RegistryError("project path must be a string")
         kind = body.get("kind", "project")
         if kind not in ("project", "registry"):
-            raise RegistryError("unknown folder kind")
+            raise RegistryError("unknown picker kind")
         if not self.picker_lock.acquire(blocking=False):
-            raise RegistryConflict("폴더 선택 창이 이미 열려 있습니다.")
+            raise RegistryConflict("선택 창이 이미 열려 있습니다.")
         try:
             default = self.project
             if kind == "registry":
                 default = self.registry or str(REGISTRIES if REGISTRIES.is_dir() else REGISTRIES.parent)
-            selected = choose_project_folder(initial.strip() or default)
+            picker = choose_registry_file if kind == "registry" else choose_project_folder
+            selected = picker(initial.strip() or default)
             if selected is None:
                 return {"project": None}
+            if kind == "registry":
+                file = Path(selected)
+                if file.name != "registry.json" or not file.is_file() or file.is_symlink():
+                    raise RegistryError("registry.json 파일을 선택하세요.")
+                return {"project": str(file.parent.resolve())}
             folder = Path(selected).resolve()
             if not folder.is_dir():
                 raise RegistryError("기존 폴더를 선택하세요.")
@@ -65,7 +80,7 @@ class Control:
         registry = body.get("registry", self.registry)
         if not isinstance(registry, str):
             raise RegistryError("registry path must be a string")
-        return registry.strip() or None
+        return _registry_directory(registry)
 
     def edit_registry(self, action, body):
         project = body.get("project")
@@ -161,7 +176,7 @@ def make_server(project, port=18770, *, registry=None):
             try:
                 url = urlsplit(self.path)
                 query = parse_qs(url.query, keep_blank_values=True)
-                registry = query.get("registry", [control.registry])[0] or None
+                registry = _registry_directory(query.get("registry", [control.registry])[0])
                 if url.path == "/api/info":
                     registries = (sorted(str(path) for path in REGISTRIES.iterdir()
                                          if (path / "registry.json").is_file()) if REGISTRIES.is_dir() else [])

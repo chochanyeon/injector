@@ -49,7 +49,7 @@ python -m venv .venv
 
 Both use `http://127.0.0.1:18770` and reuse a running Injector server. Keep the server's Terminal window open on macOS. If a ZIP download lost the executable bit, run `chmod +x Start-Injector.command` once.
 
-1. Under **Project folder** (**프로젝트 폴더**), choose the source checkout or worktree. Under **Registry folder** (**Registry 폴더**), choose the configuration directory and click **Load** (**불러오기**). Use the folder picker or type either path. Leave the registry field empty for projects such as `examples/demo` that keep their registry in the source folder.
+1. Under **Project folder** (**프로젝트 폴더**), choose the source checkout or worktree. Under **registry.json**, use **Choose file** (**파일 선택**) to select the registry file. Click **Load** (**불러오기**) after typing either path by hand. The registry field also accepts a directory containing `registry.json`. Leave it empty for projects such as `examples/demo` that keep their registry in the source folder.
 2. Select `dummy` or `real` and choose `platform-service`.
 3. Review the execution order and click **Prepare environment** (**실행 환경 준비**). Redis starts before Catalog. With `real`, PostgreSQL also starts before Catalog.
 4. After preparation, open `examples/demo/pom.xml` and Debug **`Injector-dummy-platform-service`** or **`Injector-real-platform-service`**. Check the response at `http://127.0.0.1:19080/demo`.
@@ -84,7 +84,7 @@ Dependencies can use process, Compose, or external runners. Targets can use Inte
 
 **Collapse** (**접기**) keeps the draft, and reopening the editor for the same selection restores it. **Close** (**닫기**) and Esc ask before discarding unsaved edits. If the file changed on disk, use **Reload file** (**파일 다시 읽기**) to review the newer version.
 
-The native folder dialog opens on the desktop running Injector. When using a remote preview, type the path if the host desktop is inaccessible. Restart an existing Injector server after installing an update to use its new API.
+The native file and folder dialogs open on the desktop running Injector. When using a remote preview, type the path if the host desktop is inaccessible. Restart an existing Injector server after installing an update to use its new API.
 
 ## View the dependency graph
 

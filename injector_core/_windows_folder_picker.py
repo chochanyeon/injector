@@ -1,4 +1,4 @@
-"""Run the Windows Common Item Dialog in folder selection mode."""
+"""Run the Windows Common Item Dialog."""
 import ctypes
 from ctypes import wintypes
 import sys
@@ -16,7 +16,7 @@ def _call(interface, index, result_type, argument_types, *arguments):
     return method(interface, *arguments)
 
 
-def choose_folder(start):
+def choose_path(start, kind):
     # https://learn.microsoft.com/windows/win32/shell/common-file-dialog
     ole = ctypes.windll.ole32
     shell = ctypes.windll.shell32
@@ -34,12 +34,18 @@ def choose_folder(start):
         flags = wintypes.DWORD()
         _check(_call(dialog, 10, hresult, [ctypes.POINTER(wintypes.DWORD)], ctypes.byref(flags)))  # GetOptions
         pick_folders, force_filesystem = 0x20, 0x40
-        _check(_call(dialog, 9, hresult, [wintypes.DWORD], flags.value | pick_folders | force_filesystem))  # SetOptions
+        options = flags.value | force_filesystem
+        if kind == "project":
+            options |= pick_folders
+        _check(_call(dialog, 9, hresult, [wintypes.DWORD], options))  # SetOptions
         shell.SHCreateItemFromParsingName.argtypes = [wintypes.LPCWSTR, pointer, ctypes.c_char_p,
                                                        ctypes.POINTER(pointer)]
         _check(shell.SHCreateItemFromParsingName(start, None, shell_item_interface, ctypes.byref(initial)))
         _check(_call(dialog, 12, hresult, [pointer], initial))  # SetFolder
-        _check(_call(dialog, 17, hresult, [wintypes.LPCWSTR], "Injector — 폴더 선택"))  # SetTitle
+        title = "Injector — 폴더 선택" if kind == "project" else "Injector — registry.json 선택"
+        _check(_call(dialog, 17, hresult, [wintypes.LPCWSTR], title))  # SetTitle
+        if kind == "registry":
+            _check(_call(dialog, 15, hresult, [wintypes.LPCWSTR], "registry.json"))  # SetFileName
         result = _call(dialog, 3, hresult, [wintypes.HWND], None)  # Show
         if result & 0xFFFFFFFF == 0x800704C7:  # HRESULT_FROM_WIN32(ERROR_CANCELLED)
             return None
@@ -58,4 +64,4 @@ def choose_folder(start):
 
 
 if __name__ == "__main__":
-    sys.stdout.buffer.write((choose_folder(sys.argv[1]) or "").encode("utf-8"))
+    sys.stdout.buffer.write((choose_path(sys.argv[1], sys.argv[2]) or "").encode("utf-8"))

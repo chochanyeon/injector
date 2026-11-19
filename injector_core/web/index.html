@@ -12,11 +12,11 @@
         <input id="project" placeholder="소스 또는 워크트리 폴더" spellcheck="false">
         <button id="pick-project" class="secondary" disabled>폴더 선택</button>
       </div>
-      <label for="registry">Registry 폴더</label>
+      <label for="registry">registry.json</label>
       <div class="path-row">
-        <input id="registry" list="registries" placeholder="비워두면 프로젝트 폴더 사용" spellcheck="false">
+        <input id="registry" list="registries" placeholder="파일 경로 · 비워두면 프로젝트 폴더 사용" spellcheck="false">
         <datalist id="registries"></datalist>
-        <button id="pick-registry" class="secondary" disabled>폴더 선택</button>
+        <button id="pick-registry" class="secondary" disabled>파일 선택</button>
       </div>
       <button id="load" class="secondary registry-open">불러오기</button>
       <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-haspopup="dialog" disabled>registry.json 편집</button>

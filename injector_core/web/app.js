@@ -24,6 +24,14 @@ async function api(path, body) {
 }
 const dependencyGraph = new DependencyGraph($('dependency-graph'), api);
 const registryDialog = $('registry-editor');
+function registryFile(folder) {
+  if (!folder) return '';
+  const separator = folder.startsWith('/') || !folder.includes('\\') ? '/' : '\\';
+  return folder + (folder.endsWith(separator) ? '' : separator) + 'registry.json';
+}
+function sameRegistry(input, folder) {
+  return input === folder || input === registryFile(folder);
+}
 function selection() {
   return {project:$('project').value.trim(), registry:$('registry').value.trim()};
 }
@@ -110,7 +118,7 @@ async function load() {
     if (generation !== loadRequest) return;
     catalog = result;
     $('project').value = catalog.project;
-    $('registry').value = catalog.registry;
+    $('registry').value = registryFile(catalog.registry);
     $('profile').replaceChildren(...Object.keys(catalog.profiles).map(name => new Option(name,name)));
     if (Object.hasOwn(catalog.profiles, profile)) $('profile').value = profile;
     $('badge').textContent = '대기 중';
@@ -124,7 +132,7 @@ async function load() {
   }
 }
 
-async function pickFolder(kind, inEditor = false) {
+async function pickPath(kind, inEditor = false) {
   if (busy || editorBusy || pickerBusy) return;
   const button = $(inEditor ? 'registry-pick-project' : 'pick-' + kind);
   const caption = button.textContent;
@@ -149,7 +157,7 @@ async function pickFolder(kind, inEditor = false) {
     await openEditor(project);
     if (editor?.project !== project) return;
   }
-  $(kind).value = project;
+  $(kind).value = kind === 'registry' ? registryFile(project) : project;
   await load();
 }
 async function poll() {
@@ -214,7 +222,8 @@ function updateEditorFiles() {
 
 async function openEditor(project, {filename, reload = false, registry = selection().registry} = {}) {
   if (editorBusy) return;
-  const sameProject = editor && registry === editor.registry && (project === editor.project || project === editor.source);
+  const sameProject = editor && sameRegistry(registry, editor.registry)
+    && (project === editor.project || project === editor.source);
   const file = filename ?? (sameProject ? editor.file : '');
   if (!reload && sameProject && file === editor.file) {
     if (!registryDialog.open) registryDialog.showModal();
@@ -273,7 +282,7 @@ async function checkEditor(action) {
       editor.savedText = text;
       editor.files = result.files;
       updateEditorFiles();
-      if (selection().project === result.project && selection().registry === result.registry) await load();
+      if (selection().project === result.project && sameRegistry(selection().registry, result.registry)) await load();
       registryStatus('저장했습니다.', 'success');
     } else {
       registryStatus(`검증 통과 · 스키마 ${result.schemaVersion} · 노드 ${result.nodes}개 · 프로필 ${result.profiles}개`, 'success');
@@ -295,15 +304,15 @@ async function checkEditor(action) {
 }
 
 $('load').onclick=load;
-$('pick-project').onclick=() => pickFolder('project');
-$('pick-registry').onclick=() => pickFolder('registry');
+$('pick-project').onclick=() => pickPath('project');
+$('pick-registry').onclick=() => pickPath('registry');
 $('profile').onchange=() => targets();
 $('target').onchange=plan;
 $('project').oninput=$('registry').oninput=() => {catalog=null; planReady=false; planRequest++; loadRequest++; $('variant-picker').hidden=true; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
 $('prepare').onclick=() => run('prepare');
 $('stop').onclick=() => run('stop');
 $('edit-registry').onclick = () => openEditor($('project').value.trim());
-$('registry-pick-project').onclick = () => pickFolder('project', true);
+$('registry-pick-project').onclick = () => pickPath('project', true);
 $('registry-file').onchange = () => openEditor(editor.project, {filename:$('registry-file').value, registry:editor.registry});
 $('registry-validate').onclick = () => checkEditor('validate');
 $('registry-save').onclick = () => checkEditor('save');
@@ -328,8 +337,8 @@ window.addEventListener('beforeunload', event => {
     const info=await api('/api/info');
     token=info.token;
     $('project').value=info.project;
-    $('registry').value=info.registry;
-    $('registries').replaceChildren(...info.registries.map(path => new Option(path, path)));
+    $('registry').value=registryFile(info.registry);
+    $('registries').replaceChildren(...info.registries.map(folder => registryFile(folder)).map(path => new Option(path, path)));
     await load();
     await poll();
   } catch(e) {error(e.message);}

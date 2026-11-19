@@ -51,7 +51,7 @@ python -m venv .venv
 
 두 OS 모두 `http://127.0.0.1:18770`을 사용하고 이미 실행 중이면 같은 서버를 연다. 화면을 사용하는 동안 macOS의 서버 Terminal 창을 열어 둔다. ZIP으로 받아 실행 권한이 빠졌다면 macOS에서 `chmod +x Start-Injector.command`를 한 번 실행한다.
 
-1. **프로젝트 폴더**에 소스 또는 워크트리를 지정하고 **Registry 폴더**에 설정 폴더를 지정한 뒤 **불러오기**를 누른다. 두 경로 모두 **폴더 선택**이나 직접 입력을 지원한다. **Registry 폴더**를 비우면 `examples/demo`처럼 소스 폴더에서 registry를 읽는다.
+1. **프로젝트 폴더**에서 소스 또는 워크트리를 선택한다. **registry.json** 옆의 **파일 선택**에서는 해당 파일을 고른다. 경로를 직접 입력했다면 **불러오기**를 누른다. registry 입력란에 `registry.json`이 들어 있는 폴더를 입력해도 된다. 입력란을 비우면 `examples/demo`처럼 소스 폴더에서 registry를 읽는다.
 2. 프로필(`dummy` 또는 `real`)과 `platform-service`를 선택한다.
 3. 실행 순서를 확인하고 **실행 환경 준비**를 누른다. Catalog보다 Redis가 먼저 준비되고, `real`에서는 PostgreSQL도 Catalog 전에 준비된다.
 4. 준비 완료 후 IntelliJ에서 `examples/demo/pom.xml`을 열고 **`Injector-dummy-platform-service`** 또는 **`Injector-real-platform-service`**를 Debug로 실행한다. 앱 응답은 `http://127.0.0.1:19080/demo`에서 확인한다.
@@ -87,7 +87,7 @@ python injector.py serve --open
 
 **접기**는 화면을 가리지 않고 초안을 유지한다. 같은 프로젝트의 **registry.json 편집**을 다시 누르면 이어서 편집한다. **닫기**나 `Esc`를 쓰면 저장하지 않은 변경을 버릴지 확인한다.
 
-폴더 선택 창은 Injector 서버가 실행 중인 Windows 또는 macOS 데스크톱에서 열린다. 원격 미리보기에서 그 데스크톱에 접근할 수 없으면 프로젝트 경로를 직접 입력한다.
+파일·폴더 선택 창은 Injector 서버가 실행 중인 Windows 또는 macOS 데스크톱에서 열린다. 원격 미리보기에서 그 데스크톱에 접근할 수 없으면 경로를 직접 입력한다.
 
 열어 둔 파일을 다른 편집기에서 수정하면 저장이 거부된다. **파일 다시 읽기**로 최신 내용을 확인할 수 있다. 새 서버 API를 사용하려면 이전에 열어 둔 Injector 서버를 종료한 뒤 다시 실행한다.
 
