@@ -12,7 +12,7 @@ import webbrowser
 from .folder_picker import choose_project_folder, choose_registry_file
 from .registry import RegistryError
 from .registry_editor import MAX_BYTES, RegistryConflict, open_registry, save_registry, validate_registry
-from .runtime import parse_variants, prepare, project_info, select_plan, stop
+from .runtime import check_requirements, parse_variants, prepare, project_info, select_plan, stop
 
 ASSETS = Path(__file__).resolve().parent / "web"
 REGISTRIES = ASSETS.parent.parent / "registries"
@@ -209,7 +209,7 @@ def make_server(project, port=18770, *, registry=None):
             if not self.allowed(mutation=True):
                 return
             editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save")
-            if not editor and self.path not in ("/api/project/pick", "/api/prepare", "/api/stop"):
+            if not editor and self.path not in ("/api/project/pick", "/api/check", "/api/prepare", "/api/stop"):
                 return self.respond(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -224,6 +224,13 @@ def make_server(project, port=18770, *, registry=None):
                     return self.respond(200, control.pick_project(body))
                 if editor:
                     return self.respond(200, control.edit_registry(action, body))
+                if action == "check":
+                    keys = ("project", "target", "profile")
+                    if not all(isinstance(body.get(key), str) and body[key].strip() for key in keys):
+                        raise RegistryError("project, target and profile are required")
+                    result = check_requirements(body["project"], body["target"], body["profile"],
+                                                variants=body.get("variants"), registry=control.registry_for(body))
+                    return self.respond(200, result)
                 control.start(action, body)
                 self.respond(202, {"status": "running"})
             except RegistryConflict as error:

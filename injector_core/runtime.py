@@ -347,23 +347,18 @@ def _wait(variant, alive, healthy):
     raise RegistryError("readiness timed out")
 
 
-def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *, variants=None, registry=None):
-    if target is None:
-        raise RegistryError("prepare requires an application target")
-    root = Path(project).resolve()
-    data, plan = select_plan(root, target, profile, mode, variants=variants, registry=registry)
+def _preflight(data, plan, root, target, registry, *, check_hosts=False):
     profile = plan["profile"]
     nodes = {node["id"]: node for node in data["nodes"]}
-    directory = _directory(root, registry)
-    with _lock(directory):
-        selected = [(step["node"], selected_variant(nodes, data["profiles"][profile], step["node"])[1])
-                    for step in plan["steps"]]
+    selected = [(step["node"], selected_variant(nodes, data["profiles"][profile], step["node"])[1])
+                for step in plan["steps"]]
+    if check_hosts:
         check_resolution(data, (variant for _, variant in selected), root)
-        prepared = []
-        compose_keys = set()
-        addresses = []
-        # Resolve every node and validate runners before starting any resources.
-        for node, variant in selected:
+    prepared = []
+    compose_keys = set()
+    artifact = write_config = None
+    for node, variant in selected:
+        try:
             execution = variant["execution"]
             kind = execution["type"]
             settings = resolve_node(data, profile, node, defer_spring_env=kind == "intellij")
@@ -374,9 +369,6 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                     raise RegistryError("an IntelliJ dependency needs a process or compose variant")
                 artifact, write_config = plan_render(data, root, profile, node, allow_plain=True, registry=registry)
             else:
-                if kind != "external":
-                    addresses.extend(endpoint["addresses"]["host"] for endpoint in variant["endpoints"].values()
-                                     if "host" in endpoint["addresses"])
                 if settings.spring_properties:
                     raise RegistryError("runtime Spring YAML currently requires an IntelliJ target")
                 if kind == "process":
@@ -392,10 +384,12 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                         raise RegistryError("multiple nodes select the same Compose service")
                     compose_keys.add(key)
                     compose_file = _project_path(root, execution["file"], "Compose file")
+                    if not compose_file.is_file():
+                        raise RegistryError("Compose file does not exist in the project")
                     command = ["compose", "-p", execution["projectName"], "-f", str(compose_file)]
                     config = json.loads(_docker([*command, "config", "--format", "json"]))
                     service = config["services"].get(execution["service"])
-                    if not service:
+                    if service is None:
                         raise RegistryError("selected Compose service does not exist")
                     health = service.get("healthcheck", {})
                     if variant["readiness"]["type"] == "compose" and (
@@ -403,8 +397,34 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                         raise RegistryError("compose readiness requires a healthcheck")
                 elif kind != "external":
                     raise RegistryError("unsupported runner")
-            prepared.append((node, variant, settings, command, working))
+        except RegistryError as error:
+            raise RegistryError(f"{node}: {error}") from error
+        prepared.append((node, variant, settings, command, working))
+    return prepared, artifact, write_config
 
+
+def check_requirements(project, target, profile, *, variants=None, registry=None):
+    """Check declared requirements without starting resources or writing artifacts."""
+    if not target:
+        raise RegistryError("select an application target")
+    root = Path(project).resolve()
+    data, plan = select_plan(root, target, profile, variants=variants, registry=registry)
+    _preflight(data, plan, root, target, registry)
+    return {"order": plan["order"]}
+
+
+def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *, variants=None, registry=None):
+    if target is None:
+        raise RegistryError("prepare requires an application target")
+    root = Path(project).resolve()
+    data, plan = select_plan(root, target, profile, mode, variants=variants, registry=registry)
+    profile = plan["profile"]
+    directory = _directory(root, registry)
+    with _lock(directory):
+        prepared, artifact, write_config = _preflight(data, plan, root, target, registry, check_hosts=True)
+        addresses = [endpoint["addresses"]["host"] for _, variant, _, _, _ in prepared
+                     if variant["execution"]["type"] in ("process", "compose")
+                     for endpoint in variant["endpoints"].values() if "host" in endpoint["addresses"]]
         occupied = {peer for address in addresses if (peer := _occupied(address)) is not None}
         if occupied:
             listeners = _owned_listeners(_session(directory))

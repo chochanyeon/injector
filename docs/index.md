@@ -29,6 +29,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-190](work-items/T-190.md) | Per-app execution and settings files | Complete | Complete | Compatibility, editor, and processes verified |
 | [T-200](work-items/T-200.md) | Separate registry storage from source worktrees | Complete | Complete | Native picker and IDE import checks pending |
 | [T-210](work-items/T-210.md) | English and Korean documentation | Complete | Complete | Language navigation and links verified |
+| [T-220](work-items/T-220.md) | Check registry execution requirements | Complete | Complete | See test results and limits in the work item |
 | [T-080](work-items/T-080.md) | Per-dependency real or mock execution | Complete | Complete | Demo and process scenarios verified |
 | [T-090](work-items/T-090.md) | Session, failure, and stop policies | Partially specified | Partially complete | Windows, Linux, and demo Compose verified in part |
 | [T-100](work-items/T-100.md) | LLM registration draft validation and conversion | Draft | Not started | Not run |

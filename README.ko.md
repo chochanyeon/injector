@@ -59,6 +59,8 @@ python -m venv .venv
 
 프로필을 전환하기 전에는 IDE에서 실행 중인 앱을 종료한다. 다시 준비하면 해당 프로젝트의 이전 Injector 세션 자원을 종료하고 새 설정으로 준비한다. 다른 프로그램의 열린 포트나 이미 존재하는 Compose 서비스는 충돌로 처리한다. 컨테이너 볼륨과 Compose 네트워크는 보존한다.
 
+준비하기 전에 **Registry 실행 조건 검사**를 누르면 선택한 앱, 프로필, variant와 관련 의존성을 검사한다. 등록된 설정이나 실행 정의에서 발견한 첫 번째 문제를 표시한다. 검사 중 서비스 상태와 생성 파일은 그대로 유지된다. 호스트 이름 해석, 포트 충돌, 서비스 응답 여부는 실행 환경 준비 단계에서 확인한다.
+
 `support-console`도 선택할 수 있다. 같은 Java 메인 클래스를 쓰며 `Injector-<프로필>-support-console`을 Debug로 실행하면 `http://127.0.0.1:19084/demo`에서 응답한다. 두 데모 앱은 Catalog를 실제 호출한다. Redis, PostgreSQL, Vault 대역은 환경 준비와 의존성 그래프를 확인하기 위해 함께 등록했다.
 
 같은 작업을 CLI로도 실행한다. 아래 명령의 `python`은 설치한 환경의 Python을 뜻한다. 가상 환경을 활성화하지 않았다면 macOS는 `.venv/bin/python`, Windows는 `.\.venv\Scripts\python.exe`를 사용한다. `--project`를 생략하면 현재 폴더에서 registry.json을 찾는다.

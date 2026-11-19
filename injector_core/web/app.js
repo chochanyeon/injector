@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 let token, catalog, busy = false, timer;
 let editor, editorBusy = false, pickerBusy = false;
 let variants = {}, planReady = false, planRequest = 0, loadRequest = 0;
+let checking = false;
 const phases = {starting:'시작 중', waiting:'준비 확인 중', ready:'준비 완료', 'debug-ready':'Debug 가능', stopping:'종료 중'};
 async function api(path, body) {
   const endpoint = path.split('?')[0];
@@ -39,6 +40,7 @@ function error(message) { $('result').textContent = message; $('badge').textCont
 function buttons() {
   const locked = busy || pickerBusy;
   $('prepare').disabled = locked || !planReady;
+  $('check').disabled = locked || checking || !planReady;
   $('variant-options').disabled = locked;
   for (const id of ['load','stop','project','registry']) $(id).disabled = locked;
   for (const id of ['target','profile']) $(id).disabled = locked || !catalog;
@@ -49,6 +51,7 @@ function buttons() {
 async function plan() {
   const generation = ++planRequest;
   planReady = false;
+  $('check-result').textContent = '';
   buttons();
   try {
     const query = new URLSearchParams({...selection(), target:$('target').value, profile:$('profile').value});
@@ -78,6 +81,24 @@ function refreshPlan() {
   const name = $('profile').value;
   return Promise.all([plan(),
     dependencyGraph.update(catalog.project, name, catalog.profiles[name].applications, variants, catalog.registry)]);
+}
+async function checkRequirements() {
+  const generation = planRequest;
+  const result = $('check-result');
+  checking = true;
+  result.textContent = 'Registry 실행 조건을 검사하고 있습니다…';
+  buttons();
+  try {
+    const check = await api('/api/check', {...selection(), target:$('target').value, profile:$('profile').value, variants});
+    if (generation === planRequest) {
+      result.textContent = `통과 · 선택한 앱과 의존성 ${check.order.length}개 노드의 등록된 실행 조건을 확인했습니다.`;
+    }
+  } catch(e) {
+    if (generation === planRequest) result.textContent = `확인 필요 · ${e.message}`;
+  } finally {
+    checking = false;
+    buttons();
+  }
 }
 async function targets(preferred) {
   const profile = catalog.profiles[$('profile').value];
@@ -113,6 +134,7 @@ async function load() {
   const generation = ++loadRequest;
   const profile = $('profile').value, target = $('target').value;
   catalog = null; planReady = false; planRequest++; $('variant-picker').hidden = true; buttons();
+  $('check-result').textContent = '';
   try {
     const result = await api('/api/project?' + new URLSearchParams(selection()));
     if (generation !== loadRequest) return;
@@ -308,7 +330,8 @@ $('pick-project').onclick=() => pickPath('project');
 $('pick-registry').onclick=() => pickPath('registry');
 $('profile').onchange=() => targets();
 $('target').onchange=plan;
-$('project').oninput=$('registry').oninput=() => {catalog=null; planReady=false; planRequest++; loadRequest++; $('variant-picker').hidden=true; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
+$('project').oninput=$('registry').oninput=() => {catalog=null; planReady=false; planRequest++; loadRequest++; $('check-result').textContent=''; $('variant-picker').hidden=true; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
+$('check').onclick=checkRequirements;
 $('prepare').onclick=() => run('prepare');
 $('stop').onclick=() => run('stop');
 $('edit-registry').onclick = () => openEditor($('project').value.trim());

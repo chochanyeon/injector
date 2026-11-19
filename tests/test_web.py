@@ -115,6 +115,41 @@ class WebTests(unittest.TestCase):
         token = json.loads(self.request('/api/info')[1])['token']
         self.assertEqual(self.request('/api/stop', {}, {'X-Injector-Token': token, 'Origin': 'https://evil.test'})[0], 403)
 
+    def test_execution_check_reports_dependency_blockers_without_preparing(self):
+        root = Path(self.temporary.name)
+        path = root / 'registry.json'
+        data = json.loads(path.read_bytes())
+        dependency = data['nodes'][1]['variants']
+        dependency['broken'] = {**dependency['local'], 'execution': {
+            'type': 'process', 'command': ['./missing-runner'], 'workingDirectory': '.'}}
+        dependency['compose'] = {**dependency['local'], 'execution': {
+            'type': 'compose', 'file': 'compose.yaml', 'service': 'dependency', 'projectName': 'test'},
+            'readiness': {'type': 'compose', 'timeoutSeconds': 3}}
+        path.write_text(json.dumps(data), encoding='utf-8')
+        (root / 'compose.yaml').touch()
+        endpoint = '/api/check'
+        body = {'project': self.temporary.name, 'profile': 'dummy', 'target': 'main'}
+        token = json.loads(self.request('/api/info')[1])['token']
+        headers = {'X-Injector-Token': token}
+        self.assertEqual(self.request(endpoint, body)[0], 403)
+        status, response = self.request(endpoint, body, headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(response), {'order': ['dependency', 'main']})
+
+        self.assertEqual(self.request('/api/plan?' + urlencode({**body, 'variant': 'dependency=broken'}))[0], 200)
+        status, response = self.request(endpoint, {**body, 'variants': {'dependency': 'broken'}}, headers)
+        self.assertEqual(status, 400)
+        self.assertIn('dependency: process command', json.loads(response)['error'])
+
+        with patch('injector_core.runtime._docker', return_value='{"services":{"dependency":{}}}') as docker:
+            status, response = self.request(endpoint, {**body, 'variants': {'dependency': 'compose'}}, headers)
+            self.assertEqual(status, 400)
+            self.assertIn('dependency: compose readiness requires a healthcheck', json.loads(response)['error'])
+            docker.assert_called_once_with(['compose', '-p', 'test', '-f', str(root.resolve() / 'compose.yaml'),
+                                            'config', '--format', 'json'])
+        self.assertFalse((root / '.local').exists())
+        self.assertEqual(json.loads(self.request('/api/job')[1])['status'], 'idle')
+
     def test_bad_project_path_returns_json_without_disconnect(self):
         status, response = self.request('/api/project?project=%00')
         self.assertEqual(status, 400)
