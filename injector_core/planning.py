@@ -3,6 +3,14 @@ from .registry import RegistryError
 from .resolution import selected_variant
 
 
+def validate_plans(data, profile=None):
+    for name in ([profile] if profile is not None else data["profiles"]):
+        try:
+            build_plan(data, name)
+        except RegistryError as error:
+            raise RegistryError(f"profiles/{name}: {error}") from error
+
+
 def build_plan(data, profile_name):
     """Plan the profile's targets in declared dependency order."""
     if profile_name not in data["profiles"]:

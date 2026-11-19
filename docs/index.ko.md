@@ -30,6 +30,7 @@
 | [T-200](work-items/T-200.ko.md) | 워크트리와 registry 보관 위치 분리 | 완료 | 완료 | 부분 검증(OS 선택 창·IDE 가져오기 남음) |
 | [T-210](work-items/T-210.ko.md) | 영문·한국어 문서 분리 | 완료 | 완료 | 언어 전환·링크 검증 |
 | [T-220](work-items/T-220.ko.md) | Registry 실행 조건 검사 | 완료 | 완료 | 작업 문서에 검증 결과와 범위 기록 |
+| [T-230](work-items/T-230.ko.md) | 리뷰에서 확인한 실행 및 검증 문제 수정 | 완료 | 완료 | Compose, CLI, 화면 회귀 검증 |
 | [T-080](work-items/T-080.ko.md) | 의존성별 실제 실행·모의 대체 | 완료 | 완료 | 완료(기본 데모·프로세스) |
 | [T-090](work-items/T-090.ko.md) | 세션·실패 처리·종료 정책 | 부분 확정 | 부분 완료 | 부분 검증(Windows·Linux·데모 Compose) |
 | [T-100](work-items/T-100.ko.md) | LLM 등록 초안의 검증·변환 | 초안 | 미착수 | 미수행 |

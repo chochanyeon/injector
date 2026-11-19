@@ -91,7 +91,9 @@ async function checkRequirements() {
   try {
     const check = await api('/api/check', {...selection(), target:$('target').value, profile:$('profile').value, variants});
     if (generation === planRequest) {
-      result.textContent = `통과 · 선택한 앱과 의존성 ${check.order.length}개 노드의 등록된 실행 조건을 확인했습니다.`;
+      result.textContent = check.intellij
+        ? `IDE 확인 필요 · 등록된 실행 조건을 확인했습니다. IntelliJ에서 모듈 ${check.intellij.module}과 메인 클래스 ${check.intellij.mainClass}를 확인하세요.`
+        : `통과 · 선택한 앱과 의존성 ${check.order.length}개 노드의 등록된 실행 조건을 확인했습니다.`;
     }
   } catch(e) {
     if (generation === planRequest) result.textContent = `확인 필요 · ${e.message}`;
@@ -183,7 +185,15 @@ async function pickPath(kind, inEditor = false) {
   await load();
 }
 async function poll() {
-  const job = await api('/api/job'); busy = job.status === 'running'; buttons();
+  let job;
+  try {
+    job = await api('/api/job');
+  } catch(e) {
+    error(`${e.message} 작업 상태를 다시 확인합니다…`);
+    timer = setTimeout(poll, 1500);
+    return;
+  }
+  busy = job.status === 'running'; buttons();
   if (job.status === 'idle') return;
   $('badge').className='badge '+job.status;
   $('badge').textContent=({running:'진행 중', succeeded:'완료', failed:'실패'})[job.status];
@@ -200,7 +210,7 @@ async function poll() {
     $('result').textContent = result.status==='stopped' ? 'Injector가 만든 의존성을 종료했습니다. IDE에서 시작한 앱은 직접 종료하세요.' : result.runConfiguration ? `준비 완료. ${instruction}\n\n${result.runConfiguration}` : '앱과 의존성이 모두 준비되었습니다.';
   } else if(job.status==='failed') error(job.error);
   else $('result').textContent='의존성을 순서대로 준비하고 있습니다…';
-  if (busy) timer=setTimeout(() => poll().catch(e => error(e.message)),700);
+  if (busy) timer=setTimeout(poll, 700);
 }
 async function run(action) {
   busy=true; buttons(); clearTimeout(timer);

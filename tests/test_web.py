@@ -145,8 +145,17 @@ class WebTests(unittest.TestCase):
             status, response = self.request(endpoint, {**body, 'variants': {'dependency': 'compose'}}, headers)
             self.assertEqual(status, 400)
             self.assertIn('dependency: compose readiness requires a healthcheck', json.loads(response)['error'])
-            docker.assert_called_once_with(['compose', '-p', 'test', '-f', str(root.resolve() / 'compose.yaml'),
-                                            'config', '--format', 'json'])
+            self.assertEqual(docker.call_args.args, (['compose', '-p', 'test', '-f',
+                str(root.resolve() / 'compose.yaml'), 'config', '--format', 'json'],))
+            self.assertIn('env', docker.call_args.kwargs)
+
+        data['nodes'][0]['variants']['local']['execution'] = {
+            'type': 'intellij', 'projectPath': '.', 'module': 'missing-module', 'mainClass': 'example.Absent'}
+        path.write_text(json.dumps(data), encoding='utf-8')
+        status, response = self.request(endpoint, body, headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(response)['intellij'],
+                         {'module': 'missing-module', 'mainClass': 'example.Absent'})
         self.assertFalse((root / '.local').exists())
         self.assertEqual(json.loads(self.request('/api/job')[1])['status'], 'idle')
 

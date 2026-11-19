@@ -5,7 +5,7 @@ import shutil
 import stat
 from tempfile import NamedTemporaryFile
 
-from .planning import build_plan
+from .planning import validate_plans
 from .registry import RegistryError, declared_node_files, node_file_path, parse_registry
 from .runtime import _directory, _lock
 
@@ -63,11 +63,7 @@ def _validate(root, storage, root_text, filename, text):
         raise RegistryError(f"{filename or 'registry.json'} exceeds the 2 MiB editor limit")
     data = (parse_registry(root_text, root, node_draft=(filename, text), registry=storage)
             if filename else parse_registry(text, root, registry=storage))
-    for profile in data["profiles"]:
-        try:
-            build_plan(data, profile)
-        except RegistryError as error:
-            raise RegistryError(f"profiles/{profile}: {error}") from error
+    validate_plans(data)
     return {"schemaVersion": data["schemaVersion"], "nodes": len(data["nodes"]),
             "profiles": len(data["profiles"])}
 

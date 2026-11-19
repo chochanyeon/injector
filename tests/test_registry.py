@@ -154,6 +154,13 @@ class RegistryTest(unittest.TestCase):
     def test_cycles_are_representable_but_not_planned_or_launched(self):
         self.data["nodes"][2]["variants"]["real"]["dependencies"] = ["orders"]
         self.assertEqual(self.load(), self.data)
+        for profile_args in ([], ["--profile", "local-real"]):
+            with self.subTest(profile_args=profile_args), contextlib.redirect_stderr(io.StringIO()) as output, \
+                    patch("sys.argv", ["injector.py", "validate", "--project", str(self.project), *profile_args]), \
+                    self.assertRaises(SystemExit) as result:
+                injector.main()
+            self.assertEqual(result.exception.code, 1)
+            self.assertIn("profiles/local-real: dependency cycle", output.getvalue())
 
     def test_bad_json_duplicate_properties_and_non_json_constants(self):
         for raw, message in (("{", "invalid JSON"),

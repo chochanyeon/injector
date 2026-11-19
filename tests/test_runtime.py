@@ -6,11 +6,12 @@ import socket
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import psutil
 
 from injector_core.registry import RegistryError, runtime_directory
-from injector_core.runtime import _directory, _lock, prepare, select_plan, stop
+from injector_core.runtime import _directory, _lock, check_requirements, prepare, select_plan, stop
 
 
 def free_port():
@@ -59,6 +60,47 @@ class RuntimeTests(unittest.TestCase):
     def tearDown(self):
         stop(self.root)
         self.temporary.cleanup()
+
+    def test_compose_dependencies_and_environment_are_checked_before_start(self):
+        for node in self.data['nodes']:
+            variant = node['variants']['local']
+            variant['execution'] = {'type': 'compose', 'file': 'compose.yaml',
+                                    'projectName': 'test', 'service': node['id']}
+            variant['readiness'] = {'type': 'compose', 'timeoutSeconds': 3}
+        self.data['nodes'][0]['variants']['local']['env'] = {'IMAGE': 'redis:7', 'PROBE_VALUE': 'literal ${KEEP}'}
+        (self.root / 'compose.yaml').touch()
+        write_registry(self.root, self.data)
+        healthcheck = {'test': ['CMD', 'redis-cli', 'ping']}
+        services = {
+            'main': {'healthcheck': healthcheck, 'depends_on': {'database': {'required': True}}},
+            'dependency': {'healthcheck': healthcheck},
+        }
+        with patch('injector_core.runtime._docker', return_value=json.dumps({'services': services})) as docker:
+            with self.assertRaisesRegex(RegistryError, 'main: required Compose service database'):
+                check_requirements(self.root, 'main', 'dummy')
+            with self.assertRaisesRegex(RegistryError, 'main: required Compose service database'):
+                prepare(self.root, 'main', 'dummy')
+            self.assertTrue(all('up' not in call.args[0] for call in docker.call_args_list))
+            self.assertFalse((runtime_directory(self.root) / 'session.json').exists())
+
+        services['main']['depends_on'] = {'dependency': {'required': True}, 'database': {'required': False}}
+        with patch('injector_core.runtime._docker', return_value=json.dumps({'services': services})) as docker, \
+                patch('injector_core.runtime._containers', side_effect=[[], ['dep-id'], [], ['main-id']]), \
+                patch('injector_core.runtime._occupied', return_value=None), patch('injector_core.runtime._wait'):
+            try:
+                self.assertEqual(prepare(self.root, 'main', 'dummy')['status'], 'ready')
+                config_calls = [call for call in docker.call_args_list if 'config' in call.args[0]]
+                up_calls = [call for call in docker.call_args_list if 'up' in call.args[0]]
+                self.assertEqual(len(config_calls), 2)
+                self.assertEqual(len(up_calls), 2)
+                self.assertEqual(config_calls[-1].kwargs['env'], up_calls[-1].kwargs['env'])
+                self.assertEqual(up_calls[-1].kwargs['env']['IMAGE'], 'redis:7')
+                override = json.loads((runtime_directory(self.root) / 'compose-main.json').read_bytes())
+                self.assertEqual(override['services']['main']['environment'],
+                                 {'IMAGE': '${IMAGE?}', 'PROBE_VALUE': '${PROBE_VALUE?}'})
+            finally:
+                with patch('injector_core.runtime._containers', return_value=[]):
+                    stop(self.root)
 
     def test_mixed_variants_start_only_selected_dependencies_and_inject_their_addresses(self):
         from urllib.request import ProxyHandler, build_opener

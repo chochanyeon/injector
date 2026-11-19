@@ -59,6 +59,8 @@ Stop the app in the IDE before changing profiles. Preparing again replaces resou
 
 Use **Check registry execution requirements** (**Registry 실행 조건 검사**) before preparing to check the selected app, profile, variants, and their dependencies. The result identifies the first blocker in the declared settings or execution definitions. The check leaves services and generated files untouched. Prepare still checks host resolution, port conflicts, and service readiness.
 
+Register each required Compose `depends_on` service in the calling node's dependency graph. Compose configuration and startup both receive the node's resolved environment. For an IntelliJ target, the check reports the module and main class for confirmation in the imported IDE project.
+
 You can also select `support-console`. It uses the same Java main class. Debug `Injector-<profile>-support-console` and check `http://127.0.0.1:19084/demo`. Both demo apps call Catalog. Redis, PostgreSQL, and the Vault mock exercise environment preparation and the dependency graph.
 
 Use the Python executable from your environment. Without activation, substitute `.venv/bin/python` on macOS or `.\.venv\Scripts\python.exe` on Windows. When `--project` is omitted, registry-based prepare looks in the current directory.

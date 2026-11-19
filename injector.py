@@ -178,6 +178,8 @@ def main():
                 from injector_core.resolution import resolve_node
                 print(json.dumps(resolve_node(data, args.profile, args.node).describe(), indent=2))
                 return
+            from injector_core.planning import validate_plans
+            validate_plans(data, args.profile)
         except RegistryError as error:
             parser.exit(1, f"Invalid registry: {error}\n")
         profiles = [args.profile] if args.profile else list(data["profiles"])

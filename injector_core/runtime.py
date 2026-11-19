@@ -356,12 +356,15 @@ def _preflight(data, plan, root, target, registry, *, check_hosts=False):
         check_resolution(data, (variant for _, variant in selected), root)
     prepared = []
     compose_keys = set()
+    compose_dependencies = {}
     artifact = write_config = None
     for node, variant in selected:
         try:
             execution = variant["execution"]
             kind = execution["type"]
             settings = resolve_node(data, profile, node, defer_spring_env=kind == "intellij")
+            environment = {**os.environ, **settings.env}
+            dependencies = {key for dependency in variant["dependencies"] for key in compose_dependencies[dependency]}
             _endpoint(variant)
             command = working = None
             if kind == "intellij":
@@ -373,7 +376,7 @@ def _preflight(data, plan, root, target, registry, *, check_hosts=False):
                     raise RegistryError("runtime Spring YAML currently requires an IntelliJ target")
                 if kind == "process":
                     working = _project_path(root, execution["workingDirectory"], "process workingDirectory")
-                    command = _process_command(execution, working, {**os.environ, **settings.env})
+                    command = _process_command(execution, working, environment)
                     if settings.jvm_arguments() and Path(command[0]).stem.lower() != "java":
                         raise RegistryError("VM settings on a process require a java executable")
                 elif kind == "compose":
@@ -387,10 +390,14 @@ def _preflight(data, plan, root, target, registry, *, check_hosts=False):
                     if not compose_file.is_file():
                         raise RegistryError("Compose file does not exist in the project")
                     command = ["compose", "-p", execution["projectName"], "-f", str(compose_file)]
-                    config = json.loads(_docker([*command, "config", "--format", "json"]))
+                    config = json.loads(_docker([*command, "config", "--format", "json"], env=environment))
                     service = config["services"].get(execution["service"])
                     if service is None:
                         raise RegistryError("selected Compose service does not exist")
+                    for service_name, dependency in service.get("depends_on", {}).items():
+                        if dependency.get("required", True) and (execution["projectName"], service_name) not in dependencies:
+                            raise RegistryError(f"required Compose service {service_name} is missing from this node's registry dependencies")
+                    dependencies.add(key)
                     health = service.get("healthcheck", {})
                     if variant["readiness"]["type"] == "compose" and (
                             not health or health.get("disable") or health.get("test") == ["NONE"]):
@@ -399,7 +406,8 @@ def _preflight(data, plan, root, target, registry, *, check_hosts=False):
                     raise RegistryError("unsupported runner")
         except RegistryError as error:
             raise RegistryError(f"{node}: {error}") from error
-        prepared.append((node, variant, settings, command, working))
+        compose_dependencies[node] = dependencies
+        prepared.append((node, variant, settings, command, working, environment))
     return prepared, artifact, write_config
 
 
@@ -409,8 +417,12 @@ def check_requirements(project, target, profile, *, variants=None, registry=None
         raise RegistryError("select an application target")
     root = Path(project).resolve()
     data, plan = select_plan(root, target, profile, variants=variants, registry=registry)
-    _preflight(data, plan, root, target, registry)
-    return {"order": plan["order"]}
+    prepared, _, _ = _preflight(data, plan, root, target, registry)
+    execution = prepared[-1][1]["execution"]
+    result = {"order": plan["order"]}
+    if execution["type"] == "intellij":
+        result["intellij"] = {"module": execution["module"], "mainClass": execution["mainClass"]}
+    return result
 
 
 def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *, variants=None, registry=None):
@@ -422,7 +434,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
     directory = _directory(root, registry)
     with _lock(directory):
         prepared, artifact, write_config = _preflight(data, plan, root, target, registry, check_hosts=True)
-        addresses = [endpoint["addresses"]["host"] for _, variant, _, _, _ in prepared
+        addresses = [endpoint["addresses"]["host"] for _, variant, _, _, _, _ in prepared
                      if variant["execution"]["type"] in ("process", "compose")
                      for endpoint in variant["endpoints"].values() if "host" in endpoint["addresses"]]
         occupied = {peer for address in addresses if (peer := _occupied(address)) is not None}
@@ -437,7 +449,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
         session = {"id": uuid.uuid4().hex, "profile": profile, "target": target, "resources": []}
         _save(directory, session)
         try:
-            for node, variant, settings, command, working in prepared:
+            for node, variant, settings, command, working, environment in prepared:
                 execution = variant["execution"]
                 kind = execution["type"]
                 emit({"node": node, "phase": "starting"})
@@ -450,7 +462,6 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                         address = endpoint["addresses"].get("host")
                         if address and _occupied(address):
                             raise RegistryError("registered host port is already in use")
-                environment = {**os.environ, **settings.env}
                 if kind == "process":
                     process = _start_process(directory, session, node,
                         [command[0], *settings.jvm_arguments(), *command[1:]], working, environment)
@@ -461,18 +472,15 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                     if _containers("com.docker.compose.project=" + name, "com.docker.compose.service=" + service):
                         raise RegistryError("Compose service already exists outside this session; choose a dedicated projectName")
                     # Write only interpolation references; actual values stay in the child environment.
-                    variables = {key: f"INJECTOR_VALUE_{index}" for index, key in enumerate(settings.env)}
-                    environment.update({variables[key]: value for key, value in settings.env.items()})
                     override = directory / f"compose-{node}.json"
                     _artifact_path(directory, override)
                     override.write_text(json.dumps({"services": {service: {
-                        "environment": {key: "${" + reference + "?}" for key, reference in variables.items()},
+                        "environment": {key: "${" + key + "?}" for key in settings.env},
                         "labels": {"io.injector.session": session["id"], "io.injector.node": node}}}}), encoding="utf-8")
                     session["resources"].append({"node": node, "type": kind})
                     _save(directory, session)
-                    compose_file = _project_path(root, execution["file"], "Compose file")
-                    _docker(["compose", "-p", name, "-f", str(compose_file), "-f", str(override),
-                             "up", "-d", "--build", "--no-deps", service], env=environment)
+                    _docker([*command, "-f", str(override), "up", "-d", "--build", "--no-deps", service],
+                            env=environment)
                     ids = _containers("io.injector.session=" + session["id"], "io.injector.node=" + node)
                     if len(ids) != 1:
                         raise RegistryError("expected one container for the selected Compose service")
