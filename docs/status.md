@@ -2,7 +2,7 @@
 
 **English** · [한국어](status.ko.md)
 
-Last updated November 18, 2026. See the [work index](index.md) and individual work items for design and verification details.
+Last updated November 21, 2026. See the [work index](index.md) and individual work items for design and verification details.
 
 ## 1. Current stage
 
@@ -15,7 +15,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Feature | Status | Behavior and limits | Evidence |
 |---|---|---|---|
 | JVM and environment merge | Partial | Legacy merge. Registry supports provenance and conflict checks for JVM, environment, and Spring settings. Runner limits are in T-060. | `injector.py:resolve` |
-| IntelliJ injection | Partial | Generates XML and Spring YAML. Existing configuration merges and automatic IDE launch remain out of scope. | `injector.py:generate` |
+| IntelliJ injection | Implemented for Application configurations | Generates XML and Spring YAML. A configured local External Tool prepares dependencies before Run or Debug. | T-060, T-120 |
 | Legacy real or mocked API | Partial | The mock or real profile chooses WireMock or Catalog. | Demo `config/project.json` |
 | DB, Kafka, and Redis startup | Partial | Fixed Compose services with healthchecks. The demo app does not use those services directly. | Demo `docker/compose.yaml` |
 | Main app | Partial | CLI Java and Docker paths. Developers start IntelliJ Debug. | `injector.py:main` |
@@ -66,6 +66,7 @@ The installed skill copy lives outside Git. Synchronize changes from the reposit
 
 ## 4. Verification
 
+- The November 21 Windows review passed all 130 Python tests with Spring Boot and WireMock Vault enabled, plus five browser tests. The temporary Docker and Java smoke test exercised both demo profiles and queried PostgreSQL. See T-090 through T-120 for individual checks.
 - Windows passed 113 tests including real Spring Boot and WireMock Vault integration. The Linux runtime check passed 16 tests.
 - Actual Docker dependencies were prepared and cleaned up using CLI dummy and real profiles and the web API. Java Main successfully called real Catalog using generated JVM arguments and environment.
 - Legacy IntelliJ Debug was verified before moving the demo. Spring XML generation and parsing were verified and real Spring Boot received the equivalent JVM arguments. The new IntelliJ UI path still needs a check.
@@ -75,7 +76,7 @@ See the [verification history](validation-history.md) for historical environment
 
 ## 5. Handoff
 
-Both platforms share the local UI. See T-170 for editing and T-180 for the graph. After T-080 and the T-090 port, cleanup, and relative path fixes, verify registration and mixed execution with a real multimodule project. The remaining session policy is in [T-090](work-items/T-090.md).
+Both platforms share the local UI. See T-170 for editing and T-180 for the graph. The portable integration fixture verified registration and mixed execution. Verify the same flow with a work monorepo and a real macOS IntelliJ session. [T-110](work-items/T-110.md) · [T-120](work-items/T-120.md)
 
 A fixture can exercise the model while a work monorepo is unavailable. D-01 through D-09 remain in the design. Recheck any running resources at the start of the next session.
 

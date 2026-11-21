@@ -12,7 +12,7 @@ from unittest.mock import patch
 import psutil
 
 from injector_core.registry import RegistryError, runtime_directory
-from injector_core.runtime import _directory, _docker, _lock, check_requirements, prepare, select_plan, stop
+from injector_core.runtime import _directory, _docker, _lock, check_requirements, ide_tool, prepare, select_plan, stop
 
 
 def free_port():
@@ -85,6 +85,13 @@ class RuntimeTests(unittest.TestCase):
             self.assertFalse((runtime_directory(self.root) / 'session.json').exists())
 
         services['main']['depends_on'] = {'dependency': {'required': True}, 'database': {'required': False}}
+        with patch('injector_core.runtime._docker', return_value=json.dumps({'services': services})), \
+                patch('injector_core.runtime._docker_daemon', side_effect=['engine-one', 'engine-two']) as daemon:
+            with self.assertRaisesRegex(RegistryError, 'registry settings select another Docker engine'):
+                prepare(self.root, 'main', 'dummy')
+            self.assertEqual(daemon.call_args.args[1], self.root.resolve())
+            self.assertFalse((runtime_directory(self.root) / 'session.json').exists())
+
         with patch('injector_core.runtime._docker', return_value=json.dumps({'services': services})) as docker, \
                 patch('injector_core.runtime._docker_daemon', return_value='engine-one'), \
                 patch('injector_core.runtime._containers', side_effect=[[], [], [], ['dep-id'], [], ['main-id']]), \
@@ -96,6 +103,8 @@ class RuntimeTests(unittest.TestCase):
                 self.assertEqual(len(config_calls), 2)
                 self.assertEqual(len(up_calls), 2)
                 self.assertEqual(config_calls[-1].kwargs['env'], up_calls[-1].kwargs['env'])
+                self.assertEqual(config_calls[-1].kwargs['cwd'], self.root.resolve())
+                self.assertEqual(config_calls[-1].kwargs['cwd'], up_calls[-1].kwargs['cwd'])
                 self.assertEqual(up_calls[-1].kwargs['env']['IMAGE'], 'redis:7')
                 override = json.loads((runtime_directory(self.root) / 'compose-main.json').read_bytes())
                 self.assertEqual(override['services']['main']['environment'],
@@ -127,6 +136,26 @@ class RuntimeTests(unittest.TestCase):
         finally:
             session.unlink(missing_ok=True)
 
+    def test_nested_compose_falls_back_to_source_dotenv(self):
+        directory = self.root / 'docker'
+        directory.mkdir()
+        (directory / 'compose.yaml').touch()
+        source_env = self.root / '.env'
+        source_env.touch()
+        node = self.data['nodes'][1]['variants']['local']
+        node['execution'] = {'type': 'compose', 'file': 'docker/compose.yaml',
+                             'projectName': 'test', 'service': 'dependency'}
+        node['readiness'] = {'type': 'compose', 'timeoutSeconds': 3}
+        write_registry(self.root, self.data)
+        config = '{"services":{"dependency":{"healthcheck":{"test":["CMD","true"]}}}}'
+        with patch.dict(os.environ, {'COMPOSE_ENV_FILES': '', 'COMPOSE_DISABLE_ENV_FILE': ''}), \
+                patch('injector_core.runtime._docker', return_value=config) as docker:
+            check_requirements(self.root, 'main', 'dummy')
+            self.assertIn(str(source_env.resolve()), docker.call_args.args[0])
+            (directory / '.env').touch()
+            check_requirements(self.root, 'main', 'dummy')
+            self.assertNotIn('--env-file', docker.call_args.args[0])
+
     def test_docker_error_reports_stage_without_including_stderr(self):
         result = subprocess.CompletedProcess([], 1, '', 'required variable PRIVATE_VALUE is missing; secret value here')
         with patch('injector_core.runtime.subprocess.run', return_value=result):
@@ -134,6 +163,43 @@ class RuntimeTests(unittest.TestCase):
                 _docker(['compose', 'config'])
         self.assertNotIn('PRIVATE_VALUE', str(raised.exception))
         self.assertNotIn('secret value', str(raised.exception))
+
+    def test_ide_task_checks_config_revision_and_reuses_owned_ready_dependencies(self):
+        main = self.data['nodes'][0]['variants']['local']
+        main['execution'] = {'type': 'intellij', 'projectPath': '.', 'module': 'probe', 'mainClass': 'example.Main'}
+        write_registry(self.root, self.data)
+        tool = ide_tool(self.root, 'main', 'dummy')
+        arguments = [tool['program'], *shlex.split(tool['arguments'])]
+        configuration = Path(tool['runConfiguration'])
+        configured = configuration.read_bytes() + b'\n<!-- IDE before-launch entry -->\n'
+        configuration.write_bytes(configured)
+
+        first = subprocess.run(arguments, cwd=tool['workingDirectory'], text=True, capture_output=True, timeout=20)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        session_file = runtime_directory(self.root) / 'session.json'
+        owned = session_file.read_bytes()
+        second = subprocess.run(arguments, cwd=tool['workingDirectory'], text=True, capture_output=True, timeout=20)
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertIn('"reused": true', second.stdout)
+        self.assertEqual(session_file.read_bytes(), owned)
+        self.assertEqual(configuration.read_bytes(), configured)
+
+        main['env']['PROBE_VALUE'] = 'now different'
+        write_registry(self.root, self.data)
+        stale = subprocess.run(arguments, cwd=tool['workingDirectory'], text=True, capture_output=True, timeout=20)
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn('IntelliJ settings changed', stale.stderr)
+        self.assertEqual(session_file.read_bytes(), owned)
+
+    def test_ide_task_interrupt_rolls_back_managed_dependencies(self):
+        main = self.data['nodes'][0]['variants']['local']
+        main['execution'] = {'type': 'intellij', 'projectPath': '.', 'module': 'probe', 'mainClass': 'example.Main'}
+        write_registry(self.root, self.data)
+        arguments = shlex.split(ide_tool(self.root, 'main', 'dummy')['arguments'])
+        key = arguments[arguments.index('--expected-config') + 1]
+        with patch('injector_core.runtime._wait', side_effect=KeyboardInterrupt), self.assertRaises(KeyboardInterrupt):
+            prepare(self.root, 'main', 'dummy', before_launch=key)
+        self.assertFalse((runtime_directory(self.root) / 'session.json').exists())
 
     def test_mixed_variants_start_only_selected_dependencies_and_inject_their_addresses(self):
         from urllib.request import ProxyHandler, build_opener

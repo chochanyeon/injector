@@ -2,7 +2,7 @@
 
 [English](status.md) · **한국어**
 
-최종 갱신: 2026-11-18. [작업 인덱스](index.ko.md). 각 작업의 설계·개발·검증 상세는 해당 T-ID 문서를 기준으로 확인한다.
+최종 갱신 2026-11-21. 각 작업의 설계·개발·검증 상세는 해당 T-ID 문서를 기준으로 확인한다. [작업 인덱스](index.ko.md)
 
 ## 1. 현재 단계
 
@@ -42,7 +42,7 @@
 | 모드별 하위 그래프 선택 | 완료 | 프로필의 노드별 variant를 실행 요청에서 바꾸고 계획·그래프·주입에 반영 | T-080 |
 | 세션·실패 복구·데이터 정책 | 소유권 범위 완료 | 포트, 외부 Compose 서비스, Docker 엔진을 확인한다. 소유 자원을 역순으로 종료하며 정리 진행을 저장한다. | T-050, T-090 |
 
-스킬의 `registration-draft.json`은 검토용 산출물 계약이다. 실행용 설정으로 읽거나 현재 `project.json`에 바로 넣을 수 없다.
+스킬의 `registration-draft.json`은 검토용 산출물이다. 검토한 단일 프로필을 `draft-convert`로 새 실행 후보에 옮길 수 있다. IntelliJ Application은 `ide-tool`이 출력하는 External Tool로 실행 전 의존성을 준비할 수 있다. [T-100](work-items/T-100.ko.md) · [T-120](work-items/T-120.ko.md)
 
 ## 3. 코드와 자료 위치
 
@@ -66,6 +66,7 @@
 
 ## 4. 검증 수준
 
+- 11월 21일 Windows 리뷰에서 Spring Boot와 WireMock Vault를 포함한 Python 테스트 130개와 웹 테스트 5개가 통과했다. 임시 Docker 및 Java 검증으로 데모의 두 프로필과 PostgreSQL 쿼리를 확인했다. 세부 근거는 T-090부터 T-120까지의 작업 문서에 있다.
 - 자동 검증: Windows에서 실제 Spring Boot와 WireMock Vault를 포함해 113개 통과. Linux에서 런타임 16개 통과.
 - 수동 통합 검증: CLI dummy/real과 화면 API dummy 전환으로 실제 Docker 의존성 준비·정리를 확인했다. 생성 XML의 인자·환경으로 Java Main→실제 Catalog 응답도 확인했다.
 - IntelliJ: 기존 데모 Debug는 분리 전 검증. Spring XML은 생성·파싱을 검증하고, 동일 JVM 인자로 실제 Boot 앱을 확인했다. 새 XML의 IDE UI 실행은 미수행.
@@ -76,7 +77,7 @@
 ## 5. 현재 인계
 
 - macOS와 Windows에서 같은 로컬 UI를 사용한다. registry 편집은 T-170, 의존성 그래프는 T-180에 기록했다.
-- T-080과 T-090의 포트 충돌·프로세스 정리·상대 경로 수정을 마쳤다. 이어서 멀티모듈 도그푸딩으로 등록과 혼합 실행을 검증한다. [T-090](work-items/T-090.ko.md)의 나머지 세션 정책은 별도 검증이 필요하다.
+- 독립 샘플에서 등록과 혼합 실행을 확인했다. 업무 모노레포와 macOS IntelliJ에서 같은 흐름을 실제로 확인한다. [T-110](work-items/T-110.ko.md) · [T-120](work-items/T-120.ko.md)
 - 다음 작업에 필요한 사용자 입력: 현재 없음. 실제 업무 모노레포가 제공되기 전까지 로컬 fixture로 모델을 검증할 수 있다.
 - 남은 제품 결정: D-01~D-09는 공통 설계의 미결정 표를 참고한다. 필요한 결정은 해당 T-ID에서 이유를 기록하고 처리한다.
 - 런타임 상태: 이 문서에 기동 상태를 고정 기록하지 않는다. 재개 시 확인한다.

@@ -1,6 +1,7 @@
 """Execute a validated dependency plan. Persist identities, never resolved values."""
 from contextlib import contextmanager
 from copy import deepcopy
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -9,7 +10,7 @@ import socket
 import subprocess
 import sys
 import time
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import ProxyHandler, build_opener
 import uuid
 
@@ -24,7 +25,8 @@ from .resolution import resolve_node, selected_variant
 
 _processes = {}
 _docker_connection_keys = ("DOCKER_CONTEXT", "DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_TLS",
-                           "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_API_VERSION")
+                           "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_API_VERSION",
+                           "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH")
 
 
 def parse_variants(entries):
@@ -116,12 +118,12 @@ def _lock(directory):
                 fcntl.flock(handle, fcntl.LOCK_UN)
 
 
-def _docker(arguments, *, env=None, timeout=180):
+def _docker(arguments, *, env=None, cwd=None, timeout=180):
     stage = arguments[0]
     if stage == "compose":
         stage = "compose config" if "config" in arguments else "compose up"
     try:
-        result = subprocess.run(["docker", *arguments], env=env, capture_output=True,
+        result = subprocess.run(["docker", *arguments], env=env, cwd=cwd, capture_output=True,
                                 text=True, encoding="utf-8", errors="replace", timeout=timeout,
                                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
     except OSError as error:
@@ -156,8 +158,8 @@ def _containers(*filters):
     return _docker(arguments).split()
 
 
-def _docker_daemon(env=None):
-    daemon = _docker(["info", "--format", "{{.ID}}"], env=env, timeout=15)
+def _docker_daemon(env=None, cwd=None):
+    daemon = _docker(["info", "--format", "{{.ID}}"], env=env, cwd=cwd, timeout=15)
     if not daemon or daemon == "<no value>":
         raise RegistryError("Docker engine did not report its identity")
     return daemon
@@ -169,17 +171,20 @@ def _verify_daemon(session):
             raise RegistryError("Docker engine changed; select the original Docker context before stopping this session")
 
 
-def _compose_conflicts(prepared, previous):
+def _compose_conflicts(prepared, previous, root):
     names = [(variant["execution"]["projectName"], variant["execution"]["service"], environment)
              for _, variant, _, _, _, environment in prepared if variant["execution"]["type"] == "compose"]
     if not names:
         return None
     daemon = _docker_daemon()
     owned = None
+    checked = set()
     for project, service, environment in names:
-        if any(environment.get(key) != os.environ.get(key) for key in _docker_connection_keys):
-            if _docker_daemon(environment) != daemon:
+        connection = tuple(environment.get(key) for key in _docker_connection_keys)
+        if connection not in checked:
+            if _docker_daemon(environment, root) != daemon:
                 raise RegistryError(f"{service}: registry settings select another Docker engine")
+            checked.add(connection)
         candidates = _containers("com.docker.compose.project=" + project, "com.docker.compose.service=" + service)
         if candidates and owned is None:
             owned = set(_containers("io.injector.session=" + previous["id"])) if previous else set()
@@ -377,36 +382,40 @@ def _start_process(directory, session, node, command, working, environment):
     return process
 
 
-def _wait(variant, alive, healthy):
+def _ready(variant, healthy):
     ready = variant["readiness"]
     address = _endpoint(variant)
-    deadline = time.monotonic() + ready["timeoutSeconds"]
-    opener = build_opener(ProxyHandler({}))
+    if ready["type"] == "compose":
+        return healthy()
+    try:
+        if ready["type"] == "tcp":
+            with socket.create_connection((address["host"], address["port"]), timeout=0.4):
+                return True
+        host = address["host"]
+        if ":" in host:
+            host = "[" + host + "]"
+        url = f"{address.get('scheme', 'http')}://{host}:{address['port']}{ready['path']}"
+        with build_opener(ProxyHandler({})).open(url, timeout=0.4) as response:
+            return 200 <= response.status < 300
+    except HTTPError as error:
+        error.close()
+        return False
+    except (OSError, URLError, ValueError):
+        return False
+
+
+def _wait(variant, alive, healthy):
+    deadline = time.monotonic() + variant["readiness"]["timeoutSeconds"]
     while time.monotonic() < deadline:
         if not alive():
             raise RegistryError("process or container exited before readiness")
-        try:
-            if ready["type"] == "compose":
-                if healthy():
-                    return
-            elif ready["type"] == "tcp":
-                with socket.create_connection((address["host"], address["port"]), timeout=0.4):
-                    return
-            else:
-                host = address["host"]
-                if ":" in host:
-                    host = "[" + host + "]"
-                url = f"{address.get('scheme', 'http')}://{host}:{address['port']}{ready['path']}"
-                with opener.open(url, timeout=0.4) as response:
-                    if 200 <= response.status < 300:
-                        return
-        except (OSError, URLError, ValueError):
-            pass
+        if _ready(variant, healthy):
+            return
         time.sleep(0.1)
     raise RegistryError("readiness timed out")
 
 
-def _preflight(data, plan, root, target, registry, *, check_hosts=False):
+def _preflight(data, plan, root, target, registry, *, check_hosts=False, compose_fingerprints=None):
     profile = plan["profile"]
     nodes = {node["id"]: node for node in data["nodes"]}
     selected = [(step["node"], selected_variant(nodes, data["profiles"][profile], step["node"])[1])
@@ -448,8 +457,17 @@ def _preflight(data, plan, root, target, registry, *, check_hosts=False):
                     compose_file = _project_path(root, execution["file"], "Compose file")
                     if not compose_file.is_file():
                         raise RegistryError("Compose file does not exist in the project")
-                    command = ["compose", "-p", execution["projectName"], "-f", str(compose_file)]
-                    config = json.loads(_docker([*command, "config", "--format", "json"], env=environment))
+                    command = ["compose", "-p", execution["projectName"]]
+                    root_env = root / ".env"
+                    if (root_env.is_file() and not (compose_file.parent / ".env").is_file()
+                            and not environment.get("COMPOSE_ENV_FILES")
+                            and environment.get("COMPOSE_DISABLE_ENV_FILE", "").lower() not in ("1", "true")):
+                        command.extend(["--env-file", str(root_env)])
+                    command.extend(["-f", str(compose_file)])
+                    config_text = _docker([*command, "config", "--format", "json"], env=environment, cwd=root)
+                    if compose_fingerprints is not None:
+                        compose_fingerprints[node] = sha256(config_text.encode("utf-8")).hexdigest()
+                    config = json.loads(config_text)
                     service = config["services"].get(execution["service"])
                     if service is None:
                         raise RegistryError("selected Compose service does not exist")
@@ -484,7 +502,51 @@ def check_requirements(project, target, profile, *, variants=None, registry=None
     return result
 
 
-def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *, variants=None, registry=None):
+def _ide_session_ready(session, prepared, key):
+    if not session or session.get("idePlan") != key:
+        return False
+    resources = {resource["node"]: resource for resource in session["resources"]}
+    for node, variant, _, _, _, _ in prepared:
+        kind = variant["execution"]["type"]
+        healthy = lambda: False
+        if kind == "intellij":
+            continue
+        if kind == "process":
+            resource = resources.get(node)
+            if not resource or resource["type"] != kind or _owned_process(resource) is None:
+                return False
+        if kind == "compose":
+            ids = _containers("io.injector.session=" + session["id"], "io.injector.node=" + node)
+            if len(ids) != 1:
+                return False
+            state = json.loads(_docker(["inspect", "--format", "{{json .State}}", ids[0]]))
+            if not state["Running"]:
+                return False
+            healthy = lambda: state.get("Health", {}).get("Status") == "healthy"
+        if not _ready(variant, healthy):
+            return False
+    return True
+
+
+def ide_tool(project, target, profile, *, variants=None, registry=None):
+    root = Path(project).resolve()
+    data, plan = select_plan(root, target, profile, variants=variants, registry=registry)
+    artifact, write = plan_render(data, root, plan["profile"], target, allow_plain=True, registry=registry)
+    entry = Path(__file__).resolve().parents[1] / "injector.py"
+    arguments = [entry.as_posix(), "prepare", target, "--project", root.as_posix(), "--profile", plan["profile"],
+                 "--expected-config", artifact.fingerprint]
+    if registry is not None:
+        arguments.extend(["--registry", registry_path(root, registry).as_posix()])
+    for node, choice in sorted((variants or {}).items()):
+        arguments.extend(["--variant", f"{node}={choice}"])
+    write()
+    return {"program": sys.executable, "workingDirectory": str(root),
+            "arguments": " ".join('"' + value.replace('"', '\\"') + '"' for value in arguments),
+            "runConfiguration": str(artifact.run_path)}
+
+
+def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *,
+            variants=None, registry=None, before_launch=None):
     if target is None:
         raise RegistryError("prepare requires an application target")
     root = Path(project).resolve()
@@ -492,10 +554,28 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
     profile = plan["profile"]
     directory = _directory(root, registry)
     with _lock(directory):
-        prepared, artifact, write_config = _preflight(data, plan, root, target, registry, check_hosts=True)
+        compose_fingerprints = {} if before_launch is not None else None
+        prepared, artifact, write_config = _preflight(data, plan, root, target, registry, check_hosts=True,
+                                                     compose_fingerprints=compose_fingerprints)
         previous = _session(directory)
         _verify_daemon(previous)
-        daemon = _compose_conflicts(prepared, previous)
+        daemon = _compose_conflicts(prepared, previous, root)
+        ide_key = None
+        if before_launch is not None:
+            if artifact is None or artifact.fingerprint != before_launch:
+                raise RegistryError("IntelliJ settings changed or the target is not IntelliJ; regenerate the IDE task")
+            if artifact.yaml_path and (not artifact.yaml_path.is_file()
+                    or sha256(artifact.yaml_path.read_bytes()).hexdigest() != artifact.spring_fingerprint):
+                raise RegistryError("generated Spring YAML is missing or changed; regenerate the IDE task")
+            dynamic_env = any(" via environment/" in source for _, _, settings, _, _, _ in prepared
+                              for channel in ("env", "vmProperties") for source in settings.origins[channel].values())
+            if not dynamic_env:
+                commands = [command for _, variant, _, command, _, _ in prepared if variant["execution"]["type"] == "process"]
+                snapshot = json.dumps([data, compose_fingerprints, commands], sort_keys=True)
+                ide_key = sha256(snapshot.encode("utf-8")).hexdigest()
+                if _ide_session_ready(previous, prepared, ide_key):
+                    emit({"phase": "reused", "order": plan["order"]})
+                    return {"status": "ready", "profile": profile, "target": target, "order": plan["order"], "reused": True}
         addresses = [endpoint["addresses"]["host"] for _, variant, _, _, _, _ in prepared
                      if variant["execution"]["type"] in ("process", "compose")
                      for endpoint in variant["endpoints"].values() if "host" in endpoint["addresses"]]
@@ -518,7 +598,8 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                 kind = execution["type"]
                 emit({"node": node, "phase": "starting"})
                 if kind == "intellij":
-                    write_config()
+                    if before_launch is None:
+                        write_config()
                     emit({"node": node, "phase": "debug-ready"})
                     continue
                 if kind != "external":
@@ -544,7 +625,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                     session["resources"].append({"node": node, "type": kind})
                     _save(directory, session)
                     _docker([*command, "-f", str(override), "up", "-d", "--build", "--no-deps", service],
-                            env=environment)
+                            env=environment, cwd=root)
                     ids = _containers("io.injector.session=" + session["id"], "io.injector.node=" + node)
                     if len(ids) != 1:
                         raise RegistryError("expected one container for the selected Compose service")
@@ -559,6 +640,9 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                 emit({"node": node, "phase": "ready"})
             result = {"status": "ready", "project": str(root), "profile": profile,
                       "target": target, "order": plan["order"]}
+            if ide_key is not None:
+                session["idePlan"] = ide_key
+                _save(directory, session)
             if prepared[-1][1]["execution"]["type"] == "intellij":
                 result["runConfiguration"] = str(artifact.run_path)
                 result["externalRunConfiguration"] = registry is not None

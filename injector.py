@@ -87,7 +87,8 @@ def compile_java():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render",
-                                            "vault-demo", "prepare", "stop", "serve", "hosts", "draft-check", "draft-convert"))
+                                            "vault-demo", "prepare", "stop", "serve", "hosts", "draft-check", "draft-convert",
+                                            "ide-tool"))
     parser.add_argument("target", nargs="?", help="application ID, draft path, or hosts action")
     parser.add_argument("--variant", action="append", default=[], metavar="NODE=VARIANT")
     parser.add_argument("--mode", choices=("dummy", "real"), help="prepare using a matching registry profile")
@@ -97,12 +98,15 @@ def main():
     parser.add_argument("--project", type=Path, help="source project or worktree directory")
     parser.add_argument("--registry", type=Path, help="registry file or a directory containing registry.json")
     parser.add_argument("--output", type=Path, help="new candidate registry file for draft-convert")
+    parser.add_argument("--expected-config", help="IntelliJ configuration fingerprint for a before-launch prepare")
     parser.add_argument("--node", help="node to resolve or render")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")
     parser.add_argument("--with-vault", action="store_true", help="include the local Vault API mock in demo setup")
     parser.add_argument("--vault-service", help="service name for the local Vault secret path; enables the Vault mock")
     args = parser.parse_args()
+    if args.expected_config is not None and (args.command != "prepare" or not args.expected_config):
+        parser.error("--expected-config requires prepare and a configuration fingerprint")
     if args.output and args.command != "draft-convert":
         parser.error("--output requires draft-convert")
     if args.command in ("draft-check", "draft-convert"):
@@ -118,10 +122,23 @@ def main():
             parser.exit(1, "Injector failed: cannot read the draft or write the candidate registry\n")
         return
     if args.registry is not None and (args.project is None or args.command not in
-            ("validate", "resolve", "render", "plan", "prepare", "stop", "serve", "hosts")):
+            ("validate", "resolve", "render", "plan", "prepare", "stop", "serve", "hosts", "ide-tool")):
         parser.error("--registry requires --project and a registry command")
-    if args.variant and (args.command not in ("prepare", "plan") or not args.target):
-        parser.error("--variant requires prepare or plan with an application ID")
+    if args.variant and (args.command not in ("prepare", "plan", "ide-tool") or not args.target):
+        parser.error("--variant requires prepare, plan or ide-tool with an application ID")
+    if args.command == "ide-tool":
+        if not (args.target and args.project and args.profile) or args.mode or args.node or args.open or args.infra \
+                or args.main_docker or args.with_vault or args.vault_service:
+            parser.error("ide-tool requires an application ID, --project and --profile")
+        from injector_core.runtime import ide_tool, parse_variants
+        from injector_core.registry import RegistryError
+        try:
+            print(json.dumps(ide_tool(args.project, args.target, args.profile, registry=args.registry,
+                                      variants=parse_variants(args.variant)), indent=2))
+        except (RegistryError, OSError) as error:
+            parser.exit(1, f"Injector failed: {error}\n" if isinstance(error, RegistryError)
+                        else "Injector failed: cannot generate IntelliJ configuration\n")
+        return
     if args.command == "hosts":
         if args.target not in ("preview", "apply", "remove"):
             parser.error("hosts requires preview, apply, or remove")
@@ -160,10 +177,13 @@ def main():
                 from injector_core.runtime import parse_variants, prepare
                 result = prepare(args.project or Path.cwd(), args.target, args.profile, args.mode,
                                  emit=lambda event: print(json.dumps(event), flush=True),
-                                 variants=parse_variants(args.variant), registry=args.registry)
+                                 variants=parse_variants(args.variant), registry=args.registry,
+                                 before_launch=args.expected_config)
                 print(json.dumps(result, indent=2))
         except (RegistryError, OSError) as error:
             parser.exit(1, f"Injector failed: {error}\n" if isinstance(error, RegistryError) else "Injector failed: local runtime operation failed\n")
+        except KeyboardInterrupt:
+            parser.exit(130, "Injector operation interrupted\n")
         return
     if args.command in ("validate", "resolve", "render") or (args.command == "plan" and args.project is not None):
         if args.project is None or args.infra or args.main_docker or args.with_vault or args.vault_service is not None:

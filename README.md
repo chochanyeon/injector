@@ -63,6 +63,8 @@ Use **Check registry execution requirements** (**Registry 실행 조건 검사**
 
 Register each required Compose `depends_on` service in the calling node's dependency graph. Compose configuration and startup both receive the node's resolved environment. For an IntelliJ target, the check reports the module and main class for confirmation in the imported IDE project.
 
+When a Compose file is nested, Injector uses the source-root `.env` as a fallback if the Compose directory has no `.env` and the environment does not override or disable the default. [Docker Compose interpolation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
+
 You can also select `support-console`. It uses the same Java main class. Debug `Injector-<profile>-support-console` and check `http://127.0.0.1:19084/demo`. Both demo apps call Catalog. Redis, PostgreSQL, and the Vault mock exercise environment preparation and the dependency graph.
 
 Use the Python executable from your environment. Without activation, substitute `.venv/bin/python` on macOS or `.\.venv\Scripts\python.exe` on Windows. When `--project` is omitted, registry-based prepare looks in the current directory.
@@ -228,6 +230,18 @@ python injector.py stop --project "<worktree path>" --registry registries/my-mon
 ```
 
 The CLI also accepts an explicit file such as `--registry registries/my-monorepo/local-dev.json`. With an external registry, Injector saves generated Spring YAML, IntelliJ XML, Compose overrides, and session files in a directory under `.local/injector/` scoped to the registry file and worktree. Import the generated run configuration into the IDE for that worktree, then start Debug. [IntelliJ run configuration documentation](https://www.jetbrains.com/help/idea/run-debug-configuration.html#share-run-debug-configurations)
+
+### Prepare automatically before IntelliJ Run or Debug
+
+```text
+python injector.py ide-tool platform-service --project examples/demo --profile dummy
+```
+
+1. Open or import the returned `runConfiguration` in IntelliJ.
+2. In **Settings → Tools → External Tools**, create a local tool. Use the returned `program`, `arguments`, and `workingDirectory` for **Program**, **Arguments**, and **Working directory**.
+3. In **Run → Edit Configurations**, add the tool to **Before launch → Run External tool** for that configuration. Keep it before the app launch.
+
+The tool waits for preparation and returns a failure exit code if the app should not launch. Repeat launches can reuse a healthy session with the same plan. If the app's injected settings change, generate and import the updated configuration and replace the tool's arguments. Use `stop` to discard the prepared session or recover after a forced termination. [IntelliJ External Tools](https://www.jetbrains.com/help/idea/configuring-third-party-tools.html)
 
 Injector also supports a source-root `registry.json`. Use registry schema 1.1 for Spring YAML settings. For multiple node files, list paths such as `["registry/nodes/platform-service.json", "registry/nodes/catalog.json"]` in `nodeFiles`. Each file contains one node with `id`, `kind`, and `variants`. A variant contains the environment, JVM settings, Spring settings, and injection rules. Put app-specific profile settings in `profileOverrides.<profile>`. The root contains shared defaults and the profile targets and variant selections. Inline `nodes` and root-level `profiles.<profile>.overrides` remain supported.
 

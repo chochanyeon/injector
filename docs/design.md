@@ -37,7 +37,7 @@ The structure and behavior in this document are proposals unless marked otherwis
 | R-07 | Establish the design documentation, then build a minimal POC when requested. | Requirements and open decisions remain visible alongside POC results. |
 | R-08 | Manage endpoints and dependencies for each app. | The model represents names, bind addresses, ports, caller-specific addresses, and injection points. |
 | R-09 | Traverse transitive dependencies with DFS and start prerequisites first. | Each dependency's own dependencies become ready before it starts. |
-| R-10 | Prepare and inject the environment before starting the target. | Each app receives its settings before startup. Automatic IDE integration remains open. |
+| R-10 | Prepare and inject the environment before starting the target. | The selected app receives its settings before startup. An optional IntelliJ External Tool combines preparation with Run or Debug for Application configurations. |
 | R-11 | Provide a skill or protocol for LLM-assisted monorepo onboarding. | An LLM can document runnable apps, endpoints, and transitive dependencies with evidence and produce a reviewed draft. |
 | R-12 | Substitute Vault-style configuration reads with a local API and local values. | Match the requested path, response shape, and keys without requiring a real Vault instance. See T-130. |
 | R-13 | Give Vault mock values service-specific paths. | The same mock origin returns service-specific values for identical keys. Each app receives its own path. See T-131. |
@@ -257,7 +257,7 @@ Example order: D → B → E → C → A
 
 For each node, wait for prerequisites, inject the addresses and JVM or environment settings, start the app, and check readiness. Apply the same preparation to an IntelliJ target while leaving the developer in control of Debug.
 
-The registry plan computes DFS order. T-050 and T-060 connect the plan to startup. Automatic IDE initialization before Run or Debug remains a follow-on. The developer currently starts Debug.
+The registry plan computes DFS order. T-050 and T-060 connect the plan to startup. T-120 adds preparation before IntelliJ Run or Debug through its built-in External Tools. The developer adds the tool to the chosen Application configuration. [T-120](work-items/T-120.md)
 
 ### 15.3. Proposed plan and failure rules
 
@@ -278,7 +278,7 @@ Inputs are the monorepo path, target, profile, and mode. Extract IDs, entry poin
 
 Produce reviewed JSON and findings with file and line evidence, inferences, local proposals, and unknowns. Confirm hosts and ports from evidence and omit raw credentials. Report sharing, cycles, port conflicts, and profile differences.
 
-Protocol v0.1 defines a draft. Runtime settings remain a separate contract. Conversion, application, name resolution, and startup are follow-on work.
+Protocol v0.1 defines a draft. T-100 converts a reviewed profile into a separate candidate runtime registry. Application of the candidate, name resolution, and service startup are separate operations. [T-100](work-items/T-100.md)
 
 ## 17. Local prepare command and browser UI (T-050, T-060, T-150)
 

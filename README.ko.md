@@ -65,6 +65,8 @@ python -m venv .venv
 
 Compose의 필수 `depends_on` 서비스는 이를 사용하는 노드의 Registry 의존성 그래프에 등록한다. Compose 검사와 실행에 모두 노드의 해석된 환경을 전달한다. IntelliJ 대상은 IDE에서 확인할 모듈과 메인 클래스가 검사 결과에 표시된다.
 
+Compose 파일이 하위 폴더에 있으면, 그 폴더에 `.env`가 없고 환경에서 기본 파일을 재지정하거나 비활성화하지 않았을 때 소스 루트의 `.env`를 사용한다. [Docker Compose 변수 치환](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
+
 `support-console`도 선택할 수 있다. 같은 Java 메인 클래스를 쓰며 `Injector-<프로필>-support-console`을 Debug로 실행하면 `http://127.0.0.1:19084/demo`에서 응답한다. 두 데모 앱은 Catalog를 실제 호출한다. Redis, PostgreSQL, Vault 대역은 환경 준비와 의존성 그래프를 확인하기 위해 함께 등록했다.
 
 같은 작업을 CLI로도 실행한다. 아래 명령의 `python`은 설치한 환경의 Python을 뜻한다. 가상 환경을 활성화하지 않았다면 macOS는 `.venv/bin/python`, Windows는 `.\.venv\Scripts\python.exe`를 사용한다. `--project`를 생략하면 현재 폴더에서 registry.json을 찾는다.
@@ -237,6 +239,18 @@ python injector.py stop --project "<워크트리 경로>" --registry registries/
 ```
 
 CLI에서도 `--registry registries/my-monorepo/local-dev.json`처럼 파일을 직접 지정할 수 있다. 외부 Registry를 쓰면 Injector가 생성하는 Spring YAML, IntelliJ 실행 XML, Compose override와 세션 파일은 Registry 폴더의 `.local/injector/` 아래에서 Registry 파일과 워크트리 조합별로 저장된다. IntelliJ 대상은 결과에 표시된 실행 구성을 해당 워크트리의 IDE에서 가져와 Debug한다. [IntelliJ 실행 구성 문서](https://www.jetbrains.com/help/idea/run-debug-configuration.html#share-run-debug-configurations)
+
+### IntelliJ 실행·디버그 전에 자동 준비
+
+```text
+python injector.py ide-tool platform-service --project examples/demo --profile dummy
+```
+
+1. 반환된 `runConfiguration`을 IntelliJ에서 연다.
+2. **Settings → Tools → External Tools**에서 로컬 도구를 추가한다. **Program**, **Arguments**, **Working directory**에 각각 `program`, `arguments`, `workingDirectory`를 입력한다.
+3. **Run → Edit Configurations**에서 해당 구성의 **Before launch → Run External tool**에 만든 도구를 추가한다.
+
+도구는 의존성이 준비될 때까지 기다리며 준비 실패를 종료 코드로 전달한다. 계획이 같고 자원이 준비된 상태라면 세션을 재사용할 수 있다. 앱 주입 설정을 바꿨으면 실행 구성과 도구 인자를 다시 생성해 반영한다. 기존 준비를 종료하거나 강제 중단 뒤 복구하려면 `stop`으로 정리한다. [IntelliJ External Tools](https://www.jetbrains.com/help/idea/configuring-third-party-tools.html)
 
 기존 프로젝트 루트의 `registry.json` 형식도 지원한다. Spring YAML용 설정은 버전 1.1에서 지원한다.
 

@@ -1,5 +1,6 @@
 """Generate local Spring configuration and an IntelliJ Application config."""
 from dataclasses import dataclass, field
+from hashlib import sha256
 import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -16,6 +17,8 @@ class RenderedConfig:
     yaml_path: Path | None
     run_path: Path
     settings: ResolvedSettings = field(repr=False)
+    fingerprint: str = field(repr=False)
+    spring_fingerprint: str | None = field(repr=False)
 
     def describe(self):
         return {"springConfig": str(self.yaml_path) if self.yaml_path else None, "runConfiguration": str(self.run_path),
@@ -129,4 +132,6 @@ def plan_render(data, project, profile_name, node_id, environ=None, *, allow_pla
         except OSError as error:
             raise RegistryError("cannot write generated Spring configuration") from error
 
-    return RenderedConfig(yaml_path, run_path, settings), write
+    fingerprint = sha256(xml + b"\0" + content).hexdigest()
+    return RenderedConfig(yaml_path, run_path, settings, fingerprint,
+                          sha256(content).hexdigest() if yaml_path else None), write

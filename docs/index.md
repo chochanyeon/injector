@@ -2,7 +2,7 @@
 
 **English** · [한국어](index.ko.md)
 
-Last updated November 18, 2026. Each T-ID groups design, development, verification, and the point at which to resume.
+Last updated November 21, 2026. Each T-ID groups design, development, verification, and the point at which to resume.
 
 ## 1. Work items
 
@@ -36,7 +36,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-090](work-items/T-090.md) | Session, failure, and stop policies | Complete for session ownership | Complete | Windows regression and Docker identity verified |
 | [T-100](work-items/T-100.md) | LLM registration draft validation and conversion | Complete for one reviewed profile | Complete | Converter and skill verified |
 | [T-110](work-items/T-110.md) | Multi-app integration verification | Complete for the portable fixture | Complete | Windows integration verified |
-| [T-120](work-items/T-120.md) | Automatic preparation before IDE execution | Candidate | Not started | Not run |
+| [T-120](work-items/T-120.md) | Automatic preparation before IDE execution | Complete for JVM Application configurations | Complete | CLI regression and IDE exit-code contract verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 
@@ -53,7 +53,7 @@ Keep decisions and evidence under the same T-ID. Link larger supporting document
 
 ## 3. Resume development
 
-T-080 is complete. T-090 covers the recent port-conflict, process cleanup, and relative command fixes. The next integration check is onboarding and IntelliJ debugging for a real multimodule app. See [T-090](work-items/T-090.md) for remaining session policy work.
+The indexed development items are implemented in their documented scopes. The next verification is onboarding a work monorepo and running the imported External Tool configuration on macOS. See [T-110](work-items/T-110.md) and [T-120](work-items/T-120.md).
 
 1. Check `git status --short --branch` and recent commits. Identify the context of any uncommitted changes.
 2. Choose a T-ID and read it from design through the resume point. Consult the shared references as needed.
