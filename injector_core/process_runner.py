@@ -3,7 +3,11 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
+
+
+_DIAGNOSTIC_BYTES = 64 * 1024
 
 
 if os.name == "nt":
@@ -86,24 +90,53 @@ def terminate_job(name):
     return True
 
 
-def main():
-    job, *command = sys.argv[1:]
-    if os.name == "nt":
-        # Windows only keeps the job name available while a handle is open.
-        # Leaving the handle open also cleans up the tree on runner exit.
-        _join_job(job)
-    if sys.stdin.buffer.read(1) != b"1":
-        return 1
-    process = subprocess.Popen(command, stdin=subprocess.DEVNULL,
-                               creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-    if os.name == "nt":
-        return process.wait()
+def _save_diagnostics(path, content):
     try:
-        return process.wait()
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(content)
+    except OSError:
+        pass
+
+
+def main():
+    job, diagnostics, *command = sys.argv[1:]
+    try:
+        if os.name == "nt":
+            # Leaving the job handle open cleans up the tree on runner exit.
+            _join_job(job)
+        if sys.stdin.buffer.read(1) != b"1":
+            return 1
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, bufsize=0,
+                                   creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+    except OSError as error:
+        _save_diagnostics(diagnostics, str(error).encode("utf-8", errors="replace"))
+        return 1
+
+    tail = bytearray()
+    lock = threading.Lock()
+
+    def drain():
+        with process.stdout:
+            while chunk := process.stdout.read(4096):
+                with lock:
+                    tail.extend(chunk)
+                    del tail[:max(0, len(tail) - _DIAGNOSTIC_BYTES)]
+
+    reader = threading.Thread(target=drain, daemon=True)
+    reader.start()
+    try:
+        result = process.wait()
+        # A descendant can still hold the output pipe after its launcher exits.
+        reader.join(timeout=0.3)
+        with lock:
+            report = f"Exit code: {result}\n".encode("utf-8") + bytes(tail)
+        _save_diagnostics(diagnostics, report)
+        return result
     finally:
-        # The runner is the session leader. Reap the group even if its launcher
-        # has already exited and its descendants have been reparented.
-        os.killpg(os.getpgrp(), signal.SIGKILL)
+        if os.name == "posix":
+            os.killpg(os.getpgrp(), signal.SIGKILL)
 
 
 if __name__ == "__main__":

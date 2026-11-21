@@ -140,17 +140,21 @@ def registry_path(project, registry=None):
     return path.parent.resolve() / path.name
 
 
-def runtime_directory(project, registry=None):
-    root = Path(project).resolve()
-    if registry is None:
-        return root / ".local" / "injector"
-    path = registry_path(root, registry)
-    identity = os.path.normcase(str(root))
+def partitioned_runtime_directory(project, path):
+    identity = os.path.normcase(str(Path(project).resolve()))
     name = os.path.normcase(path.name)
     if name != "registry.json":
         identity += "\x00" + name
     worktree = sha256(identity.encode("utf-8")).hexdigest()[:24]
     return path.parent / ".local" / "injector" / worktree
+
+
+def runtime_directory(project, registry=None):
+    root = Path(project).resolve()
+    path = registry_path(root, registry)
+    if path == registry_path(root):
+        return root / ".local" / "injector"
+    return partitioned_runtime_directory(root, path)
 
 
 def load_registry(project, profile=None, *, registry=None):

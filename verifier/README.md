@@ -31,7 +31,7 @@ The script creates a temporary detached worktree for HEAD and runs the same veri
 | `verify.alignment.groups` | Enforce version alignment in selected dependency groups. |
 | `verify.probe.classes` | Compare fingerprints returned by registered `RuntimeProbe` implementations. |
 
-The test reports show where a JSON fingerprint differs. Object key order is ignored. Array order, field presence, and numeric values are compared. Keep the application fixtures and profiles deterministic in both checkouts. The [detailed Korean guide](README.ko.md) documents the comparison rules and manual Gradle execution.
+The test reports show where a JSON fingerprint differs. Object key order is ignored. Array order, field presence, and numeric values are compared. Exclusions refer to the original array indexes. Keep the application fixtures and profiles deterministic in both checkouts. The [detailed Korean guide](README.ko.md) documents the comparison rules and manual Gradle execution.
 
 ## Verify this module
 

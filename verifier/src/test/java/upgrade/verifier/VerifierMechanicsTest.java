@@ -53,6 +53,19 @@ class VerifierMechanicsTest {
     }
 
     @Test
+    void appliesExclusionsToOriginalArrayIndexes() throws Exception {
+        var original = JSON.readTree("{\"items\":[\"A\",\"B\",{\"hide\":1,\"keep\":2}]}");
+        var expected = JSON.readTree("{\"items\":[{\"keep\":2}]}");
+        for (String order : List.of("/items/0,/items/1,/items/2/hide,/items/1",
+                                    "/items/2/hide,/items/1,/items/0")) {
+            withProperty("verify.ignore.json.pointers", order, () ->
+                    assertEquals(expected, UpgradeConsistencyVerifierTest.normalized(original)));
+        }
+        assertEquals(3, original.path("items").size());
+        assertTrue(original.path("items").get(2).has("hide"));
+    }
+
+    @Test
     void detectsMixedVersionsForAnyLibraryIncludingLocalJarMetadata() throws Exception {
         Path first = jar("widget-one.jar", "example.backend", "widget", "1.0");
         Path second = jar("widget-two.jar", "example.backend", "widget", "2.0");

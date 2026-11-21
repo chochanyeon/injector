@@ -9,6 +9,7 @@
     "route": {"type": "string", "maxLength": 2048, "pattern": "^/(?!/)[^?#\\r\\n]*$"},
     "pointer": {"type": "string", "maxLength": 256, "pattern": "^(/([^~/]|~[01])*)+$"},
     "pointers": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"$ref": "#/$defs/pointer"}},
+    "queryKey": {"type": "string", "minLength": 1, "maxLength": 256},
     "fields": {
       "type": "object",
       "maxProperties": 16,
@@ -37,6 +38,12 @@
           }
         },
         "requestFields": {"$ref": "#/$defs/pointers"},
+        "requestQuery": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/queryKey"}
+        },
         "responseFields": {"$ref": "#/$defs/pointers"},
         "targetFields": {"$ref": "#/$defs/pointers"}
       }
@@ -85,6 +92,17 @@
               "path": {"$ref": "#/$defs/route"},
               "status": {"$ref": "#/$defs/status"},
               "requestFields": {"$ref": "#/$defs/fields"},
+              "requestQuery": {
+                "type": "object",
+                "maxProperties": 16,
+                "propertyNames": {"$ref": "#/$defs/queryKey"},
+                "additionalProperties": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 16,
+                  "items": {"type": "string", "maxLength": 2048}
+                }
+              },
               "responseFields": {"$ref": "#/$defs/fields"}
             }
           }

@@ -19,7 +19,8 @@ import psutil
 from .hostnames import check_resolution
 from .planning import build_plan
 from .process_runner import terminate_job
-from .registry import RegistryError, _project_path, _validate_references, load_registry, registry_path, runtime_directory
+from .registry import (RegistryError, _project_path, _validate_references, load_registry,
+                       partitioned_runtime_directory, registry_path, runtime_directory)
 from .rendering import _artifact_path, plan_render
 from .resolution import resolve_node, selected_variant
 
@@ -116,6 +117,22 @@ def _lock(directory):
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
             else:
                 fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+@contextmanager
+def _locked_directories(project, registry):
+    directory = _directory(project, registry)
+    with _lock(directory), ExitStack() as stack:
+        directories = [directory]
+        path = registry_path(project, registry)
+        if path == registry_path(project):
+            # Older versions partitioned sessions when this same file was selected explicitly.
+            legacy = partitioned_runtime_directory(project, path)
+            _artifact_path(directory, legacy / "session.json")
+            if (legacy / "session.json").exists():
+                stack.enter_context(_lock(legacy))
+                directories.append(legacy)
+        yield directories
 
 
 def _docker(arguments, *, env=None, cwd=None, timeout=180):
@@ -276,9 +293,9 @@ def _stop(directory, emit):
 
 def stop(project, emit=lambda event: None, *, registry=None):
     if runtime_directory(project, registry).is_dir():
-        directory = _directory(project, registry)
-        with _lock(directory):
-            _stop(directory, emit)
+        with _locked_directories(project, registry) as directories:
+            for directory in directories:
+                _stop(directory, emit)
     return {"status": "stopped", "project": str(Path(project).resolve())}
 
 
@@ -355,10 +372,13 @@ def _process_command(execution, working, environment):
     raise RegistryError("process command or working directory is unavailable")
 
 
-def _start_process(directory, session, node, command, working, environment):
+def _start_process(directory, session, node, command, working, environment, diagnostics):
     runner = f"Injector-{session['id']}-{node}"
+    _artifact_path(directory, diagnostics)
     try:
-        process = subprocess.Popen([sys.executable, "-I", str(Path(__file__).with_name("process_runner.py")), runner, *command],
+        diagnostics.unlink(missing_ok=True)
+        process = subprocess.Popen([sys.executable, "-I", str(Path(__file__).with_name("process_runner.py")),
+            runner, str(diagnostics), *command],
             cwd=working, env=environment, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             start_new_session=os.name == "posix",
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
@@ -473,6 +493,20 @@ def _preflight(data, plan, root, target, registry, *, check_hosts=False, compose
                     service = config["services"].get(execution["service"])
                     if service is None:
                         raise RegistryError("selected Compose service does not exist")
+                    published = {(str(port["published"]), port.get("protocol", "tcp"))
+                                 for port in service.get("ports", []) if "published" in port}
+                    for name, endpoint in variant["endpoints"].items():
+                        address = endpoint["addresses"].get("host")
+                        if not address:
+                            continue
+                        transport = "udp" if endpoint["protocol"] == "udp" else "tcp"
+                        port = address["port"]
+                        if service.get("network_mode") == "host":
+                            if port != endpoint["bind"]["port"]:
+                                raise RegistryError(f"{name}: registry host port {port} differs from bind port in host networking")
+                        elif (str(port), transport) not in published:
+                            raise RegistryError(f"{name}: Compose service {execution['service']} does not publish "
+                                                f"registry host port {port}/{transport}")
                     for service_name, dependency in service.get("depends_on", {}).items():
                         if dependency.get("required", True) and (execution["projectName"], service_name) not in dependencies:
                             raise RegistryError(f"required Compose service {service_name} is missing from this node's registry dependencies")
@@ -554,9 +588,11 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
     root = Path(project).resolve()
     data, plan = select_plan(root, target, profile, mode, variants=variants, registry=registry)
     profile = plan["profile"]
-    directory = _directory(root, registry)
-    with _lock(directory), ExitStack() as stack:
-        previous = _session(directory)
+    with _locked_directories(root, registry) as directories, ExitStack() as stack:
+        active = [(directory, session) for directory in directories if (session := _session(directory)) is not None]
+        if len(active) > 1:
+            raise RegistryError("multiple sessions for the default registry; run stop before preparing")
+        directory, previous = active[0] if active else (directories[0], None)
         injection_urls = None
         if observation is not None:
             if previous is not None:
@@ -615,9 +651,11 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                         address = endpoint["addresses"].get("host")
                         if address and _occupied(address):
                             raise RegistryError("registered host port is already in use")
+                diagnostics = None
                 if kind == "process":
+                    diagnostics = directory / f"process-{node}.log"
                     process = _start_process(directory, session, node,
-                        [command[0], *settings.jvm_arguments(), *command[1:]], working, environment)
+                        [command[0], *settings.jvm_arguments(), *command[1:]], working, environment, diagnostics)
                     alive = lambda: process.poll() is None
                     healthy = lambda: False
                 elif kind == "compose":
@@ -644,7 +682,11 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                 else:
                     alive, healthy = lambda: True, lambda: False
                 emit({"node": node, "phase": "waiting"})
-                _wait(variant, alive, healthy)
+                try:
+                    _wait(variant, alive, healthy)
+                except RegistryError as error:
+                    log = f"; local diagnostics: {diagnostics}" if diagnostics and diagnostics.is_file() else ""
+                    raise RegistryError(f"{node}: {error}{log}") from error
                 emit({"node": node, "phase": "ready"})
             if observation is not None:
                 recording = observation.capture(plan)

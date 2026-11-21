@@ -41,6 +41,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | HTTP observation | Implemented for one local edge | CLI recording and Verifier comparison, with side-by-side results on the dependency graph. | T-260 |
 | Shop monorepo demo | Implemented | Six Gradle JVM modules run with shared infrastructure and replaceable pricing. | T-270 |
 | Shop demo Vault and logs | Implemented | All six apps read their own Vault path, including both Pricing variants. One Loki query finds related checkout HTTP and Kafka events by request ID. | T-280, T-290 |
+| Execution and comparison review fixes | Implemented | Default registry session identity, Compose port validation, local process diagnostics, selected HTTP query values, and original array indexes for Verifier exclusions. | T-300 |
 | Custom hostnames | Partially verified | Preview, apply, remove, and resolution checks on Windows and macOS. Elevated system application remains. | T-070, T-160 |
 | macOS and Windows launchers | Partially verified | Finder and VBS launchers with CI on both systems. Direct Finder verification remains. | T-160 |
 | Variant overrides | Complete | Request-specific choices apply to the plan, graph, and injection. | T-080 |

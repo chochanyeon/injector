@@ -84,7 +84,7 @@ bash verify-upgrade.sh --repo /path/to/service -- \
 | `verify.dto.classes` | 추가 DTO 클래스 이름. 쉼표 구분. 중첩 클래스는 `$` 사용. |
 | `verify.dto.samples` | DTO 이름 → 샘플 JSON 객체를 담은 파일의 절대 경로. 양쪽에서 같은 파일을 읽는다. |
 | `verify.get.paths` | health 외 GET URI 목록. 쿼리 문자열 가능. 쉼표 구분, URI 내 쉼표는 `%2C` 사용. |
-| `verify.ignore.json.pointers` | 명시적으로 제외할 RFC 6901 JSON 포인터. 쉼표 구분. 기본 제외 없음. |
+| `verify.ignore.json.pointers` | 쉼표로 구분하는 RFC 6901 JSON 포인터. 배열은 원본 인덱스를 기준으로 제외한다. |
 | `verify.alignment.groups` | 버전 정렬을 강제할 groupId 정규식 목록. 쉼표 구분. |
 | `verify.probe.classes` | `RuntimeProbe` 구현 클래스 목록. 쉼표 구분. |
 

@@ -42,6 +42,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-270](work-items/T-270.md) | Multi-service shop monorepo demo | Complete | Complete | Windows Docker and JVM integration verified |
 | [T-280](work-items/T-280.md) | Shop demo Vault and log integration | Complete | Complete | Windows Vault settings and HTTP-to-Kafka log correlation verified |
 | [T-290](work-items/T-290.md) | Vault settings for every shop service | Complete | Complete | Six startup reads verified in both profiles |
+| [T-300](work-items/T-300.md) | Review fixes for execution and comparison | Complete | Complete | Five regressions and both shop profiles verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 

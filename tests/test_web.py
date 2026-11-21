@@ -150,7 +150,9 @@ class WebTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn('dependency: process command', json.loads(response)['error'])
 
-        with patch('injector_core.runtime._docker', return_value='{"services":{"dependency":{}}}') as docker:
+        port = dependency['compose']['endpoints']['http']['addresses']['host']['port']
+        config = json.dumps({'services': {'dependency': {'ports': [{'published': str(port), 'target': 8080}]}}})
+        with patch('injector_core.runtime._docker', return_value=config) as docker:
             status, response = self.request(endpoint, {**body, 'variants': {'dependency': 'compose'}}, headers)
             self.assertEqual(status, 400)
             self.assertIn('dependency: compose readiness requires a healthcheck', json.loads(response)['error'])

@@ -65,7 +65,9 @@ Stop the app in the IDE before changing profiles. Preparing again replaces resou
 
 Use **Check registry execution requirements** (**Registry 실행 조건 검사**) before preparing to check the selected app, profile, variants, and their dependencies. The result identifies the first blocker in the declared settings or execution definitions. The check leaves services and generated files untouched. Prepare still checks host resolution, port conflicts, and service readiness.
 
-Register each required Compose `depends_on` service in the calling node's dependency graph. Compose configuration and startup both receive the node's resolved environment. For an IntelliJ target, the check reports the module and main class for confirmation in the imported IDE project.
+Register each required Compose `depends_on` service in the calling node's dependency graph. For each registered host endpoint, the checker compares its port and transport with the service's fixed publication. With host networking, the host and bind ports must agree. Compose configuration and startup both receive the node's resolved environment. For an IntelliJ target, the check reports the module and main class for confirmation in the imported IDE project.
+
+Selecting the source folder's own `registry.json` explicitly uses the same execution session as leaving the Registry field empty. When a managed process exits before readiness, the error identifies the node and the path to its local diagnostic file when available. The file retains the last 64 KiB of process output and can contain application data. The browser and CLI show its path.
 
 When a Compose file is nested, Injector uses the source-root `.env` as a fallback if the Compose directory has no `.env` and the environment does not override or disable the default. [Docker Compose interpolation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
 

@@ -81,6 +81,32 @@ class HTTPObservationTests(unittest.TestCase):
         self.assertEqual(missing.returncode, 2, missing.stderr)
         self.assertEqual(json.loads(missing.stdout)["verdict"], "INCONCLUSIVE")
 
+    def test_selected_query_values_are_compared_without_recording_other_parameters(self):
+        fixture = self.project / "service.py"
+        content = fixture.read_text(encoding="utf-8")
+        content = content.replace('self.path == "/lookup"', 'self.path.split("?")[0] == "/lookup"')
+        content = content.replace('os.environ["DEMO_WAREHOUSE"],', '"fixed",')
+        content = content.replace('+ "lookup", data=body',
+                                  '+ "lookup?tag=one&tag=&token=private&warehouse=" + os.environ["DEMO_WAREHOUSE"], data=body')
+        fixture.write_text(content, encoding="utf-8")
+        unconfigured = self.record("unconfigured.json")
+        self.assertEqual(json.loads(unconfigured.read_bytes())["coverage"], "incomplete")
+        self.assertEqual(self.cli("compare-http", unconfigured, "--candidate", unconfigured).returncode, 2)
+
+        scenario = self.project / "scenario.json"
+        configured = json.loads(scenario.read_bytes())
+        configured["requestQuery"] = ["warehouse", "tag"]
+        scenario.write_text(json.dumps(configured), encoding="utf-8")
+        baseline = self.record("query-before.json")
+        candidate = self.record("query-after.json", "busan")
+        self.assertEqual(json.loads(baseline.read_bytes())["calls"][0]["requestQuery"],
+                         {"warehouse": ["seoul"], "tag": ["one", ""]})
+        self.assertNotIn(b"private", baseline.read_bytes())
+        changed = self.cli("compare-http", baseline, "--candidate", candidate)
+        self.assertEqual(changed.returncode, 1, changed.stderr)
+        self.assertEqual(json.loads(changed.stdout)["changes"],
+                         [{"path": "/calls/0/requestQuery/warehouse/0", "kind": "changed"}])
+
     def test_observation_never_replaces_an_active_session(self):
         with patch.dict(os.environ, {"INJECTOR_DEMO_WAREHOUSE": "seoul"}):
             prepare(self.project, "orders", "local")

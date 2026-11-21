@@ -1,5 +1,6 @@
 package upgrade.verifier;
 
+import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -443,14 +444,21 @@ public class UpgradeConsistencyVerifierTest {
 
     static JsonNode normalized(JsonNode original) {
         JsonNode value = original.deepCopy();
+        List<JsonPointer> exclusions = new ArrayList<>();
         for (String pointer : csv("verify.ignore.json.pointers", "")) {
             check(pointer.startsWith("/"), "Exclusions must be RFC 6901 JSON pointers: " + pointer);
-            int slash = pointer.lastIndexOf('/');
-            JsonNode parent = slash == 0 ? value : value.at(pointer.substring(0, slash));
-            String leaf = pointer.substring(slash + 1).replace("~1", "/").replace("~0", "~");
-            if (parent.isObject()) ((ObjectNode) parent).remove(leaf);
-            else if (parent.isArray() && leaf.matches("0|[1-9][0-9]*")) ((ArrayNode) parent).remove(Integer.parseInt(leaf));
+            exclusions.add(JsonPointer.compile(pointer));
         }
+        // Apply descendants first and remove sibling array elements from highest original index.
+        var order = Comparator.comparingLong((JsonPointer pointer) -> pointer.toString().chars()
+                        .filter(character -> character == '/').count())
+                .thenComparingInt(pointer -> pointer.last().getMatchingIndex()).reversed();
+        exclusions.stream().distinct().sorted(order).forEach(pointer -> {
+            JsonNode parent = value.at(pointer.head());
+            JsonPointer leaf = pointer.last();
+            if (parent.isObject()) ((ObjectNode) parent).remove(leaf.getMatchingProperty());
+            else if (parent.isArray() && leaf.mayMatchElement()) ((ArrayNode) parent).remove(leaf.getMatchingIndex());
+        });
         return value;
     }
 

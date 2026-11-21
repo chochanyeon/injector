@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import psutil
 
-from injector_core.registry import RegistryError, runtime_directory
+from injector_core.registry import RegistryError, partitioned_runtime_directory, runtime_directory
 from injector_core.runtime import _directory, _docker, _lock, check_requirements, ide_tool, prepare, select_plan, stop
 
 
@@ -76,6 +76,9 @@ class RuntimeTests(unittest.TestCase):
             'main': {'healthcheck': healthcheck, 'depends_on': {'database': {'required': True}}},
             'dependency': {'healthcheck': healthcheck},
         }
+        for node in self.data['nodes']:
+            port = node['variants']['local']['endpoints']['http']['addresses']['host']['port']
+            services[node['id']]['ports'] = [{'published': str(port), 'target': 8080}]
         with patch('injector_core.runtime._docker', return_value=json.dumps({'services': services})) as docker:
             with self.assertRaisesRegex(RegistryError, 'main: required Compose service database'):
                 check_requirements(self.root, 'main', 'dummy')
@@ -147,7 +150,9 @@ class RuntimeTests(unittest.TestCase):
                              'projectName': 'test', 'service': 'dependency'}
         node['readiness'] = {'type': 'compose', 'timeoutSeconds': 3}
         write_registry(self.root, self.data)
-        config = '{"services":{"dependency":{"healthcheck":{"test":["CMD","true"]}}}}'
+        port = node['endpoints']['http']['addresses']['host']['port']
+        config = json.dumps({'services': {'dependency': {'healthcheck': {'test': ['CMD', 'true']},
+                                                        'ports': [{'published': str(port), 'target': 8080}]}}})
         with patch.dict(os.environ, {'COMPOSE_ENV_FILES': '', 'COMPOSE_DISABLE_ENV_FILE': ''}), \
                 patch('injector_core.runtime._docker', return_value=config) as docker:
             check_requirements(self.root, 'main', 'dummy')
@@ -155,6 +160,29 @@ class RuntimeTests(unittest.TestCase):
             (directory / '.env').touch()
             check_requirements(self.root, 'main', 'dummy')
             self.assertNotIn('--env-file', docker.call_args.args[0])
+
+    def test_compose_rejects_unpublished_registry_host_port_before_start(self):
+        node = self.data['nodes'][1]['variants']['local']
+        node['execution'] = {'type': 'compose', 'file': 'compose.yaml',
+                             'projectName': 'test', 'service': 'dependency'}
+        node['readiness'] = {'type': 'compose', 'timeoutSeconds': 3}
+        (self.root / 'compose.yaml').touch()
+        write_registry(self.root, self.data)
+        port = node['endpoints']['http']['addresses']['host']['port']
+        service = {'healthcheck': {'test': ['CMD', 'true']}}
+        for binding in ({'published': '80', 'target': 8080},
+                        {'published': str(port), 'target': 8080, 'protocol': 'udp'}):
+            service['ports'] = [binding]
+            with patch('injector_core.runtime._docker',
+                       return_value=json.dumps({'services': {'dependency': service}})) as docker:
+                for check in (check_requirements, prepare):
+                    with self.assertRaisesRegex(RegistryError, f'dependency: .* does not publish registry host port {port}/tcp'):
+                        check(self.root, 'main', 'dummy')
+                self.assertTrue(all('up' not in call.args[0] for call in docker.call_args_list))
+        service.pop('ports')
+        service['network_mode'] = 'host'
+        with patch('injector_core.runtime._docker', return_value=json.dumps({'services': {'dependency': service}})):
+            self.assertEqual(check_requirements(self.root, 'main', 'dummy')['order'], ['dependency', 'main'])
 
     def test_docker_error_reports_stage_without_including_stderr(self):
         result = subprocess.CompletedProcess([], 1, '', 'required variable PRIVATE_VALUE is missing; secret value here')
@@ -287,10 +315,18 @@ class RuntimeTests(unittest.TestCase):
         self.assertFalse((self.root / '.local/injector/session.json').exists())
 
     def test_early_exit_is_failure(self):
-        self.data['nodes'][1]['variants']['local']['execution']['command'] = [sys.executable, '-c', 'raise SystemExit(3)']
+        script = 'import sys; sys.stderr.buffer.write(b"A"*100000 + b"\\nmissing required setting\\n"); raise SystemExit(3)'
+        self.data['nodes'][1]['variants']['local']['execution']['command'] = [sys.executable, '-c', script]
         write_registry(self.root, self.data)
-        with self.assertRaisesRegex(RegistryError, 'exited'):
+        log = runtime_directory(self.root) / 'process-dependency.log'
+        with self.assertRaisesRegex(RegistryError, 'dependency: .*exited.*local diagnostics') as failure:
             prepare(self.root, 'main', mode='dummy')
+        self.assertIn(str(log.resolve()), str(failure.exception))
+        self.assertNotIn('missing required setting', str(failure.exception))
+        content = log.read_bytes()
+        self.assertLessEqual(len(content), 64 * 1024 + len(b'Exit code: 3\n'))
+        self.assertTrue(content.startswith(b'Exit code: 3\n'))
+        self.assertTrue(content.endswith(b'missing required setting\n'))
 
     def test_launcher_exit_cleans_up_child_process(self):
         pid_file = self.root / 'child.pid'
@@ -470,6 +506,29 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(RegistryError, 'exactly one'):
             select_plan(self.root, 'main', mode='dummy')
         self.assertEqual(select_plan(self.root, 'main', profile='dummy')[1]['targets'], ['main'])
+
+    def test_default_registry_paths_share_the_same_session(self):
+        path = self.root / 'registry.json'
+        self.assertEqual(runtime_directory(self.root, path), runtime_directory(self.root))
+        self.assertEqual(runtime_directory(self.root, self.root), runtime_directory(self.root))
+        for start_registry, stop_registry in ((path, None), (None, self.root)):
+            prepare(self.root, 'main', 'dummy', registry=start_registry)
+            manifest = runtime_directory(self.root) / 'session.json'
+            resources = json.loads(manifest.read_bytes())['resources']
+            stop(self.root, registry=stop_registry)
+            self.assertFalse(manifest.exists())
+            self.assertTrue(all(not psutil.pid_exists(resource['pid']) for resource in resources))
+
+    def test_stop_recovers_a_legacy_explicit_default_session(self):
+        prepare(self.root, 'main', 'dummy')
+        manifest = runtime_directory(self.root) / 'session.json'
+        resources = json.loads(manifest.read_bytes())['resources']
+        legacy = partitioned_runtime_directory(self.root, self.root.resolve() / 'registry.json')
+        legacy.mkdir()
+        migrated = manifest.replace(legacy / 'session.json')
+        stop(self.root)
+        self.assertFalse(migrated.exists())
+        self.assertTrue(all(not psutil.pid_exists(resource['pid']) for resource in resources))
 
     def test_project_lock_rejects_concurrent_mutations(self):
         with _lock(_directory(self.root)):

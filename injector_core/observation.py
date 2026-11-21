@@ -8,7 +8,7 @@ import json
 import math
 from pathlib import Path
 import threading
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from .loopback import LoopbackHTTPServer
 from .observation_contract import MAX_OBSERVATION_BYTES, read_document, validate_document
@@ -63,6 +63,18 @@ def _exchange(endpoint, method, path, body=None, headers=()):
         connection.close()
 
 
+def _project_query(query, keys):
+    fields = {}
+    if keys:
+        for key, value in parse_qsl(query, keep_blank_values=True, errors="strict", max_num_fields=256):
+            if key in keys:
+                values = fields.setdefault(key, [])
+                if len(values) == 16 or len(value) > 2048:
+                    raise ValueError("capture query values must be bounded")
+                values.append(value)
+    return fields
+
+
 def _project_fields(body, pointers):
     if not pointers:
         return {}
@@ -112,11 +124,18 @@ class HTTPObservation:
             try:
                 request = _project_fields(body, self.scenario.get("requestFields", []))
                 response = _project_fields(content, self.scenario.get("responseFields", []))
+                keys = self.scenario.get("requestQuery")
+                query = _project_query(path.query, keys)
             except (ValueError, RecursionError):
                 self.failed = True
                 return
-            self.calls.append({"method": method, "path": path, "status": status,
-                               "requestFields": request, "responseFields": response})
+            call = {"method": method, "path": path.path, "status": status,
+                    "requestFields": request, "responseFields": response}
+            if keys is not None:
+                call["requestQuery"] = query
+            elif path.query:
+                self.failed = True
+            self.calls.append(call)
 
     @contextmanager
     def proxy(self, data, plan):
@@ -161,7 +180,7 @@ class HTTPObservation:
                     status, headers, content = _exchange(upstream, self.command, self.path,
                                                          body if lengths else None, headers)
                     if recording:
-                        observation._record(self.command, path.path, body, status, content)
+                        observation._record(self.command, path, body, status, content)
                 except (OSError, HTTPException, ValueError):
                     self.send_error(502, "HTTP observation proxy failed")
                     return
