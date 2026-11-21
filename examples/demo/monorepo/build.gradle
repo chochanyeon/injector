@@ -1,0 +1,31 @@
+subprojects {
+    apply plugin: "java"
+    repositories { mavenCentral() }
+    tasks.withType(JavaCompile).configureEach {
+        options.release = 17
+        options.encoding = "UTF-8"
+    }
+}
+
+project(":common") {
+    apply plugin: "java-library"
+    dependencies { api "com.fasterxml.jackson.core:jackson-databind:2.19.2" }
+}
+
+configure(subprojects.findAll { it.name != "common" }) {
+    apply plugin: "application"
+    application { mainClass = "shop.${project.name}.Main" }
+    dependencies { implementation project(":common") }
+}
+
+configure([project(":orders"), project(":inventory"), project(":pricing")]) {
+    dependencies { runtimeOnly "org.postgresql:postgresql:42.7.5" }
+}
+
+configure([project(":storefront"), project(":catalog"), project(":notifications")]) {
+    dependencies { implementation "redis.clients:jedis:5.2.0" }
+}
+
+configure([project(":orders"), project(":notifications")]) {
+    dependencies { implementation "org.apache.kafka:kafka-clients:3.9.1" }
+}

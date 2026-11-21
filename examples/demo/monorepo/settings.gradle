@@ -1,0 +1,9 @@
+rootProject.name = "injector-shop"
+
+include "common"
+project(":common").projectDir = file("libs/common")
+
+["storefront", "orders", "catalog", "pricing", "inventory", "notifications"].each { service ->
+    include service
+    project(":$service").projectDir = file("services/$service")
+}

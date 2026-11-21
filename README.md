@@ -6,6 +6,8 @@ Injector prepares local dependencies and supplies JVM options, environment varia
 
 Start with the [work index](docs/index.md) when resuming development. Each work item records its design, implementation, verification, and resume point. The repository root contains Injector itself. The [HTTP observation demo](examples/demo/http-observation/README.md) exercises recording and comparison.
 
+The [shop monorepo demo](examples/demo/monorepo/README.md) exercises six JVM services, shared PostgreSQL and Redis, Kafka delivery, and a database-backed price service that can switch to WireMock.
+
 ```text
 injector/
 ├── injector.py          # Injector CLI

@@ -1,0 +1,38 @@
+{
+  "id": "pricing-db",
+  "kind": "infrastructure",
+  "variants": {
+    "local": {
+      "execution": {
+        "type": "compose",
+        "file": "infra/compose.yaml",
+        "service": "pricing-db",
+        "projectName": "injector-shop-demo"
+      },
+      "dependencies": [],
+      "endpoints": {
+        "tcp": {
+          "protocol": "tcp",
+          "bind": {
+            "host": "0.0.0.0",
+            "port": 5432
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19763
+            },
+            "container": {
+              "host": "pricing-db",
+              "port": 5432
+            }
+          }
+        }
+      },
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 120
+      }
+    }
+  }
+}

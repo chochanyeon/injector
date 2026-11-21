@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "name": "quote-item",
+  "targetEndpoint": "http",
+  "dependency": "catalog",
+  "dependencyEndpoint": "http",
+  "request": {
+    "method": "GET",
+    "path": "/items/sample"
+  },
+  "responseFields": [
+    "/unitCents",
+    "/source"
+  ],
+  "targetFields": [
+    "/unitCents",
+    "/source"
+  ]
+}

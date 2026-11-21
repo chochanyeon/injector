@@ -39,6 +39,7 @@
 | [T-120](work-items/T-120.ko.md) | IDE 실행 전 자동 준비 연동 | JVM Application 범위 완료 | 완료 | CLI 회귀와 IDE 종료 코드 동작 검증 |
 | [T-250](work-items/T-250.ko.md) | Injector와 Verifier 저장소 통합 | 완료 | 완료 | 원본 이력과 Gradle 테스트 검증 |
 | [T-260](work-items/T-260.ko.md) | 로컬 HTTP 의존성 하나 관측·비교 | 연결 하나 범위 완료 | 완료 | CLI·API·Edge 데모 검증 |
+| [T-270](work-items/T-270.ko.md) | 다중 서비스 쇼핑몰 모노레포 데모 | 완료 | 완료 | Windows Docker·JVM 통합 검증 |
 
 완료 표시는 해당 작업에 명시한 범위에 한정된다. POC 완료가 일반화된 앱 등록·DFS 실행까지 완료되었다는 뜻은 아니다. 후속 작업의 설계 초안은 범위·완료 기준을 정한 수준이며 상세 설계 완료가 아니다.
 

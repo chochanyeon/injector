@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "1.0",
+  "nodeFiles": [
+    "registry/nodes/storefront.json",
+    "registry/nodes/orders.json",
+    "registry/nodes/catalog.json",
+    "registry/nodes/pricing.json",
+    "registry/nodes/inventory.json",
+    "registry/nodes/notifications.json",
+    "registry/nodes/postgres.json",
+    "registry/nodes/redis.json",
+    "registry/nodes/kafka.json",
+    "registry/nodes/pricing-db.json"
+  ],
+  "profiles": {
+    "real": {
+      "targets": [
+        "storefront"
+      ],
+      "selections": {
+        "storefront": "local",
+        "orders": "local",
+        "catalog": "local",
+        "pricing": "real",
+        "inventory": "local",
+        "notifications": "local",
+        "postgres": "local",
+        "redis": "local",
+        "kafka": "local",
+        "pricing-db": "local"
+      }
+    },
+    "mock": {
+      "targets": [
+        "storefront"
+      ],
+      "selections": {
+        "storefront": "local",
+        "orders": "local",
+        "catalog": "local",
+        "pricing": "wiremock",
+        "inventory": "local",
+        "notifications": "local",
+        "postgres": "local",
+        "redis": "local",
+        "kafka": "local"
+      }
+    }
+  }
+}

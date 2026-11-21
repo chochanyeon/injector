@@ -1,0 +1,8 @@
+{
+  "request": {"method": "GET", "urlPath": "/prices/sample"},
+  "response": {
+    "status": 200,
+    "headers": {"Content-Type": "application/json"},
+    "jsonBody": {"sku": "sample", "unitCents": 999, "source": "wiremock"}
+  }
+}

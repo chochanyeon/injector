@@ -1,0 +1,105 @@
+{
+  "id": "pricing",
+  "kind": "application",
+  "variants": {
+    "real": {
+      "execution": {
+        "type": "process",
+        "workingDirectory": ".",
+        "command": [
+          "java",
+          "-cp",
+          "services/pricing/build/install/pricing/lib/*",
+          "shop.pricing.Main"
+        ]
+      },
+      "dependencies": [
+        "pricing-db"
+      ],
+      "endpoints": {
+        "http": {
+          "protocol": "http",
+          "bind": {
+            "host": "127.0.0.1",
+            "port": 19783
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19783,
+              "scheme": "http"
+            }
+          }
+        }
+      },
+      "readiness": {
+        "type": "http",
+        "endpoint": "http",
+        "path": "/health",
+        "timeoutSeconds": 25
+      },
+      "env": {
+        "APP_PORT": "19783",
+        "DB_NAME": "shop",
+        "DB_USER": "shop",
+        "DB_PASSWORD": "demo-only"
+      },
+      "injections": [
+        {
+          "channel": "environment",
+          "key": "DB_HOST",
+          "source": {
+            "node": "pricing-db",
+            "endpoint": "tcp",
+            "context": "host",
+            "component": "host"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "DB_PORT",
+          "source": {
+            "node": "pricing-db",
+            "endpoint": "tcp",
+            "context": "host",
+            "component": "port"
+          }
+        }
+      ]
+    },
+    "wiremock": {
+      "execution": {
+        "type": "compose",
+        "file": "infra/compose.yaml",
+        "service": "pricing-mock",
+        "projectName": "injector-shop-demo"
+      },
+      "dependencies": [],
+      "endpoints": {
+        "http": {
+          "protocol": "http",
+          "bind": {
+            "host": "0.0.0.0",
+            "port": 8080
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19786,
+              "scheme": "http"
+            },
+            "container": {
+              "host": "pricing-mock",
+              "port": 8080,
+              "scheme": "http"
+            }
+          }
+        }
+      },
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 120
+      }
+    }
+  }
+}

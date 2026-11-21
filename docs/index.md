@@ -39,6 +39,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-120](work-items/T-120.md) | Automatic preparation before IDE execution | Complete for JVM Application configurations | Complete | CLI regression and IDE exit-code contract verified |
 | [T-250](work-items/T-250.md) | Bring Injector and Verifier into one repository | Complete | Complete | Source history and Gradle tests verified |
 | [T-260](work-items/T-260.md) | Observe and compare one local HTTP dependency | Complete for one edge | Complete | CLI, API and Edge demo verified |
+| [T-270](work-items/T-270.md) | Multi-service shop monorepo demo | Complete | Complete | Windows Docker and JVM integration verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 

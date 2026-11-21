@@ -1,0 +1,38 @@
+{
+  "id": "redis",
+  "kind": "infrastructure",
+  "variants": {
+    "local": {
+      "execution": {
+        "type": "compose",
+        "file": "infra/compose.yaml",
+        "service": "redis",
+        "projectName": "injector-shop-demo"
+      },
+      "dependencies": [],
+      "endpoints": {
+        "tcp": {
+          "protocol": "tcp",
+          "bind": {
+            "host": "0.0.0.0",
+            "port": 6379
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19761
+            },
+            "container": {
+              "host": "redis",
+              "port": 6379
+            }
+          }
+        }
+      },
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 120
+      }
+    }
+  }
+}

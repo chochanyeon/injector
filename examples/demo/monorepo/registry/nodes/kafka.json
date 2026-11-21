@@ -1,0 +1,38 @@
+{
+  "id": "kafka",
+  "kind": "infrastructure",
+  "variants": {
+    "local": {
+      "execution": {
+        "type": "compose",
+        "file": "infra/compose.yaml",
+        "service": "kafka",
+        "projectName": "injector-shop-demo"
+      },
+      "dependencies": [],
+      "endpoints": {
+        "tcp": {
+          "protocol": "tcp",
+          "bind": {
+            "host": "0.0.0.0",
+            "port": 9092
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19762
+            },
+            "container": {
+              "host": "kafka",
+              "port": 9092
+            }
+          }
+        }
+      },
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 120
+      }
+    }
+  }
+}

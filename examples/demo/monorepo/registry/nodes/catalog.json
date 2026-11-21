@@ -1,0 +1,79 @@
+{
+  "id": "catalog",
+  "kind": "application",
+  "variants": {
+    "local": {
+      "execution": {
+        "type": "process",
+        "workingDirectory": ".",
+        "command": [
+          "java",
+          "-cp",
+          "services/catalog/build/install/catalog/lib/*",
+          "shop.catalog.Main"
+        ]
+      },
+      "dependencies": [
+        "pricing",
+        "redis"
+      ],
+      "endpoints": {
+        "http": {
+          "protocol": "http",
+          "bind": {
+            "host": "127.0.0.1",
+            "port": 19782
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19782,
+              "scheme": "http"
+            }
+          }
+        }
+      },
+      "readiness": {
+        "type": "http",
+        "endpoint": "http",
+        "path": "/health",
+        "timeoutSeconds": 25
+      },
+      "env": {
+        "APP_PORT": "19782"
+      },
+      "injections": [
+        {
+          "channel": "environment",
+          "key": "PRICING_URL",
+          "source": {
+            "node": "pricing",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "REDIS_HOST",
+          "source": {
+            "node": "redis",
+            "endpoint": "tcp",
+            "context": "host",
+            "component": "host"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "REDIS_PORT",
+          "source": {
+            "node": "redis",
+            "endpoint": "tcp",
+            "context": "host",
+            "component": "port"
+          }
+        }
+      ]
+    }
+  }
+}
