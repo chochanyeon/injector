@@ -1,0 +1,42 @@
+{
+  "id": "loki",
+  "kind": "infrastructure",
+  "variants": {
+    "local": {
+      "execution": {
+        "type": "compose",
+        "file": "infra/compose.yaml",
+        "service": "loki",
+        "projectName": "injector-shop-demo"
+      },
+      "dependencies": [],
+      "endpoints": {
+        "http": {
+          "protocol": "http",
+          "bind": {
+            "host": "0.0.0.0",
+            "port": 3100
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19764,
+              "scheme": "http"
+            },
+            "container": {
+              "host": "loki",
+              "port": 3100,
+              "scheme": "http"
+            }
+          }
+        }
+      },
+      "readiness": {
+        "type": "http",
+        "endpoint": "http",
+        "path": "/ready",
+        "timeoutSeconds": 120
+      }
+    }
+  }
+}

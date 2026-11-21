@@ -1,0 +1,40 @@
+{
+  "id": "vault-mock",
+  "kind": "infrastructure",
+  "variants": {
+    "local": {
+      "execution": {
+        "type": "compose",
+        "file": "infra/compose.yaml",
+        "service": "vault-mock",
+        "projectName": "injector-shop-demo"
+      },
+      "dependencies": [],
+      "endpoints": {
+        "http": {
+          "protocol": "http",
+          "bind": {
+            "host": "0.0.0.0",
+            "port": 8080
+          },
+          "addresses": {
+            "host": {
+              "host": "127.0.0.1",
+              "port": 19765,
+              "scheme": "http"
+            },
+            "container": {
+              "host": "vault-mock",
+              "port": 8080,
+              "scheme": "http"
+            }
+          }
+        }
+      },
+      "readiness": {
+        "type": "compose",
+        "timeoutSeconds": 120
+      }
+    }
+  }
+}

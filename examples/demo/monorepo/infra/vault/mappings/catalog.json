@@ -1,0 +1,28 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPath": "/v1/secret/data/catalog",
+    "headers": {
+      "X-Vault-Token": {
+        "equalTo": "shop-local-demo-token"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "data": {
+        "data": {
+          "cacheTtlSeconds": 75
+        },
+        "metadata": {
+          "version": 1
+        }
+      }
+    }
+  }
+}

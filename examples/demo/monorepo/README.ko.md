@@ -2,7 +2,7 @@
 
 [English](README.md) · **한국어** · [Injector](../../../README.ko.md)
 
-JVM 서비스 여섯 개와 공통 Java 라이브러리로 구성한 Gradle 모노레포다. Injector가 서비스는 로컬 Java 프로세스로 실행하고 PostgreSQL·Redis·Kafka·WireMock은 Docker Compose로 준비한다.
+JVM 서비스 여섯 개와 공통 Java 라이브러리로 구성한 Gradle 모노레포다. Injector가 서비스는 로컬 Java 프로세스로 실행하고 PostgreSQL·Redis·Kafka·WireMock·Loki는 Docker Compose로 준비한다.
 
 ```mermaid
 flowchart LR
@@ -12,7 +12,10 @@ flowchart LR
     Inventory --> PostgreSQL
     Pricing -->|real| PricingDB["가격 전용 PostgreSQL"]
     Notifications --> Kafka & Redis
+    Orders & Catalog & Notifications --> Vault["Vault KV v2 (WireMock)"]
 ```
+
+각 Java 서비스는 공용 Loki 노드에 구조화 로그도 보낸다.
 
 | 서비스 | 실제 실행 동작 |
 | --- | --- |
@@ -38,18 +41,40 @@ python injector.py plan storefront --project examples/demo/monorepo --profile re
 python injector.py prepare storefront --project examples/demo/monorepo --profile real
 ```
 
-웹에서 `examples/demo/monorepo`를 프로젝트로 열면 앱·프로필별 그래프를 볼 수 있다. real은 10개 노드를 준비한다. `--profile mock`으로 다시 준비하면 9개로 바뀐다. 새 세션에서 DB·캐시·브로커는 초기 샘플 데이터로 돌아간다.
+웹에서 `examples/demo/monorepo`를 프로젝트로 열면 앱·프로필별 그래프를 볼 수 있다. `real`은 12개 노드를 준비한다. `--profile mock`으로 다시 준비하면 11개로 바뀐다. DB·캐시·브로커·로그 저장소는 세션마다 초기화된다.
 
 ```bash
 curl http://127.0.0.1:19780/items/sample
 curl http://127.0.0.1:19780/items/sample
-curl -X POST http://127.0.0.1:19780/checkout -H 'Content-Type: application/json' --data '{"id":"demo-order","sku":"sample","quantity":2}'
+curl -X POST http://127.0.0.1:19780/checkout -H 'X-Request-Id: shop-checkout-001' -H 'Content-Type: application/json' --data '{"id":"demo-order","sku":"sample","quantity":2}'
 curl http://127.0.0.1:19781/orders/demo-order
 curl http://127.0.0.1:19784/stock/sample
 curl http://127.0.0.1:19780/deliveries/demo-order
 ```
 
-가격 조회는 첫 요청에서 `miss`, 두 번째 요청에서 `hit`다. 주문 합계는 real에서 2598센트, mock에서 1998센트이며 재고는 10개에서 8개로 줄어든다. 같은 주문 ID와 상품·수량으로 재요청하면 저장된 주문을 반환하고 재고는 8개다. Kafka 처리가 끝날 때까지 배송 조회는 404를 반환한다. PowerShell에서 POST를 보내려면 `Invoke-RestMethod -Method Post -ContentType 'application/json' -Body '{"id":"demo-order","sku":"sample","quantity":2}' -Uri 'http://127.0.0.1:19780/checkout'`를 사용한다.
+가격 조회는 첫 요청에서 `miss`, 두 번째 요청에서 `hit`다. 주문 합계는 `real`에서 2598센트, `mock`에서 1998센트이며 재고는 10개에서 8개로 줄어든다. 같은 주문 ID와 상품·수량으로 재요청하면 저장된 주문을 반환하고 재고는 8개다. Kafka 처리가 끝날 때까지 배송 조회는 404를 반환한다. PowerShell에서는 아래 명령으로 주문을 보낸다.
+
+```powershell
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:19780/checkout' `
+  -Headers @{'X-Request-Id' = 'shop-checkout-001'} -ContentType 'application/json' `
+  -Body '{"id":"demo-order","sku":"sample","quantity":2}'
+```
+
+## Vault와 로그
+
+Orders, Catalog, Notifications는 시작할 때 `127.0.0.1:19765`의 `GET /v1/secret/data/<service>`에서 설정을 읽는다. [`infra/vault/mappings/`](infra/vault/mappings/)의 WireMock 응답은 `X-Vault-Token`으로 데모 토큰을 받는다. Catalog와 Notifications는 같은 `cacheTtlSeconds` 키를 읽어 Redis 만료 시간을 각각 75초와 300초로 설정한다. Orders와 Notifications는 각자의 경로에서 `orderTopic`도 읽는다. [Vault KV v2 API](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
+
+Java 서비스는 같은 `X-Request-Id`를 HTTP 호출과 Kafka 메시지에 전달한다. 위 주문을 보낸 뒤 `127.0.0.1:19764`의 Loki에서 요청 ID 하나로 각 서비스의 HTTP 상태, `order_published`, `notification_stored`를 조회할 수 있다. 로그 수집 필드는 경로·상태·서비스 등으로 제한하며 Vault 값, 토큰, HTTP 본문은 수집 대상에서 제외한다. [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/)
+
+```bash
+curl -G 'http://127.0.0.1:19764/loki/api/v1/query_range' \
+  --data-urlencode 'query={app="injector-shop"} | json | requestId="shop-checkout-001"'
+```
+
+```powershell
+$query = [uri]::EscapeDataString('{app="injector-shop"} | json | requestId="shop-checkout-001"')
+(Invoke-RestMethod "http://127.0.0.1:19764/loki/api/v1/query_range?query=$query").data.result | ConvertTo-Json -Depth 8
+```
 
 `python injector.py stop --project examples/demo/monorepo`로 종료한다.
 

@@ -14,7 +14,8 @@
         ]
       },
       "dependencies": [
-        "postgres"
+        "postgres",
+        "loki"
       ],
       "endpoints": {
         "http": {
@@ -42,7 +43,8 @@
         "APP_PORT": "19784",
         "DB_NAME": "shop",
         "DB_USER": "shop",
-        "DB_PASSWORD": "demo-only"
+        "DB_PASSWORD": "demo-only",
+        "SHOP_SERVICE": "inventory"
       },
       "injections": [
         {
@@ -63,6 +65,16 @@
             "endpoint": "tcp",
             "context": "host",
             "component": "port"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "LOKI_URL",
+          "source": {
+            "node": "loki",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
           }
         }
       ]

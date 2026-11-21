@@ -16,12 +16,14 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
 
 public final class Api {
     public static final ObjectMapper JSON = new ObjectMapper();
-    public static final String ORDER_TOPIC = "shop.orders";
-    private static final HttpClient CLIENT = HttpClient.newBuilder()
+    public static final String REQUEST_ID = "X-Request-Id";
+    static final HttpClient CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(2)).version(HttpClient.Version.HTTP_1_1).build();
+    private static final ThreadLocal<String> REQUEST = new ThreadLocal<>();
 
     private Api() {}
 
@@ -44,6 +46,14 @@ public final class Api {
 
     public static String broker() {
         return env("KAFKA_HOST") + ":" + port("KAFKA_PORT");
+    }
+
+    static URI url(String address, String path) {
+        return URI.create(env(address).replaceAll("/+$", "") + path);
+    }
+
+    public static String requestId() {
+        return REQUEST.get();
     }
 
     public static String id(String value) {
@@ -78,8 +88,11 @@ public final class Api {
     }
 
     public static JsonNode request(String address, String path, JsonNode body) throws Exception {
-        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(env(address).replaceAll("/+$", "") + path))
+        HttpRequest.Builder request = HttpRequest.newBuilder(url(address, path))
                 .timeout(Duration.ofSeconds(8));
+        if (requestId() != null) {
+            request.header(REQUEST_ID, requestId());
+        }
         if (body != null) {
             request.header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofByteArray(JSON.writeValueAsBytes(body)));
@@ -102,18 +115,32 @@ public final class Api {
     public static void serve(Route handler) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port("APP_PORT")), 0);
         server.createContext("/", exchange -> {
+            String method = exchange.getRequestMethod();
+            String path = exchange.getRequestURI().getPath();
+            boolean health = method.equals("GET") && path.equals("/health");
+            String incoming = exchange.getRequestHeaders().getFirst(REQUEST_ID);
+            String requestId = incoming != null && incoming.matches("[a-zA-Z0-9_-]{1,80}")
+                    ? incoming : UUID.randomUUID().toString();
+            REQUEST.set(requestId);
+            exchange.getResponseHeaders().set(REQUEST_ID, requestId);
             try (exchange) {
                 try {
-                    if (exchange.getRequestMethod().equals("GET") && exchange.getRequestURI().getPath().equals("/health")) {
+                    if (health) {
                         reply(exchange, 200, Map.of("status", "ready"));
                     } else {
-                        handler.handle(exchange, exchange.getRequestMethod(), exchange.getRequestURI().getPath());
+                        handler.handle(exchange, method, path);
                     }
                 } catch (Problem problem) {
                     reply(exchange, problem.status, Map.of("error", problem.getMessage()));
                 } catch (Exception error) {
                     System.err.println("Demo request failed: " + error.getClass().getSimpleName());
                     reply(exchange, 503, Map.of("error", "Dependency unavailable"));
+                }
+            } finally {
+                REQUEST.remove();
+                if (!health && exchange.getResponseCode() >= 200) {
+                    ShopLog.write("http_request", requestId,
+                            Map.of("method", method, "path", path, "status", exchange.getResponseCode()));
                 }
             }
         });

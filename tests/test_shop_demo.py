@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 import time
 import unittest
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import ProxyHandler, Request, build_opener
 from uuid import uuid4
 
@@ -22,15 +23,17 @@ DEMO = Path(__file__).resolve().parents[1] / "examples" / "demo" / "monorepo"
 
 class ShopPlanTests(unittest.TestCase):
     def test_profiles_preserve_shared_dependencies_and_switch_pricing(self):
-        expected = ["pricing", "redis", "catalog", "postgres", "inventory", "kafka", "orders",
-                    "notifications", "storefront"]
-        for profile, order in (("real", ["pricing-db", *expected]), ("mock", expected)):
+        tail = ["vault-mock", "catalog", "postgres", "inventory", "kafka", "orders",
+                "notifications", "storefront"]
+        for profile, prefix in (("real", ["pricing-db", "loki", "pricing", "redis"]),
+                                ("mock", ["pricing", "redis", "loki"])):
             with self.subTest(profile=profile):
                 _, plan = select_plan(DEMO, "storefront", profile)
-                self.assertEqual(plan["order"], order)
+                self.assertEqual(plan["order"], [*prefix, *tail])
                 steps = {step["node"]: step for step in plan["steps"]}
-                self.assertEqual(steps["orders"]["dependencies"], ["catalog", "inventory", "postgres", "kafka"])
-                self.assertEqual(steps["notifications"]["dependencies"], ["kafka", "redis"])
+                self.assertEqual(steps["orders"]["dependencies"],
+                                 ["catalog", "inventory", "postgres", "kafka", "loki", "vault-mock"])
+                self.assertEqual(steps["notifications"]["dependencies"], ["kafka", "redis", "loki", "vault-mock"])
                 self.assertEqual(steps["pricing"]["runner"], "process" if profile == "real" else "compose")
 
 
@@ -82,10 +85,13 @@ class ShopIntegrationTests(unittest.TestCase):
             ports = copy_with_isolated_ports(project, name)
             opener = build_opener(ProxyHandler({}))
 
-            def request(port, route, data=None):
+            def request(port, route, data=None, headers=None):
                 body = json.dumps(data).encode("utf-8") if data is not None else None
                 uri = f"http://127.0.0.1:{ports[port]}{route}"
-                with opener.open(Request(uri, data=body, headers={"Content-Type": "application/json"}), timeout=15) as response:
+                headers = {"Content-Type": "application/json", **(headers or {})}
+                with opener.open(Request(uri, data=body, headers=headers), timeout=15) as response:
+                    if "X-Request-Id" in headers:
+                        self.assertEqual(response.headers.get("X-Request-Id"), headers["X-Request-Id"])
                     return response.status, json.load(response)
 
             try:
@@ -93,11 +99,21 @@ class ShopIntegrationTests(unittest.TestCase):
                     with self.subTest(profile=profile):
                         result = prepare(project, "storefront", profile)
                         self.assertEqual("pricing-db" in result["order"], profile == "real")
+                        token = {"X-Vault-Token": "shop-local-demo-token"}
+                        for app, ttl in (("catalog", 75), ("notifications", 300)):
+                            _, settings = request(19765, f"/v1/secret/data/{app}", headers=token)
+                            self.assertEqual(settings["data"]["data"]["cacheTtlSeconds"], ttl)
+                        for path, headers, code in (("catalog", None, 403), ("unknown", token, 404)):
+                            with self.assertRaises(HTTPError) as denied:
+                                request(19765, f"/v1/secret/data/{path}", headers=headers)
+                            denied.exception.close()
+                            self.assertEqual(denied.exception.code, code)
                         quote = request(19780, "/items/sample")[1]
                         self.assertEqual((quote["source"], quote["unitCents"], quote["cache"]), (source, price, "miss"))
                         self.assertEqual(request(19780, "/items/sample")[1]["cache"], "hit")
                         checkout = {"id": "demo-order", "sku": "sample", "quantity": 2}
-                        status, order = request(19780, "/checkout", checkout)
+                        request_id = f"shop-{profile}-checkout"
+                        status, order = request(19780, "/checkout", checkout, {"X-Request-Id": request_id})
                         self.assertEqual((status, order["totalCents"]), (201, 2 * price))
                         self.assertEqual(request(19781, "/orders/demo-order")[1], order)
                         self.assertEqual(request(19780, "/checkout", checkout)[1], order)
@@ -118,6 +134,27 @@ class ShopIntegrationTests(unittest.TestCase):
                                     raise
                                 time.sleep(0.25)
                         self.assertEqual((delivery["status"], delivery["order"]), ("delivered", order))
+                        redis = _docker(["ps", "-q", "--filter", f"label=com.docker.compose.project={name}",
+                                         "--filter", "label=com.docker.compose.service=redis"])
+                        for key, ttl in (("shop:catalog:sample", 75), ("shop:delivery:demo-order", 300)):
+                            remaining = int(_docker(["exec", redis, "redis-cli", "TTL", key]))
+                            self.assertGreater(remaining, ttl - 40)
+                            self.assertLessEqual(remaining, ttl)
+
+                        expected_logs = {(service, "http_request")
+                                         for service in ("storefront", "orders", "catalog", "inventory")}
+                        expected_logs.update({("orders", "order_published"), ("notifications", "notification_stored")})
+                        query = '{app="injector-shop"} | json | requestId="' + request_id + '"'
+                        route = "/loki/api/v1/query_range?" + urlencode({"query": query})
+                        deadline = time.monotonic() + 15
+                        while True:
+                            _, logs = request(19764, route)
+                            events = {(stream["stream"]["service"], json.loads(line)["event"])
+                                      for stream in logs["data"]["result"] for _, line in stream["values"]}
+                            if expected_logs <= events or time.monotonic() >= deadline:
+                                break
+                            time.sleep(0.25)
+                        self.assertEqual(expected_logs - events, set())
                 stop(project)
                 output = project / ".local" / "quote.json"
                 result = observe_http(project, "storefront", "mock", project / "scenarios" / "quote.json", output)

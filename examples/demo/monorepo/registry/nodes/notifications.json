@@ -15,7 +15,9 @@
       },
       "dependencies": [
         "kafka",
-        "redis"
+        "redis",
+        "loki",
+        "vault-mock"
       ],
       "endpoints": {
         "http": {
@@ -40,7 +42,9 @@
         "timeoutSeconds": 25
       },
       "env": {
-        "APP_PORT": "19785"
+        "APP_PORT": "19785",
+        "SHOP_SERVICE": "notifications",
+        "VAULT_TOKEN": "shop-local-demo-token"
       },
       "injections": [
         {
@@ -81,6 +85,26 @@
             "endpoint": "tcp",
             "context": "host",
             "component": "port"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "LOKI_URL",
+          "source": {
+            "node": "loki",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "VAULT_URL",
+          "source": {
+            "node": "vault-mock",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
           }
         }
       ]

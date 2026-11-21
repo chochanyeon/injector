@@ -1,0 +1,29 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPath": "/v1/secret/data/notifications",
+    "headers": {
+      "X-Vault-Token": {
+        "equalTo": "shop-local-demo-token"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "data": {
+        "data": {
+          "orderTopic": "shop.orders",
+          "cacheTtlSeconds": 300
+        },
+        "metadata": {
+          "version": 1
+        }
+      }
+    }
+  }
+}

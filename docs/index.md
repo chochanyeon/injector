@@ -40,6 +40,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-250](work-items/T-250.md) | Bring Injector and Verifier into one repository | Complete | Complete | Source history and Gradle tests verified |
 | [T-260](work-items/T-260.md) | Observe and compare one local HTTP dependency | Complete for one edge | Complete | CLI, API and Edge demo verified |
 | [T-270](work-items/T-270.md) | Multi-service shop monorepo demo | Complete | Complete | Windows Docker and JVM integration verified |
+| [T-280](work-items/T-280.md) | Shop demo Vault and log integration | Complete | Complete | Windows Vault settings and HTTP-to-Kafka log correlation verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 

@@ -17,7 +17,9 @@
         "catalog",
         "inventory",
         "postgres",
-        "kafka"
+        "kafka",
+        "loki",
+        "vault-mock"
       ],
       "endpoints": {
         "http": {
@@ -45,7 +47,9 @@
         "APP_PORT": "19781",
         "DB_NAME": "shop",
         "DB_USER": "shop",
-        "DB_PASSWORD": "demo-only"
+        "DB_PASSWORD": "demo-only",
+        "SHOP_SERVICE": "orders",
+        "VAULT_TOKEN": "shop-local-demo-token"
       },
       "injections": [
         {
@@ -106,6 +110,26 @@
             "endpoint": "tcp",
             "context": "host",
             "component": "port"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "LOKI_URL",
+          "source": {
+            "node": "loki",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "VAULT_URL",
+          "source": {
+            "node": "vault-mock",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
           }
         }
       ]

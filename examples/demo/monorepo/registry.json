@@ -10,7 +10,9 @@
     "registry/nodes/postgres.json",
     "registry/nodes/redis.json",
     "registry/nodes/kafka.json",
-    "registry/nodes/pricing-db.json"
+    "registry/nodes/pricing-db.json",
+    "registry/nodes/loki.json",
+    "registry/nodes/vault-mock.json"
   ],
   "profiles": {
     "real": {
@@ -27,7 +29,9 @@
         "postgres": "local",
         "redis": "local",
         "kafka": "local",
-        "pricing-db": "local"
+        "pricing-db": "local",
+        "loki": "local",
+        "vault-mock": "local"
       }
     },
     "mock": {
@@ -43,7 +47,9 @@
         "notifications": "local",
         "postgres": "local",
         "redis": "local",
-        "kafka": "local"
+        "kafka": "local",
+        "loki": "local",
+        "vault-mock": "local"
       }
     }
   }

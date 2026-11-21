@@ -4,7 +4,10 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import shop.common.Api;
+import shop.common.ShopLog;
+import shop.common.VaultSettings;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Map;
@@ -50,6 +53,7 @@ public final class Main {
     }
 
     public static void main(String[] args) throws Exception {
+        String topic = VaultSettings.load().text("orderTopic");
         var producer = new KafkaProducer<String, String>(Map.of(
                 "bootstrap.servers", Api.broker(),
                 "max.block.ms", "6000"), new StringSerializer(), new StringSerializer());
@@ -83,8 +87,10 @@ public final class Main {
                     }
                     var result = order.json(id);
                     if (!order.published()) {
-                        producer.send(new ProducerRecord<>(Api.ORDER_TOPIC, id, Api.JSON.writeValueAsString(result)))
-                                .get(6, TimeUnit.SECONDS);
+                        var event = new ProducerRecord<>(topic, id, Api.JSON.writeValueAsString(result));
+                        event.headers().add(Api.REQUEST_ID, Api.requestId().getBytes(StandardCharsets.UTF_8));
+                        producer.send(event).get(6, TimeUnit.SECONDS);
+                        ShopLog.write("order_published", Api.requestId(), Map.of("orderId", id));
                         try (var mark = db.prepareStatement("UPDATE orders SET published = TRUE WHERE id = ?")) {
                             mark.setString(1, id);
                             mark.executeUpdate();

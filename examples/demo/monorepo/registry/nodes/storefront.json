@@ -17,7 +17,8 @@
         "orders",
         "catalog",
         "notifications",
-        "redis"
+        "redis",
+        "loki"
       ],
       "endpoints": {
         "http": {
@@ -42,7 +43,8 @@
         "timeoutSeconds": 25
       },
       "env": {
-        "APP_PORT": "19780"
+        "APP_PORT": "19780",
+        "SHOP_SERVICE": "storefront"
       },
       "injections": [
         {
@@ -93,6 +95,16 @@
             "endpoint": "tcp",
             "context": "host",
             "component": "port"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "LOKI_URL",
+          "source": {
+            "node": "loki",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
           }
         }
       ]
