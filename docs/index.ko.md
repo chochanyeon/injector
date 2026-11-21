@@ -38,7 +38,7 @@
 | [T-110](work-items/T-110.ko.md) | 다중 앱 통합 검증 | 이식 가능한 샘플 범위 완료 | 완료 | Windows 통합 검증 |
 | [T-120](work-items/T-120.ko.md) | IDE 실행 전 자동 준비 연동 | JVM Application 범위 완료 | 완료 | CLI 회귀와 IDE 종료 코드 동작 검증 |
 | [T-250](work-items/T-250.ko.md) | Injector와 Verifier 저장소 통합 | 완료 | 완료 | 원본 이력과 Gradle 테스트 검증 |
-| [T-260](work-items/T-260.ko.md) | 로컬 HTTP 의존성 하나 관측·비교 | 연결 하나 범위 완료 | 진행 중 | 테스트 대기 |
+| [T-260](work-items/T-260.ko.md) | 로컬 HTTP 의존성 하나 관측·비교 | 연결 하나 범위 완료 | 완료 | CLI·API·Edge 데모 검증 |
 
 완료 표시는 해당 작업에 명시한 범위에 한정된다. POC 완료가 일반화된 앱 등록·DFS 실행까지 완료되었다는 뜻은 아니다. 후속 작업의 설계 초안은 범위·완료 기준을 정한 수준이며 상세 설계 완료가 아니다.
 
@@ -55,7 +55,7 @@
 
 ## 3. 지금 재개한다면
 
-인덱스에 정한 범위의 개발을 완료했다. 다음은 업무 모노레포를 등록하고 macOS에서 가져온 External Tool 구성으로 IntelliJ Debug를 확인하는 것이다. [T-110](work-items/T-110.ko.md) · [T-120](work-items/T-120.ko.md)
+다음은 업무 워크트리 두 곳에서 같은 입력을 관측하고, macOS에서 가져온 External Tool 구성으로 IntelliJ Debug를 확인하는 것이다. [T-260](work-items/T-260.ko.md) · [T-120](work-items/T-120.ko.md)
 
 1. `git status --short --branch`와 최근 커밋을 확인한다. 미커밋 변경의 주체와 범위를 파악한다.
 2. 인덱스에서 작업을 선택하고 그 문서의 설계 → 개발 → 검증 → 재개 지점을 읽는다. 필요한 공통 배경만 아래 참고 자료에서 추가 확인한다.

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Local HTTP dependency observation",
+  "oneOf": [{"$ref": "#/$defs/scenario"}, {"$ref": "#/$defs/observation"}],
+  "$defs": {
+    "name": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.-]+$"},
+    "method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]},
+    "path": {"type": "string", "maxLength": 2048, "pattern": "^/(?!/)[^#\\r\\n]*$"},
+    "route": {"type": "string", "maxLength": 2048, "pattern": "^/(?!/)[^?#\\r\\n]*$"},
+    "pointer": {"type": "string", "maxLength": 256, "pattern": "^(/([^~/]|~[01])*)+$"},
+    "pointers": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"$ref": "#/$defs/pointer"}},
+    "fields": {
+      "type": "object",
+      "maxProperties": 16,
+      "propertyNames": {"$ref": "#/$defs/pointer"},
+      "additionalProperties": {"type": ["string", "number", "boolean", "null"], "maxLength": 2048}
+    },
+    "status": {"type": "integer", "minimum": 200, "maximum": 599},
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "name", "targetEndpoint", "dependency", "dependencyEndpoint", "request"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "name": {"$ref": "#/$defs/name"},
+        "targetEndpoint": {"$ref": "#/$defs/name"},
+        "dependency": {"$ref": "#/$defs/name"},
+        "dependencyEndpoint": {"$ref": "#/$defs/name"},
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["method", "path"],
+          "properties": {
+            "method": {"$ref": "#/$defs/method"},
+            "path": {"$ref": "#/$defs/path"},
+            "json": true
+          }
+        },
+        "requestFields": {"$ref": "#/$defs/pointers"},
+        "responseFields": {"$ref": "#/$defs/pointers"},
+        "targetFields": {"$ref": "#/$defs/pointers"}
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "scenario", "scenarioDigest", "profile", "variants", "edge", "coverage", "target", "calls"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "scenario": {"$ref": "#/$defs/name"},
+        "scenarioDigest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "profile": {"$ref": "#/$defs/name"},
+        "variants": {
+          "type": "object",
+          "minProperties": 2,
+          "propertyNames": {"$ref": "#/$defs/name"},
+          "additionalProperties": {"$ref": "#/$defs/name"}
+        },
+        "edge": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["caller", "dependency", "endpoint"],
+          "properties": {
+            "caller": {"$ref": "#/$defs/name"},
+            "dependency": {"$ref": "#/$defs/name"},
+            "endpoint": {"$ref": "#/$defs/name"}
+          }
+        },
+        "coverage": {"enum": ["observed", "unobserved", "incomplete"]},
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "fields"],
+          "properties": {"status": {"$ref": "#/$defs/status"}, "fields": {"$ref": "#/$defs/fields"}}
+        },
+        "calls": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["method", "path", "status", "requestFields", "responseFields"],
+            "properties": {
+              "method": {"$ref": "#/$defs/method"},
+              "path": {"$ref": "#/$defs/route"},
+              "status": {"$ref": "#/$defs/status"},
+              "requestFields": {"$ref": "#/$defs/fields"},
+              "responseFields": {"$ref": "#/$defs/fields"}
+            }
+          }
+        }
+      },
+      "allOf": [{
+        "if": {"properties": {"coverage": {"const": "observed"}}},
+        "then": {"properties": {"calls": {"minItems": 1}}}
+      }, {
+        "if": {"properties": {"coverage": {"const": "unobserved"}}},
+        "then": {"properties": {"calls": {"maxItems": 0}}}
+      }]
+    }
+  }
+}

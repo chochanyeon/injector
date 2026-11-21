@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "place-order",
+  "targetEndpoint": "http",
+  "dependency": "catalog",
+  "dependencyEndpoint": "http",
+  "request": {"method": "POST", "path": "/orders", "json": {"product": "sample"}},
+  "requestFields": ["/warehouse"],
+  "responseFields": ["/available"],
+  "targetFields": ["/accepted"]
+}

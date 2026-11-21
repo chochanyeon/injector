@@ -2,13 +2,15 @@
 
 **English** · [한국어](README.ko.md)
 
-Injector prepares local dependencies and supplies JVM options, environment variables, and Spring configuration for applications you debug in IntelliJ IDEA.
+Injector prepares local dependencies and supplies JVM options, environment variables, and Spring configuration for applications you debug in IntelliJ IDEA. Verifier compares recorded local behavior and supports Gradle-based Spring upgrade checks. [Verifier guide](verifier/README.md)
 
-Start with the [work index](docs/index.md) when resuming development. Each work item records its design, implementation, verification, and resume point. The repository root contains Injector itself. The Java demo and its Docker files live in `examples/demo/`.
+Start with the [work index](docs/index.md) when resuming development. Each work item records its design, implementation, verification, and resume point. The repository root contains Injector itself. The [HTTP observation demo](examples/demo/http-observation/README.md) exercises recording and comparison.
 
 ```text
 injector/
 ├── injector.py          # Injector CLI
+├── verifier/            # Gradle upgrade checks and observation comparison
+├── schemas/             # Registry and HTTP observation contracts
 ├── tests/               # Injector tests
 ├── docs/                # Design and verification records
 └── examples/demo/       # Example target project

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "nodes": [
+    {
+      "id": "orders",
+      "kind": "application",
+      "variants": {"local": {
+        "execution": {"type": "process", "workingDirectory": ".", "command": ["python", "service.py", "orders"]},
+        "env": {"DEMO_PORT": "19680", "DEMO_WAREHOUSE": {"fromEnv": "INJECTOR_DEMO_WAREHOUSE"}},
+        "dependencies": ["catalog"],
+        "endpoints": {"http": {"protocol": "http", "bind": {"host": "127.0.0.1", "port": 19680},
+          "addresses": {"host": {"host": "127.0.0.1", "port": 19680, "scheme": "http"}}}},
+        "readiness": {"type": "http", "endpoint": "http", "path": "/health", "timeoutSeconds": 10},
+        "injections": [{"channel": "environment", "key": "CATALOG_URL",
+          "source": {"node": "catalog", "endpoint": "http", "context": "host", "component": "url"}}]
+      }}
+    },
+    {
+      "id": "catalog",
+      "kind": "application",
+      "variants": {"local": {
+        "execution": {"type": "process", "workingDirectory": ".", "command": ["python", "service.py", "catalog"]},
+        "env": {"DEMO_PORT": "19681"},
+        "dependencies": [],
+        "endpoints": {"http": {"protocol": "http", "bind": {"host": "127.0.0.1", "port": 19681},
+          "addresses": {"host": {"host": "127.0.0.1", "port": 19681, "scheme": "http"}}}},
+        "readiness": {"type": "http", "endpoint": "http", "path": "/health", "timeoutSeconds": 10}
+      }}
+    }
+  ],
+  "profiles": {"local": {"targets": ["orders"], "selections": {"orders": "local", "catalog": "local"}}}
+}

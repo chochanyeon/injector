@@ -1,16 +1,17 @@
 """Loopback-only control surface for the same runtime used by the CLI."""
 import json
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 import secrets
-from socketserver import TCPServer
 import threading
 from urllib.parse import parse_qs, urlsplit
 from urllib.request import ProxyHandler, build_opener
 import webbrowser
 
 from .folder_picker import choose_project_folder, choose_registry_file
-from .registry import RegistryError, registry_path
+from .loopback import LoopbackHTTPServer
+from .observation_contract import MAX_OBSERVATION_BYTES, decode_document
+from .registry import RegistryError, _parse_json, registry_path
 from .registry_editor import MAX_BYTES, RegistryConflict, open_registry, save_registry, validate_registry
 from .rendering import _artifact_path, _replace_file
 from .runtime import check_requirements, parse_variants, prepare, project_info, select_plan, stop
@@ -18,13 +19,6 @@ from .runtime import check_requirements, parse_variants, prepare, project_info, 
 ASSETS = Path(__file__).resolve().parent / "web"
 REGISTRIES = ASSETS.parent.parent / "registries"
 WEB_SELECTION = ASSETS.parent.parent / ".local" / "web-selection.json"
-
-
-class LoopbackHTTPServer(ThreadingHTTPServer):
-    def server_bind(self):
-        # The numeric loopback address needs no reverse DNS lookup.
-        TCPServer.server_bind(self)
-        self.server_name, self.server_port = self.server_address[:2]
 
 
 class Control:
@@ -231,16 +225,29 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
             if not self.allowed(mutation=True):
                 return
             editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save")
-            if not editor and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop"):
+            comparison = self.path == "/api/observations/compare"
+            if not editor and not comparison and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop"):
                 return self.respond(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 limit = 6 * MAX_BYTES + 16384 if editor else 16384
+                if comparison:
+                    limit = 4 * MAX_OBSERVATION_BYTES + 1024
                 if length <= 0 or length > limit:
                     raise ValueError()
-                body = json.loads(self.rfile.read(length))
+                content = self.rfile.read(length)
+                body = _parse_json(content.decode("utf-8")) if comparison else json.loads(content)
                 if not isinstance(body, dict):
                     raise ValueError()
+                if comparison:
+                    from verifier.compare_observations import compare_observations
+                    baseline = decode_document(body.get("baseline"), "observation")
+                    candidate = decode_document(body.get("candidate"), "observation")
+                    report = compare_observations(baseline, candidate)
+                    for key in ("baseline", "candidate"):
+                        if key in report:
+                            report[key] = json.dumps(report[key], ensure_ascii=False, indent=2)
+                    return self.respond(200, report)
                 action = self.path.rsplit("/", 1)[1]
                 if action == "pick":
                     return self.respond(200, control.pick_project(body))

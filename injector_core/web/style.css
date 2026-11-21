@@ -84,3 +84,13 @@
 .graph-inspector > div:first-child { font-weight: 700; }
 .graph-relations { color: #52645a; font-size: 12px; margin-top: 12px; }
 .graph-relations li { overflow-wrap: anywhere; }
+.graph-observations { margin-top: 16px; color: #25382f; }
+.graph-observations summary { font-weight: 600; }
+.observation-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 10px 0; }
+.observation-columns[hidden] { display: none; }
+.observation-columns h3 { margin: 4px 0; font-size: 13px; }
+.observation-columns pre { margin: 0; padding: 10px; border: 1px solid #dce5de; border-radius: 8px; overflow-wrap: anywhere; white-space: pre-wrap; max-height: 26rem; }
+#observation-changes { padding-left: 20px; overflow-wrap: anywhere; }
+@media (max-width: 550px) {
+  .observation-columns { grid-template-columns: minmax(0, 1fr); }
+}

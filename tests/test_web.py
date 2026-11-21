@@ -9,6 +9,7 @@ from unittest.mock import patch
 from urllib.parse import urlencode
 
 from injector_core.web import make_server
+from test_http_observation import artifact
 from test_runtime import fixture
 
 
@@ -171,6 +172,21 @@ class WebTests(unittest.TestCase):
         status, response = self.request('/api/project?project=%00')
         self.assertEqual(status, 400)
         self.assertIn('error', json.loads(response))
+
+    def test_observation_comparison_preserves_large_json_integers(self):
+        baseline, candidate = artifact(), artifact()
+        baseline["target"]["fields"]["/id"] = 9007199254740992
+        candidate["target"]["fields"]["/id"] = 9007199254740993
+        path = "/api/observations/compare"
+        body = {"baseline": json.dumps(baseline), "candidate": json.dumps(candidate)}
+        self.assertEqual(self.request(path, body)[0], 403)
+        headers = {"X-Injector-Token": json.loads(self.request("/api/info")[1])["token"]}
+        status, response = self.request(path, body, headers)
+        result = json.loads(response)
+        self.assertEqual(status, 200)
+        self.assertEqual(result["verdict"], "FAIL")
+        self.assertIn("9007199254740993", result["candidate"])
+        self.assertEqual(result["changes"], [{"path": "/target/fields/~1id", "kind": "changed"}])
 
     def test_loaded_selection_is_restored_across_server_restarts(self):
         root = Path(self.temporary.name).resolve()

@@ -61,6 +61,20 @@
       <summary>직접 의존성 목록</summary>
       <ul id="graph-direct"></ul>
     </details>
+    <details id="graph-observations" class="graph-observations">
+      <summary>HTTP 관측 비교</summary>
+      <div class="observation-columns">
+        <label>기준선 JSON<input id="observation-baseline" type="file" accept=".json,application/json"></label>
+        <label>현재 JSON<input id="observation-candidate" type="file" accept=".json,application/json"></label>
+      </div>
+      <button id="observation-compare" class="secondary" type="button">관측 결과 비교</button>
+      <p id="observation-status" role="status" class="hint"></p>
+      <ul id="observation-changes" hidden></ul>
+      <div id="observation-details" class="observation-columns" hidden>
+        <section><h3>기준선</h3><pre id="observation-before"></pre></section>
+        <section><h3>현재</h3><pre id="observation-after"></pre></section>
+      </div>
+    </details>
   </details>
   <dialog id="registry-editor" class="card registry-editor" aria-labelledby="registry-title">
     <div class="registry-heading">

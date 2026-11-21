@@ -37,6 +37,8 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Web selection persistence | Implemented | Normal launches restore the last successfully loaded project and registry paths. | T-240 |
 | Registry execution check | Implemented | Checks declared settings and required Compose dependencies. Reports the IntelliJ module and main class for IDE confirmation. | T-220, T-230 |
 | Dependency graph | Partially verified | Profile and app filters and direct connection highlighting. Small and large layout checks remain. | T-180 |
+| Verifier | Integrated | The original Gradle upgrade verifier runs from `verifier/`. | T-250 |
+| HTTP observation | Implemented for one local edge | CLI recording and Verifier comparison, with side-by-side results on the dependency graph. | T-260 |
 | Custom hostnames | Partially verified | Preview, apply, remove, and resolution checks on Windows and macOS. Elevated system application remains. | T-070, T-160 |
 | macOS and Windows launchers | Partially verified | Finder and VBS launchers with CI on both systems. Direct Finder verification remains. | T-160 |
 | Variant overrides | Complete | Request-specific choices apply to the plan, graph, and injection. | T-080 |

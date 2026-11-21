@@ -9,6 +9,7 @@ class DependencyGraph {
     this.nodes = new Map();
     this.links = [];
     this.active = null;
+    this.comparison = null;
     this.scope.addEventListener('change', () => this.refresh());
     root.addEventListener('toggle', () => this.scheduleDraw());
     this.viewport.addEventListener('scroll', () => this.scheduleDraw());
@@ -101,7 +102,7 @@ class DependencyGraph {
       for (const step of stepsInColumn) {
         const node = this.makeNode(step);
         positions.set(step.node, column.children.length - 1);
-        this.nodes.set(step.node, {element: node, rank});
+        this.nodes.set(step.node, {element: node, rank, variant: step.variant});
         column.append(node);
         const item = document.createElement('li');
         item.textContent = `${step.node} → ${step.dependencies.join(', ') || '없음'}`;
@@ -154,8 +155,35 @@ class DependencyGraph {
         item.textContent = value;
         this.inspector.append(item);
       }
+      const edge = this.comparison?.edge;
+      if (edge && (edge.caller === id || edge.dependency === id)
+          && this.links.some(link => this.isCompared(link))) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'secondary';
+        button.textContent = `${edge.caller} → ${edge.dependency} 관측 비교 보기`;
+        button.onclick = () => {
+          const panel = this.panel.querySelector('#graph-observations');
+          panel.open = true;
+          panel.scrollIntoView({block:'nearest'});
+        };
+        this.inspector.append(button);
+      }
     }
     this.scheduleDraw();
+  }
+
+  showComparison(report) {
+    this.comparison = report;
+    this.select(this.active);
+  }
+
+  isCompared(link) {
+    const report = this.comparison;
+    return report?.profile === this.profile && report?.edge?.caller === link.from
+      && report?.edge?.dependency === link.to
+      && report.variants[link.from] === this.nodes.get(link.from)?.variant
+      && report.variants[link.to] === this.nodes.get(link.to)?.variant;
   }
 
   scheduleDraw() {
@@ -203,11 +231,17 @@ class DependencyGraph {
         lanes.set(link, top + 12 + (lanes.size % 5) * 8);
       }
     }
-    const ordered = [...this.links].sort((a, b) => Number(isActive(a)) - Number(isActive(b)));
+    const rank = link => Number(isActive(link)) + 2 * Number(this.isCompared(link));
+    const ordered = [...this.links].sort((a, b) => rank(a) - rank(b));
     for (const link of ordered) {
       const {from, to} = link;
       context.strokeStyle = context.fillStyle = isActive(link) ? '#12644f' : this.active ? '#cad7d0' : '#587a6b';
       context.lineWidth = isActive(link) ? 2.5 : 1.5;
+      if (this.isCompared(link)) {
+        const color = {PASS:'#12644f', FAIL:'#ad4c16', INCONCLUSIVE:'#52645a'}[this.comparison.verdict];
+        context.strokeStyle = context.fillStyle = color;
+        context.lineWidth = 3.5;
+      }
       const source = box.get(from), target = box.get(to);
       const start = source.right - origin.left;
       const end = target.left - origin.left;

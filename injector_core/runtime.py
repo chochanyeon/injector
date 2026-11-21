@@ -1,5 +1,5 @@
 """Execute a validated dependency plan. Persist identities, never resolved values."""
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from copy import deepcopy
 from hashlib import sha256
 import json
@@ -415,7 +415,8 @@ def _wait(variant, alive, healthy):
     raise RegistryError("readiness timed out")
 
 
-def _preflight(data, plan, root, target, registry, *, check_hosts=False, compose_fingerprints=None):
+def _preflight(data, plan, root, target, registry, *, check_hosts=False, compose_fingerprints=None,
+               injection_urls=None):
     profile = plan["profile"]
     nodes = {node["id"]: node for node in data["nodes"]}
     selected = [(step["node"], selected_variant(nodes, data["profiles"][profile], step["node"])[1])
@@ -430,7 +431,8 @@ def _preflight(data, plan, root, target, registry, *, check_hosts=False, compose
         try:
             execution = variant["execution"]
             kind = execution["type"]
-            settings = resolve_node(data, profile, node, defer_spring_env=kind == "intellij")
+            settings = resolve_node(data, profile, node, defer_spring_env=kind == "intellij",
+                                    injection_urls=injection_urls)
             environment = {**os.environ, **settings.env}
             dependencies = {key for dependency in variant["dependencies"] for key in compose_dependencies[dependency]}
             _endpoint(variant)
@@ -546,18 +548,24 @@ def ide_tool(project, target, profile, *, variants=None, registry=None):
 
 
 def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *,
-            variants=None, registry=None, before_launch=None):
+            variants=None, registry=None, before_launch=None, observation=None):
     if target is None:
         raise RegistryError("prepare requires an application target")
     root = Path(project).resolve()
     data, plan = select_plan(root, target, profile, mode, variants=variants, registry=registry)
     profile = plan["profile"]
     directory = _directory(root, registry)
-    with _lock(directory):
+    with _lock(directory), ExitStack() as stack:
+        previous = _session(directory)
+        injection_urls = None
+        if observation is not None:
+            if previous is not None:
+                raise RegistryError("stop the active Injector session before recording an observation")
+            injection_urls = stack.enter_context(observation.proxy(data, plan))
         compose_fingerprints = {} if before_launch is not None else None
         prepared, artifact, write_config = _preflight(data, plan, root, target, registry, check_hosts=True,
-                                                     compose_fingerprints=compose_fingerprints)
-        previous = _session(directory)
+                                                     compose_fingerprints=compose_fingerprints,
+                                                     injection_urls=injection_urls)
         _verify_daemon(previous)
         daemon = _compose_conflicts(prepared, previous, root)
         ide_key = None
@@ -638,6 +646,10 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                 emit({"node": node, "phase": "waiting"})
                 _wait(variant, alive, healthy)
                 emit({"node": node, "phase": "ready"})
+            if observation is not None:
+                recording = observation.capture(plan)
+                _stop(directory, emit)
+                return recording
             result = {"status": "ready", "project": str(root), "profile": profile,
                       "target": target, "order": plan["order"]}
             if ide_key is not None:

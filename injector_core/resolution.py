@@ -114,7 +114,7 @@ def _spring_leaves(value, prefix):
     return [prefix]
 
 
-def resolve_node(data, profile_name, node_id, environ=None, defer_spring_env=False):
+def resolve_node(data, profile_name, node_id, environ=None, defer_spring_env=False, *, injection_urls=None):
     """Accept a validated registry and return actual values plus provenance."""
     if profile_name not in data["profiles"]:
         raise RegistryError(f"unknown profile: {profile_name}")
@@ -154,7 +154,10 @@ def resolve_node(data, profile_name, node_id, environ=None, defer_spring_env=Fal
         endpoint = dependency["endpoints"].get(source["endpoint"])
         if endpoint is None:
             raise RegistryError("injection endpoint is unavailable")
-        maps[channel][key] = _address_value(endpoint, source)
+        address = _address_value(endpoint, source)
+        if injection_urls and source["context"] == "host" and source["component"] == "url":
+            address = injection_urls.get((node_id, source["node"], source["endpoint"]), address)
+        maps[channel][key] = address
         origins[channel][key] = f"nodes/{node_id}/variants/{name}/injections/{index}"
 
     environment = os.environ if environ is None else environ

@@ -88,7 +88,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render",
                                             "vault-demo", "prepare", "stop", "serve", "hosts", "draft-check", "draft-convert",
-                                            "ide-tool"))
+                                            "ide-tool", "observe-http", "compare-http"))
     parser.add_argument("target", nargs="?", help="application ID, draft path, or hosts action")
     parser.add_argument("--variant", action="append", default=[], metavar="NODE=VARIANT")
     parser.add_argument("--mode", choices=("dummy", "real"), help="prepare using a matching registry profile")
@@ -97,7 +97,9 @@ def main():
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
     parser.add_argument("--project", type=Path, help="source project or worktree directory")
     parser.add_argument("--registry", type=Path, help="registry file or a directory containing registry.json")
-    parser.add_argument("--output", type=Path, help="new candidate registry file for draft-convert")
+    parser.add_argument("--output", type=Path, help="new file for draft conversion or an HTTP observation")
+    parser.add_argument("--scenario", type=Path, help="scenario JSON for observe-http")
+    parser.add_argument("--candidate", type=Path, help="current observation file for compare-http")
     parser.add_argument("--expected-config", help="IntelliJ configuration fingerprint for a before-launch prepare")
     parser.add_argument("--node", help="node to resolve or render")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
@@ -107,8 +109,35 @@ def main():
     args = parser.parse_args()
     if args.expected_config is not None and (args.command != "prepare" or not args.expected_config):
         parser.error("--expected-config requires prepare and a configuration fingerprint")
-    if args.output and args.command != "draft-convert":
-        parser.error("--output requires draft-convert")
+    if args.output and args.command not in ("draft-convert", "observe-http"):
+        parser.error("--output requires draft-convert or observe-http")
+    if (args.scenario and args.command != "observe-http") or (args.candidate and args.command != "compare-http"):
+        parser.error("--scenario requires observe-http and --candidate requires compare-http")
+    if args.command in ("observe-http", "compare-http"):
+        from injector_core.registry import RegistryError
+        try:
+            if args.command == "observe-http":
+                if not (args.target and args.project and args.profile and args.scenario and args.output):
+                    parser.error("observe-http requires an app ID, --project, --profile, --scenario and --output")
+                if args.variant or args.mode:
+                    parser.error("observe-http uses the selections from the specified profile")
+                from injector_core.observation import observe_http
+                result = observe_http(args.project, args.target, args.profile, args.scenario, args.output,
+                                      registry=args.registry)
+                print(json.dumps(result, indent=2))
+            else:
+                if not (args.target and args.candidate):
+                    parser.error("compare-http requires a baseline file and --candidate")
+                from verifier.compare_observations import compare_files
+                result = compare_files(args.target, args.candidate)
+                print(json.dumps(result, indent=2))
+                parser.exit({"PASS": 0, "FAIL": 1, "INCONCLUSIVE": 2}[result["verdict"]])
+        except (ValueError, OSError, RecursionError) as error:
+            parser.exit(2, f"Observation failed: {error}\n" if isinstance(error, RegistryError)
+                        else "Observation failed: cannot read or write the HTTP artifact\n")
+        except KeyboardInterrupt:
+            parser.exit(130, "HTTP observation interrupted\n")
+        return
     if args.command in ("draft-check", "draft-convert"):
         if not args.target or (args.command == "draft-convert" and not (args.project and args.output)):
             parser.error("provide a draft path; draft-convert also requires --project and --output")

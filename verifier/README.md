@@ -4,6 +4,8 @@
 
 Verifier compares an application's behavior before and after a dependency upgrade. The Gradle verifier runs on Java 17+ and supports Spring Boot 3.x, Spring MVC, and Jackson 2. It profiles the application classpath, Spring beans and MVC mappings, DTO serialization, selected JSON GET responses, and user-defined probes.
 
+Use `python injector.py compare-http <baseline.json> --candidate <current.json>` from the repository root for two Injector HTTP recordings. [HTTP observation demo](../examples/demo/http-observation/README.md)
+
 ## Verify an application
 
 ```bash

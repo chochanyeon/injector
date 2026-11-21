@@ -9,22 +9,25 @@ const app = fs.readFileSync(path.join(__dirname, '../injector_core/web/app.js'),
 function browser(fetch) {
   const elements = new Map();
   const timers = [];
+  const comparisons = [];
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
-      value: '', textContent: '', children: [], addEventListener() {}, focus() {}, replaceChildren() {}
+      value: '', textContent: '', children: [], addEventListener() {}, focus() {},
+      replaceChildren(...children) { this.children = children; }
     });
     return elements.get(id);
   };
   const context = vm.createContext({
-    document: {getElementById: element},
+    document: {getElementById: element, createElement: () => ({textContent: ''})},
     window: {addEventListener() {}},
-    DependencyGraph: class {},
+    DependencyGraph: class { showComparison(report) { comparisons.push(report); } },
     URLSearchParams,
+    TextDecoder,
     setTimeout: callback => timers.push(callback),
     fetch: (url, options) => url === '/api/info' ? new Promise(() => {}) : fetch(url, options)
   });
   vm.runInContext(app, context);
-  return {element, timers, run: code => vm.runInContext(code, context)};
+  return {element, timers, comparisons, run: code => vm.runInContext(code, context)};
 }
 
 test('a failed status request is retried without starting another job', async () => {
@@ -100,4 +103,25 @@ test('blocked persistence still allows loading the selection read-only', async (
   await page.run('targets = () => {}; load(true)');
   assert.deepEqual(requests, ['/api/project', '/api/project?' + new URLSearchParams(paths)]);
   assert.match(page.element('result').textContent, /경로를 불러왔습니다/);
+});
+
+test('observation comparison displays both recordings and highlights the reported edge', async () => {
+  const before = '{"id":9007199254740992}';
+  const after = '{"id":9007199254740993}';
+  const edge = {caller:'orders', dependency:'catalog', endpoint:'http'};
+  const page = browser(async (url, options) => {
+    assert.equal(url, '/api/observations/compare');
+    assert.deepEqual(JSON.parse(options.body), {baseline:before, candidate:after});
+    return {ok:true, json:async () => ({verdict:'FAIL', profile:'local', edge, baseline:before, candidate:after,
+      changes:[{kind:'changed', path:'/target/fields/~1id'}], changeCount:1})};
+  });
+  const file = text => ({size:text.length, arrayBuffer:async () => new TextEncoder().encode(text)});
+  page.element('observation-baseline').files = [file(before)];
+  page.element('observation-candidate').files = [file(after)];
+  await page.element('observation-compare').onclick();
+  assert.equal(page.element('observation-details').hidden, false);
+  assert.equal(page.element('observation-after').textContent, after);
+  assert.match(page.element('observation-status').textContent, /orders → catalog/);
+  assert.match(page.element('observation-changes').children[0].textContent, /~1id/);
+  assert.deepEqual(page.comparisons.at(-1).edge, edge);
 });

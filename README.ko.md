@@ -2,15 +2,17 @@
 
 [English](README.md) · **한국어**
 
-IntelliJ에서 JVM 애플리케이션을 디버깅하면서 VM 옵션·환경변수를 주입하고, 주변 API와 인프라를 로컬에서 준비하는 실험 프로젝트다.
+Injector는 IntelliJ에서 JVM 앱을 디버깅할 때 VM 옵션·환경변수를 주입하고, 주변 API와 인프라를 로컬에서 준비한다. Verifier는 로컬 관측 결과를 비교하고 Gradle 기반 Spring 업그레이드 검증도 수행한다. [Verifier 가이드](verifier/README.ko.md)
 
 **개발을 재개할 때는 [작업 인덱스](docs/index.ko.md)부터 읽는다.** 각 T-ID 문서 하나에 설계 → 개발 → 검증과 재개 지점을 함께 기록한다. 인덱스에서 작업 순서와 단계별 상태를 확인하고 해당 작업 문서로 이동한다.
 
-저장소 루트는 Injector 자체의 개발 공간이다. Java 데모 앱과 데모 전용 설정·Docker 구성은 `examples/demo/`에 별도 프로젝트로 보관한다.
+저장소 루트는 Injector 자체의 개발 공간이다. `examples/demo/`에 Java와 Docker 예제를 보관한다. [HTTP 관측 데모](examples/demo/http-observation/README.ko.md)에서 기록과 비교를 실행할 수 있다.
 
 ```text
 injector/
 ├── injector.py          # Injector CLI
+├── verifier/            # Gradle 업그레이드 검사와 관측 비교
+├── schemas/             # Registry와 HTTP 관측 스키마
 ├── tests/               # Injector 테스트
 ├── docs/                # 설계·검증 기록
 └── examples/demo/       # Injector를 적용하는 데모 프로젝트

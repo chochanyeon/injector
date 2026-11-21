@@ -38,7 +38,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-110](work-items/T-110.md) | Multi-app integration verification | Complete for the portable fixture | Complete | Windows integration verified |
 | [T-120](work-items/T-120.md) | Automatic preparation before IDE execution | Complete for JVM Application configurations | Complete | CLI regression and IDE exit-code contract verified |
 | [T-250](work-items/T-250.md) | Bring Injector and Verifier into one repository | Complete | Complete | Source history and Gradle tests verified |
-| [T-260](work-items/T-260.md) | Observe and compare one local HTTP dependency | Complete for one edge | In progress | Test pending |
+| [T-260](work-items/T-260.md) | Observe and compare one local HTTP dependency | Complete for one edge | Complete | CLI, API and Edge demo verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 
@@ -55,7 +55,7 @@ Keep decisions and evidence under the same T-ID. Link larger supporting document
 
 ## 3. Resume development
 
-The indexed development items are implemented in their documented scopes. The next verification is onboarding a work monorepo and running the imported External Tool configuration on macOS. See [T-110](work-items/T-110.md) and [T-120](work-items/T-120.md).
+The next verification is recording the same business input in two worktrees, then checking the imported External Tool configuration on macOS. [T-260](work-items/T-260.md) · [T-120](work-items/T-120.md)
 
 1. Check `git status --short --branch` and recent commits. Identify the context of any uncommitted changes.
 2. Choose a T-ID and read it from design through the resume point. Consult the shared references as needed.

@@ -343,6 +343,55 @@ async function checkEditor(action) {
   }
 }
 
+function clearObservationComparison() {
+  $('observation-details').hidden = $('observation-changes').hidden = true;
+  $('observation-status').textContent = '';
+  dependencyGraph.showComparison(null);
+}
+
+async function compareObservations() {
+  const baseline = $('observation-baseline');
+  const candidate = $('observation-candidate');
+  const button = $('observation-compare');
+  const status = $('observation-status');
+  const details = $('observation-details');
+  const changes = $('observation-changes');
+  clearObservationComparison();
+  for (const control of [baseline, candidate, button]) control.disabled = true;
+  try {
+    const files = [baseline.files[0], candidate.files[0]];
+    if (files.some(file => !file || file.size > 2 * 1024 * 1024)) {
+      throw new Error('2 MiB 이하의 관측 JSON 파일을 두 개 선택하세요.');
+    }
+    const [before, after] = await Promise.all(files.map(async file =>
+      new TextDecoder('utf-8', {fatal:true}).decode(await file.arrayBuffer())));
+    const report = await api('/api/observations/compare', {baseline:before, candidate:after});
+    const verdict = {PASS:'일치', FAIL:'차이 발견', INCONCLUSIVE:'판정 보류'}[report.verdict];
+    const edge = report.edge ? ` · ${report.edge.caller} → ${report.edge.dependency} · ${report.profile}` : '';
+    status.textContent = `${verdict}${edge}${report.reason ? ' · ' + report.reason : ''}`;
+    if (report.baseline && report.candidate) {
+      $('observation-before').textContent = report.baseline;
+      $('observation-after').textContent = report.candidate;
+      details.hidden = false;
+    }
+    const entries = report.changes || [];
+    changes.replaceChildren(...entries.map(({path, kind}) => {
+      const item = document.createElement('li');
+      item.textContent = `${{added:'추가', removed:'삭제', changed:'변경'}[kind]} · ${path}`;
+      return item;
+    }));
+    changes.hidden = !changes.children.length;
+    if (report.changeCount > entries.length) status.textContent += ` · 차이 ${report.changeCount}개 중 50개 표시`;
+    dependencyGraph.showComparison(report);
+  } catch (e) {
+    status.textContent = e.message;
+  } finally {
+    for (const control of [baseline, candidate, button]) control.disabled = false;
+  }
+}
+
+$('observation-compare').onclick = compareObservations;
+$('observation-baseline').onchange = $('observation-candidate').onchange = clearObservationComparison;
 $('load').onclick=() => load(true);
 $('pick-project').onclick=() => pickPath('project');
 $('pick-registry').onclick=() => pickPath('registry');
