@@ -42,7 +42,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Variant overrides | Complete | Request-specific choices apply to the plan, graph, and injection. | T-080 |
 | Sessions and recovery | Complete for documented ownership | Checks ports, foreign Compose services, and Docker engine identity. Stops owned resources in reverse order and records cleanup progress. | T-050, T-090 |
 
-`registration-draft.json` is a review artifact. Injector reads the runtime registry format.
+`registration-draft.json` is a review artifact. Convert a reviewed profile into a new runtime candidate with `draft-convert`. [T-100](work-items/T-100.md)
 
 ## 3. Source map
 

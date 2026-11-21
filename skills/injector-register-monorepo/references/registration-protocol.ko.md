@@ -2,7 +2,7 @@
 
 [English](registration-protocol.md) · **한국어**
 
-이 문서는 LLM과 사람이 앱 등록 정보를 조사·검토할 때 사용하는 산출물 계약이다. Injector 실행 엔진의 설정 스키마는 아니다. 자동 등록·주입·기동 기능을 추가할 때 실행용 스키마로 변환하는 단계가 필요하다.
+이 문서는 LLM과 사람이 앱 등록 정보를 조사·검토할 때 사용하는 산출물 계약이다. 검토한 초안은 별도의 실행용 Registry로 변환할 수 있다.
 
 사용자가 검토된 실행용 registry의 작성·갱신을 요청하면 [실행 등록 관리 가이드](runtime-registry-guide.ko.md)를 함께 따른다. 이 조사 초안 계약과 실제 실행 스키마의 필드를 섞지 않는다.
 
@@ -102,3 +102,14 @@ JAR 라이브러리 참조만으로 앱 간 런타임 의존성을 만들지 않
 - hosts/DNS 변경, 설정 적용, 앱 실행을 이미 수행한 것으로 잘못 보고하지 않았는가?
 
 질문은 미확인 대상 앱, 프로필, 의존성 식별, 포트·호스트 충돌처럼 실행 계획을 막는 항목부터 묶어서 제시한다. 답변과 무관하게 조사할 수 있는 앱은 계속 정리한다.
+
+## 검토한 초안 변환
+
+```text
+python injector.py draft-check <registration-draft.json>
+python injector.py draft-convert <registration-draft.json> --project <소스-워크트리> --output <새-후보.json>
+```
+
+선택한 프로필 하나와 그 프로필에서 도달하는 노드를 변환한다. 실행 스키마의 readiness 필드를 채운다. IntelliJ는 `projectPath`, `module`, `mainClass`, 프로세스는 `workingDirectory`와 `command`, Compose는 `file`, `service`, `projectName`을 사용한다. 모든 주입 소스에 `component`(`url`, `host`, `port`)를 지정한다. 실행 설정에는 `environment`, `vmOptions`, `vmProperties`, `springProperties`를 넣을 수 있다. 쓰지 않는 채널은 생략한다.
+
+범위의 각 노드와 연결에 근거를 붙이고, 소스 상대 파일·줄과 기대 `startupOrder`를 확인한다. 검토가 끝나지 않은 값과 발견 사항은 초안에 유지한다. 변환 결과는 노드별 `local` variant가 있는 새 Registry다. 기존 파일과 후보를 비교한 뒤 변경을 반영한다.

@@ -86,8 +86,9 @@ def compile_java():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render", "vault-demo", "prepare", "stop", "serve", "hosts"))
-    parser.add_argument("target", nargs="?", help="application ID for prepare or plan, or preview/apply/remove for hosts")
+    parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render",
+                                            "vault-demo", "prepare", "stop", "serve", "hosts", "draft-check", "draft-convert"))
+    parser.add_argument("target", nargs="?", help="application ID, draft path, or hosts action")
     parser.add_argument("--variant", action="append", default=[], metavar="NODE=VARIANT")
     parser.add_argument("--mode", choices=("dummy", "real"), help="prepare using a matching registry profile")
     parser.add_argument("--port", type=int, default=18770, help="local UI port (serve only)")
@@ -95,12 +96,27 @@ def main():
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
     parser.add_argument("--project", type=Path, help="source project or worktree directory")
     parser.add_argument("--registry", type=Path, help="registry file or a directory containing registry.json")
+    parser.add_argument("--output", type=Path, help="new candidate registry file for draft-convert")
     parser.add_argument("--node", help="node to resolve or render")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
     parser.add_argument("--main-docker", action="store_true", help="also start the main app in Docker (up only)")
     parser.add_argument("--with-vault", action="store_true", help="include the local Vault API mock in demo setup")
     parser.add_argument("--vault-service", help="service name for the local Vault secret path; enables the Vault mock")
     args = parser.parse_args()
+    if args.output and args.command != "draft-convert":
+        parser.error("--output requires draft-convert")
+    if args.command in ("draft-check", "draft-convert"):
+        if not args.target or (args.command == "draft-convert" and not (args.project and args.output)):
+            parser.error("provide a draft path; draft-convert also requires --project and --output")
+        from injector_core.registration import run_registration
+        from injector_core.registry import RegistryError
+        try:
+            print(json.dumps(run_registration(args.command, args.target, args.project, args.output), indent=2))
+        except RegistryError as error:
+            parser.exit(1, f"Invalid registration: {error}\n")
+        except (OSError, UnicodeError, RecursionError):
+            parser.exit(1, "Injector failed: cannot read the draft or write the candidate registry\n")
+        return
     if args.registry is not None and (args.project is None or args.command not in
             ("validate", "resolve", "render", "plan", "prepare", "stop", "serve", "hosts")):
         parser.error("--registry requires --project and a registry command")

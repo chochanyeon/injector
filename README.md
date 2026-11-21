@@ -273,7 +273,7 @@ Use the [registration skill](skills/injector-register-monorepo/SKILL.md) and [dr
 
 For a first registration, identify runnable apps, then trace the selected app's infrastructure and application dependencies. For Spring apps, verify which sources actually apply to the selected execution mode. [Monorepo discovery guide](skills/injector-register-monorepo/references/monorepo-initialization.md) · [Spring configuration checklist](skills/injector-register-monorepo/references/spring-configuration-audit.md)
 
-For reviewed runtime changes, use the [runtime registry guide](skills/injector-register-monorepo/references/runtime-registry-guide.md). Trace consumers, profiles, and JVM flags to select the right injection channel. Check the schema before editing, then use `validate`, `plan`, `resolve`, and `render` as appropriate. Automatic conversion of a draft is planned separately.
+For reviewed runtime changes, trace consumers, profiles, and JVM flags to select the right injection channel. Use `draft-check` to review a discovery draft and `draft-convert` to produce a new candidate from a reviewed profile. Use `validate`, `plan`, `resolve`, and `render` as appropriate. [Runtime registry guide](skills/injector-register-monorepo/references/runtime-registry-guide.md) · [Conversion steps](skills/injector-register-monorepo/references/registration-protocol.md#convert-a-reviewed-draft)
 
 ```text
 Read skills/injector-register-monorepo/SKILL.md.

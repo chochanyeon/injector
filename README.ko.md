@@ -288,7 +288,7 @@ python injector.py render --project examples/spring-config --profile local --nod
 
 처음 적용할 때는 실행 앱을 식별하고 대상 앱의 인프라와 앱 간 연결을 순서대로 조사한다. Spring 앱은 선택한 실행 방식에서 실제로 적용되는 설정 출처를 함께 추적한다. [모노레포 탐색 가이드](skills/injector-register-monorepo/references/monorepo-initialization.ko.md) · [Spring 설정 조사 체크리스트](skills/injector-register-monorepo/references/spring-configuration-audit.ko.md)
 
-검토된 실행용 registry를 작성·수정하는 요청에는 [AI 실행 등록 관리 가이드](skills/injector-register-monorepo/references/runtime-registry-guide.ko.md)를 사용한다. 앱의 읽는 코드·YAML profile·VM 옵션을 추적해 채널을 구분하고, 실제 스키마 확인 → 변경 → validate/plan/resolve/render 검증 순서로 관리하도록 했다. LLM 초안 자동 변환 엔진은 아직 없다.
+앱을 읽는 코드, YAML 프로필, VM 옵션을 추적해 주입 채널을 정한다. `draft-check`로 초안을 확인하고 `draft-convert`로 검토한 프로필에서 새 실행 후보를 만든다. 이후 `validate`, `plan`, `resolve`, `render`로 확인한다. [실행 등록 관리 가이드](skills/injector-register-monorepo/references/runtime-registry-guide.ko.md) · [변환 절차](skills/injector-register-monorepo/references/registration-protocol.ko.md#검토한-초안-변환)
 
 예시 요청:
 

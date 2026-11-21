@@ -32,3 +32,5 @@ When updating, preserve node IDs and user-confirmed values. Report differences i
 ## Completion
 
 Check JSON, references, file and line evidence, and DFS order. Set `startupOrder` to `null` when cycles or unknown edges prevent ordering and record the reason. Keep partial findings and exact questions for unresolved inputs. For runtime registration, compare the actual `plan` to the intended local scenario and report remaining configuration or startup checks separately.
+
+Use `draft-check` to review the draft. After the user has resolved the blockers and chosen the runtime settings, use `draft-convert` to produce a new candidate without replacing existing settings. See [conversion](references/registration-protocol.md#convert-a-reviewed-draft).

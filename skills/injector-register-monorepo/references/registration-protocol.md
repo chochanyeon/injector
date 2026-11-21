@@ -94,3 +94,14 @@ Record method, path, KV version, mount, header names, envelope, read keys, and t
 - Report only actions actually performed, including hosts changes, settings application, and app startup.
 
 Group questions by the blockers that affect the plan, such as app selection, profiles, dependency identity, ports, and host conflicts. Continue independent discovery while waiting.
+
+## Convert a reviewed draft
+
+```text
+python injector.py draft-check <registration-draft.json>
+python injector.py draft-convert <registration-draft.json> --project <source-worktree> --output <new-candidate.json>
+```
+
+Conversion handles one reviewed profile and its reachable nodes. Use the full readiness shape from the runtime schema. Supply `projectPath`, `module`, and `mainClass` for IntelliJ, `workingDirectory` and `command` for a process, or `file`, `service`, and `projectName` for Compose. Add the runtime `component` (`url`, `host`, or `port`) to every injection source. Execution settings for the reviewed launch may include `environment`, `vmOptions`, `vmProperties`, and `springProperties`. Omit unused channels. Leave unconfirmed inputs unresolved and keep their findings until reviewed.
+
+Add evidence for every in-scope node and edge, check source-relative locations, and supply the expected `startupOrder`. The converter writes a new runtime registry using variant `local` for each reviewed node. Keep evidence in the draft. Review the candidate alongside existing files before applying changes.

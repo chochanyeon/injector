@@ -33,4 +33,6 @@ description: Initialize Injector registration for a monorepo or update an existi
 
 ## 완료 기준
 
+`draft-check`로 초안을 검사한다. 사용자가 차단 항목과 실행 설정을 확정한 뒤 `draft-convert`로 새 후보 파일을 만든다. 기존 설정은 유지한다. [변환 절차](references/registration-protocol.ko.md#검토한-초안-변환)를 참고한다.
+
 JSON 파싱, 참조 무결성, 근거 경로·줄의 유효성, 선택한 그래프의 DFS 순서를 확인한다. 순환이나 미확인 의존성 때문에 순서를 확정할 수 없으면 `startupOrder`를 `null`로 두고 원인을 기록한다. 일부만 확인됐어도 조사 결과와 구체적인 질문을 남긴다. 실행용 등록에서는 실제 `plan`을 의도한 로컬 시나리오와 대조하고 남은 설정·기동 검증을 따로 알린다.
