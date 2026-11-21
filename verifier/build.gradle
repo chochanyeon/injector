@@ -1,0 +1,28 @@
+plugins {
+    id 'java'
+}
+
+repositories { mavenCentral() }
+
+// Standalone demonstration only. The injector never applies this BOM to a target service.
+dependencies {
+    implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.7')
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'commons-codec:commons-codec:1.18.0'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+ext.set('verify.application', 'upgrade.fixture.SampleApplication')
+sourceSets.main.java {
+    srcDir 'src/test/java'
+    include 'upgrade/fixture/**'
+}
+sourceSets.test.java.exclude 'upgrade/fixture/**'
+if (!providers.gradleProperty('verify.tool.home').isPresent()) {
+    apply from: 'upgrade-verifier.gradle'
+}

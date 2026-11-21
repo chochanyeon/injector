@@ -1,0 +1,72 @@
+import groovy.json.JsonOutput
+import org.gradle.api.tasks.testing.Test
+
+def applicationRuntime = configurations.runtimeClasspath
+def injectedHome = providers.gradleProperty('verify.tool.home').orNull
+def verifierSources = sourceSets.test
+if (injectedHome) {
+    verifierSources = sourceSets.create('upgradeVerification') {
+        java.setSrcDirs([new File(injectedHome, 'src/test/java')])
+        resources.setSrcDirs([])
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+    configurations[verifierSources.implementationConfigurationName].extendsFrom(configurations.implementation)
+    configurations[verifierSources.compileOnlyConfigurationName].extendsFrom(configurations.compileOnly)
+    configurations[verifierSources.runtimeOnlyConfigurationName].extendsFrom(configurations.runtimeOnly)
+    configurations[verifierSources.runtimeClasspathConfigurationName].shouldResolveConsistentlyWith(applicationRuntime)
+}
+
+def verifierRuntime = configurations[verifierSources.runtimeClasspathConfigurationName]
+def verifierImplementation = verifierSources.implementationConfigurationName
+dependencies {
+    add(verifierImplementation, platform('org.junit:junit-bom:5.11.4'))
+    add(verifierImplementation, 'org.junit.jupiter:junit-jupiter')
+    add(verifierSources.runtimeOnlyConfigurationName, 'org.junit.platform:junit-platform-launcher')
+    add(verifierImplementation, 'io.github.classgraph:classgraph:4.8.179')
+    // Resolve lazily so other projects finish registering their dependencies first.
+    addProvider(verifierImplementation, providers.provider {
+        def spring = applicationRuntime.incoming.resolutionResult.allComponents
+                .collect { it.moduleVersion }
+                .find { it?.group == 'org.springframework' && it.name == 'spring-core' }
+        if (spring == null) throw new GradleException('The selected module must contain Spring MVC / Spring Boot')
+        "org.springframework:spring-test:${spring.version}".toString()
+    })
+}
+
+tasks.named('test', Test) {
+    if (injectedHome) {
+        testClassesDirs = verifierSources.output.classesDirs
+        classpath = verifierSources.runtimeClasspath
+        ignoreFailures = false
+    }
+    useJUnitPlatform()
+    // Mode and baseline are inputs outside normal Gradle test tracking: always execute.
+    outputs.upToDateWhen { false }
+    outputs.cacheIf { false }
+    doFirst {
+        def verifierProperties = project.properties.findAll { k, v -> k.startsWith('verify.') }
+        verifierProperties.each { k, v -> systemProperty k, v.toString() }
+        if (project.hasProperty('baseline.path')) {
+            systemProperty 'baseline.path', project.property('baseline.path').toString()
+        }
+        // Gradle's test worker java.class.path is incomplete; pass the actual task classpath.
+        def coordinates = [:]
+        verifierRuntime.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+            def id = artifact.moduleVersion.id
+            coordinates[artifact.file.canonicalPath] = [group: id.group, artifact: artifact.name, version: id.version]
+        }
+        def testFiles = classpath.files.collect { it.canonicalPath } as Set
+        def missing = applicationRuntime.files.collect { it.canonicalPath }.findAll { !testFiles.contains(it) }
+        if (!missing.isEmpty()) {
+            throw new GradleException("Application runtime artifacts missing from verifier classpath: ${missing}")
+        }
+        def entries = testFiles.collect { file ->
+            [file: file] + (coordinates[file] ?: [:])
+        }
+        def metadata = new File(temporaryDir, 'verifier-classpath.json')
+        metadata.parentFile.mkdirs()
+        metadata.text = JsonOutput.toJson(entries)
+        systemProperty 'verify.classpath.file', metadata.absolutePath
+    }
+}
