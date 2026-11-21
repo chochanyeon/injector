@@ -41,6 +41,7 @@
 | [T-260](work-items/T-260.ko.md) | 로컬 HTTP 의존성 하나 관측·비교 | 연결 하나 범위 완료 | 완료 | CLI·API·Edge 데모 검증 |
 | [T-270](work-items/T-270.ko.md) | 다중 서비스 쇼핑몰 모노레포 데모 | 완료 | 완료 | Windows Docker·JVM 통합 검증 |
 | [T-280](work-items/T-280.ko.md) | 쇼핑몰 데모의 Vault·로그 연동 | 완료 | 완료 | Windows에서 Vault 설정과 HTTP·Kafka 로그 연결 검증 |
+| [T-290](work-items/T-290.ko.md) | 쇼핑몰 전체 서비스의 Vault 설정 | 완료 | 완료 | 두 프로필의 서비스별 시작 조회 검증 |
 
 완료 표시는 해당 작업에 명시한 범위에 한정된다. POC 완료가 일반화된 앱 등록·DFS 실행까지 완료되었다는 뜻은 아니다. 후속 작업의 설계 초안은 범위·완료 기준을 정한 수준이며 상세 설계 완료가 아니다.
 

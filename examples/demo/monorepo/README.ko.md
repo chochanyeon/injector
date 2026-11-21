@@ -12,7 +12,7 @@ flowchart LR
     Inventory --> PostgreSQL
     Pricing -->|real| PricingDB["가격 전용 PostgreSQL"]
     Notifications --> Kafka & Redis
-    Orders & Catalog & Notifications --> Vault["Vault KV v2 (WireMock)"]
+    Storefront & Orders & Catalog & Pricing & Inventory & Notifications --> Vault["Vault KV v2 (WireMock)"]
 ```
 
 각 Java 서비스는 공용 Loki 노드에 구조화 로그도 보낸다.
@@ -62,7 +62,18 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:19780/checkout' `
 
 ## Vault와 로그
 
-Orders, Catalog, Notifications는 시작할 때 `127.0.0.1:19765`의 `GET /v1/secret/data/<service>`에서 설정을 읽는다. [`infra/vault/mappings/`](infra/vault/mappings/)의 WireMock 응답은 `X-Vault-Token`으로 데모 토큰을 받는다. Catalog와 Notifications는 같은 `cacheTtlSeconds` 키를 읽어 Redis 만료 시간을 각각 75초와 300초로 설정한다. Orders와 Notifications는 각자의 경로에서 `orderTopic`도 읽는다. [Vault KV v2 API](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
+애플리케이션 여섯 개는 모두 시작할 때 `GET /v1/secret/data/<service>`에서 설정을 읽는다. Java 프로세스는 `127.0.0.1:19765`를 사용한다. `mock`의 Pricing 대역은 Compose 네트워크의 `vault-mock:8080`에 접속한다. [`infra/vault/mappings/`](infra/vault/mappings/)의 응답은 `X-Vault-Token`으로 데모 토큰을 받는다. [Vault KV v2 API](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
+
+| 서비스 경로 끝부분 | 사용하는 설정 |
+| --- | --- |
+| `storefront` | Redis 주문 횟수 카운터의 `checkoutCounterKey` |
+| `orders` | Kafka 발행 토픽 `orderTopic` |
+| `catalog` | 가격 캐시 만료 시간 `cacheTtlSeconds` 75초 |
+| `pricing` | `real`의 DB 사용자 `dbUser`, `mock`의 대역 가격 `mockUnitCents` |
+| `inventory` | 재고 조회용 DB 사용자 `dbUser` |
+| `notifications` | Kafka 구독 토픽 `orderTopic`, 배송 상태 만료 시간 `cacheTtlSeconds` 300초 |
+
+`mock`의 가격을 바꿔 보려면 Pricing 응답 파일의 `mockUnitCents`를 수정한 뒤 새 데모 세션을 시작한다. 가격 조회와 주문 합계에 새 값이 반영된다. [WireMock 응답 템플릿](https://wiremock.org/docs/response-templating/)
 
 Java 서비스는 같은 `X-Request-Id`를 HTTP 호출과 Kafka 메시지에 전달한다. 위 주문을 보낸 뒤 `127.0.0.1:19764`의 Loki에서 요청 ID 하나로 각 서비스의 HTTP 상태, `order_published`, `notification_stored`를 조회할 수 있다. 로그 수집 필드는 경로·상태·서비스 등으로 제한하며 Vault 값, 토큰, HTTP 본문은 수집 대상에서 제외한다. [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/)
 

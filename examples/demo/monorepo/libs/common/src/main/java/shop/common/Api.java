@@ -40,8 +40,12 @@ public final class Api {
     }
 
     public static Connection database() throws SQLException {
+        return database(env("DB_USER"));
+    }
+
+    public static Connection database(String user) throws SQLException {
         String url = "jdbc:postgresql://" + env("DB_HOST") + ":" + port("DB_PORT") + "/" + env("DB_NAME");
-        return DriverManager.getConnection(url, env("DB_USER"), env("DB_PASSWORD"));
+        return DriverManager.getConnection(url, user, env("DB_PASSWORD"));
     }
 
     public static String broker() {

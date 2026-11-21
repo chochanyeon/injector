@@ -15,7 +15,8 @@
       },
       "dependencies": [
         "postgres",
-        "loki"
+        "loki",
+        "vault-mock"
       ],
       "endpoints": {
         "http": {
@@ -42,9 +43,9 @@
       "env": {
         "APP_PORT": "19784",
         "DB_NAME": "shop",
-        "DB_USER": "shop",
         "DB_PASSWORD": "demo-only",
-        "SHOP_SERVICE": "inventory"
+        "SHOP_SERVICE": "inventory",
+        "VAULT_TOKEN": "shop-local-demo-token"
       },
       "injections": [
         {
@@ -72,6 +73,16 @@
           "key": "LOKI_URL",
           "source": {
             "node": "loki",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "VAULT_URL",
+          "source": {
+            "node": "vault-mock",
             "endpoint": "http",
             "context": "host",
             "component": "url"

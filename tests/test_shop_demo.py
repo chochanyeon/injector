@@ -19,18 +19,20 @@ from test_runtime import free_port
 
 
 DEMO = Path(__file__).resolve().parents[1] / "examples" / "demo" / "monorepo"
+SERVICES = {"storefront", "orders", "catalog", "pricing", "inventory", "notifications"}
 
 
 class ShopPlanTests(unittest.TestCase):
     def test_profiles_preserve_shared_dependencies_and_switch_pricing(self):
-        tail = ["vault-mock", "catalog", "postgres", "inventory", "kafka", "orders",
-                "notifications", "storefront"]
-        for profile, prefix in (("real", ["pricing-db", "loki", "pricing", "redis"]),
-                                ("mock", ["pricing", "redis", "loki"])):
+        tail = ["catalog", "postgres", "inventory", "kafka", "orders", "notifications", "storefront"]
+        for profile, prefix in (("real", ["pricing-db", "loki", "vault-mock", "pricing", "redis"]),
+                                ("mock", ["vault-mock", "pricing", "redis", "loki"])):
             with self.subTest(profile=profile):
                 _, plan = select_plan(DEMO, "storefront", profile)
                 self.assertEqual(plan["order"], [*prefix, *tail])
                 steps = {step["node"]: step for step in plan["steps"]}
+                for service in sorted(SERVICES):
+                    self.assertIn("vault-mock", steps[service]["dependencies"], service)
                 self.assertEqual(steps["orders"]["dependencies"],
                                  ["catalog", "inventory", "postgres", "kafka", "loki", "vault-mock"])
                 self.assertEqual(steps["notifications"]["dependencies"], ["kafka", "redis", "loki", "vault-mock"])
@@ -83,6 +85,14 @@ class ShopIntegrationTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             project = Path(temporary).resolve() / "shop checkout"
             ports = copy_with_isolated_ports(project, name)
+            mock_price = 1149
+            counter_key = "shop:test-checkout-count"
+            for app, setting, value in (("pricing", "mockUnitCents", mock_price),
+                                        ("storefront", "checkoutCounterKey", counter_key)):
+                fixture_path = project / "infra" / "vault" / "mappings" / f"{app}.json"
+                fixture = json.loads(fixture_path.read_bytes())
+                fixture["response"]["jsonBody"]["data"]["data"][setting] = value
+                fixture_path.write_text(json.dumps(fixture), encoding="utf-8")
             opener = build_opener(ProxyHandler({}))
 
             def request(port, route, data=None, headers=None):
@@ -95,10 +105,14 @@ class ShopIntegrationTests(unittest.TestCase):
                     return response.status, json.load(response)
 
             try:
-                for profile, source, price in (("real", "postgres", 1299), ("mock", "wiremock", 999)):
+                for profile, source, price in (("real", "postgres", 1299), ("mock", "wiremock", mock_price)):
                     with self.subTest(profile=profile):
                         result = prepare(project, "storefront", profile)
                         self.assertEqual("pricing-db" in result["order"], profile == "real")
+                        _, journal = request(19765, "/__admin/requests")
+                        self.assertEqual({entry["request"]["url"] for entry in journal["requests"]
+                                          if entry["request"]["url"].startswith("/v1/secret/data/")},
+                                         {f"/v1/secret/data/{service}" for service in SERVICES})
                         token = {"X-Vault-Token": "shop-local-demo-token"}
                         for app, ttl in (("catalog", 75), ("notifications", 300)):
                             _, settings = request(19765, f"/v1/secret/data/{app}", headers=token)
@@ -136,6 +150,7 @@ class ShopIntegrationTests(unittest.TestCase):
                         self.assertEqual((delivery["status"], delivery["order"]), ("delivered", order))
                         redis = _docker(["ps", "-q", "--filter", f"label=com.docker.compose.project={name}",
                                          "--filter", "label=com.docker.compose.service=redis"])
+                        self.assertEqual(_docker(["exec", redis, "redis-cli", "GET", counter_key]), "2")
                         for key, ttl in (("shop:catalog:sample", 75), ("shop:delivery:demo-order", 300)):
                             remaining = int(_docker(["exec", redis, "redis-cli", "TTL", key]))
                             self.assertGreater(remaining, ttl - 40)
@@ -160,7 +175,7 @@ class ShopIntegrationTests(unittest.TestCase):
                 result = observe_http(project, "storefront", "mock", project / "scenarios" / "quote.json", output)
                 self.assertEqual((result["coverage"], result["calls"]), ("observed", 1))
                 recording = json.loads(output.read_bytes())
-                self.assertEqual(recording["calls"][0]["responseFields"], {"/source": "wiremock", "/unitCents": 999})
+                self.assertEqual(recording["calls"][0]["responseFields"], {"/source": "wiremock", "/unitCents": mock_price})
                 self.assertFalse((runtime_directory(project) / "session.json").exists())
             finally:
                 stop(project)

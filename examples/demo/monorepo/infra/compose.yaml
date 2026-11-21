@@ -71,6 +71,13 @@ services:
 
   pricing-mock:
     image: wiremock/wiremock:3.13.2
+    environment: [VAULT_URL, VAULT_TOKEN]
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        config=$$(curl -fsS --max-time 5 -H "X-Vault-Token: $$VAULT_TOKEN" "$${VAULT_URL%/}/v1/secret/data/pricing")
+        export MOCK_PRICING_CONFIG="$$config"
+        exec /docker-entrypoint.sh --permitted-system-keys '^MOCK_PRICING_CONFIG$$'
     ports: ["127.0.0.1:19786:8080"]
     volumes: ["./wiremock:/home/wiremock:ro"]
     healthcheck:

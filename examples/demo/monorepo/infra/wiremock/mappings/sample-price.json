@@ -3,6 +3,7 @@
   "response": {
     "status": 200,
     "headers": {"Content-Type": "application/json"},
-    "jsonBody": {"sku": "sample", "unitCents": 999, "source": "wiremock"}
+    "body": "{\"sku\":\"sample\",\"unitCents\":{{jsonPath (systemValue key='MOCK_PRICING_CONFIG') '$.data.data.mockUnitCents'}},\"source\":\"wiremock\"}",
+    "transformers": ["response-template"]
   }
 }

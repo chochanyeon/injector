@@ -12,7 +12,7 @@ flowchart LR
     Inventory --> PostgreSQL
     Pricing -->|real| PricingDB["Pricing PostgreSQL"]
     Notifications --> Kafka & Redis
-    Orders & Catalog & Notifications --> Vault["Vault KV v2 (WireMock)"]
+    Storefront & Orders & Catalog & Pricing & Inventory & Notifications --> Vault["Vault KV v2 (WireMock)"]
 ```
 
 Each Java service also sends structured events to the shared Loki node.
@@ -62,7 +62,18 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:19780/checkout' `
 
 ## Vault and logs
 
-Orders, Catalog, and Notifications load configuration from `GET /v1/secret/data/<service>` on `127.0.0.1:19765` at startup. The WireMock fixtures under [`infra/vault/mappings/`](infra/vault/mappings/) expect the demo token in `X-Vault-Token`. Catalog and Notifications read the same `cacheTtlSeconds` key and apply different Redis TTLs of 75 and 300 seconds. Orders and Notifications read `orderTopic` from their own paths. [Vault KV v2 API](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
+All six applications load settings at startup from `GET /v1/secret/data/<service>`. The Java processes use `127.0.0.1:19765`. The Pricing stub in `mock` uses `vault-mock:8080` on the Compose network. The fixtures under [`infra/vault/mappings/`](infra/vault/mappings/) expect the demo token in `X-Vault-Token`. [Vault KV v2 API](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)
+
+| Service path suffix | Settings used |
+| --- | --- |
+| `storefront` | `checkoutCounterKey` for the Redis metrics counter |
+| `orders` | `orderTopic` for publishing to Kafka |
+| `catalog` | `cacheTtlSeconds` of 75 seconds for prices |
+| `pricing` | `dbUser` in `real` and `mockUnitCents` in `mock` |
+| `inventory` | `dbUser` for stock queries |
+| `notifications` | `orderTopic` for consuming Kafka events and `cacheTtlSeconds` of 300 seconds for delivery status |
+
+To try a different `mock` price, change `mockUnitCents` in the Pricing fixture and start a fresh demo session. The stub's quote and the checkout total use the new value. [WireMock response templating](https://wiremock.org/docs/response-templating/)
 
 The Java services carry `X-Request-Id` through HTTP and Kafka. After the checkout above, query Loki at `127.0.0.1:19764` for HTTP status events, `order_published`, and `notification_stored` under the same ID. Loki receives structured events with route, status, and service metadata. Vault values, tokens, and HTTP bodies are outside the collected fields. [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/)
 

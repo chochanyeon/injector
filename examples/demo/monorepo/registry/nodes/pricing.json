@@ -15,7 +15,8 @@
       },
       "dependencies": [
         "pricing-db",
-        "loki"
+        "loki",
+        "vault-mock"
       ],
       "endpoints": {
         "http": {
@@ -42,9 +43,9 @@
       "env": {
         "APP_PORT": "19783",
         "DB_NAME": "shop",
-        "DB_USER": "shop",
         "DB_PASSWORD": "demo-only",
-        "SHOP_SERVICE": "pricing"
+        "SHOP_SERVICE": "pricing",
+        "VAULT_TOKEN": "shop-local-demo-token"
       },
       "injections": [
         {
@@ -76,6 +77,16 @@
             "context": "host",
             "component": "url"
           }
+        },
+        {
+          "channel": "environment",
+          "key": "VAULT_URL",
+          "source": {
+            "node": "vault-mock",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
+          }
         }
       ]
     },
@@ -86,7 +97,9 @@
         "service": "pricing-mock",
         "projectName": "injector-shop-demo"
       },
-      "dependencies": [],
+      "dependencies": [
+        "vault-mock"
+      ],
       "endpoints": {
         "http": {
           "protocol": "http",
@@ -111,7 +124,22 @@
       "readiness": {
         "type": "compose",
         "timeoutSeconds": 120
-      }
+      },
+      "env": {
+        "VAULT_TOKEN": "shop-local-demo-token"
+      },
+      "injections": [
+        {
+          "channel": "environment",
+          "key": "VAULT_URL",
+          "source": {
+            "node": "vault-mock",
+            "endpoint": "http",
+            "context": "container",
+            "component": "url"
+          }
+        }
+      ]
     }
   }
 }

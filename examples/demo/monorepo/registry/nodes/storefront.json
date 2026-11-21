@@ -18,7 +18,8 @@
         "catalog",
         "notifications",
         "redis",
-        "loki"
+        "loki",
+        "vault-mock"
       ],
       "endpoints": {
         "http": {
@@ -44,7 +45,8 @@
       },
       "env": {
         "APP_PORT": "19780",
-        "SHOP_SERVICE": "storefront"
+        "SHOP_SERVICE": "storefront",
+        "VAULT_TOKEN": "shop-local-demo-token"
       },
       "injections": [
         {
@@ -102,6 +104,16 @@
           "key": "LOKI_URL",
           "source": {
             "node": "loki",
+            "endpoint": "http",
+            "context": "host",
+            "component": "url"
+          }
+        },
+        {
+          "channel": "environment",
+          "key": "VAULT_URL",
+          "source": {
+            "node": "vault-mock",
             "endpoint": "http",
             "context": "host",
             "component": "url"
