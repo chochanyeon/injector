@@ -194,14 +194,15 @@ def run_registration(command, draft, project, output=None):
     requested = Path(output)
     destination = requested.parent.resolve() / requested.name
     registry, plan = convert_draft(data, root, destination)
+    payload = (json.dumps(registry, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
-        handle = destination.open("x", encoding="utf-8", newline="\n")
+        handle = destination.open("xb")
     except FileExistsError as error:
         raise RegistryError("output already exists; choose a new candidate file to review") from error
     try:
         with handle:
-            handle.write(json.dumps(registry, ensure_ascii=False, indent=2) + "\n")
+            handle.write(payload)
     except OSError:
         destination.unlink(missing_ok=True)
         raise

@@ -77,3 +77,9 @@ class RegistrationTests(unittest.TestCase):
         with self.assertRaisesRegex(RegistryError, "host port conflicts"):
             self.convert()
         self.assertFalse(self.output.exists())
+
+    def test_invalid_output_encoding_does_not_create_candidate(self):
+        self.draft["nodes"][0]["execution"]["environment"] = {"LOCAL_NOTE": "\ud800"}
+        with self.assertRaises(UnicodeEncodeError):
+            self.convert()
+        self.assertFalse(self.output.exists())
