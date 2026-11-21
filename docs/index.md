@@ -2,7 +2,7 @@
 
 **English** · [한국어](index.ko.md)
 
-Last updated November 21, 2026. Each T-ID groups design, development, verification, and the point at which to resume.
+Last updated November 22, 2026. Each T-ID groups design, development, verification, and the point at which to resume.
 
 ## 1. Work items
 
@@ -43,6 +43,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-280](work-items/T-280.md) | Shop demo Vault and log integration | Complete | Complete | Windows Vault settings and HTTP-to-Kafka log correlation verified |
 | [T-290](work-items/T-290.md) | Vault settings for every shop service | Complete | Complete | Six startup reads verified in both profiles |
 | [T-300](work-items/T-300.md) | Review fixes for execution and comparison | Complete | Complete | Five regressions and both shop profiles verified |
+| [T-310](work-items/T-310.md) | Compare one HTTP scenario across worktrees | Complete | Complete | Live Git worktree comparison verified on Windows |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 
@@ -59,7 +60,7 @@ Keep decisions and evidence under the same T-ID. Link larger supporting document
 
 ## 3. Resume development
 
-The next verification is recording the same business input in two worktrees, then checking the imported External Tool configuration on macOS. [T-260](work-items/T-260.md) · [T-120](work-items/T-120.md)
+The next verification is using the paired command on a work monorepo and checking the imported External Tool configuration on macOS. [T-310](work-items/T-310.md) · [T-120](work-items/T-120.md)
 
 1. Check `git status --short --branch` and recent commits. Identify the context of any uncommitted changes.
 2. Choose a T-ID and read it from design through the resume point. Consult the shared references as needed.

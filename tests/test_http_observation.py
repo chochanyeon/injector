@@ -121,6 +121,61 @@ class HTTPObservationTests(unittest.TestCase):
             finally:
                 stop(self.project)
 
+    def test_compares_checkouts_sequentially_using_the_same_registry_and_ports(self):
+        with TemporaryDirectory() as folder:
+            candidate = Path(folder) / "candidate checkout"
+            shutil.copytree(self.project, candidate)
+            registry = self.project / "registry.json"
+            args = ("compare-worktrees", "orders", "--project", self.project, "--candidate-project", candidate,
+                    "--registry", registry, "--profile", "local", "--scenario", self.project / "scenario.json")
+            matching = self.cli(*args, "--output", self.project / "matching")
+            self.assertEqual(matching.returncode, 0, matching.stderr)
+            self.assertEqual(json.loads(matching.stdout)["verdict"], "PASS")
+
+            service = candidate / "service.py"
+            content = service.read_text(encoding="utf-8").replace('os.environ["DEMO_WAREHOUSE"]', '"busan"')
+            service.write_text(content, encoding="utf-8")
+            changed = self.cli(*args, "--output", self.project / "changed")
+            self.assertEqual(changed.returncode, 1, changed.stderr)
+            report = json.loads(changed.stdout)
+            self.assertEqual(report["changes"], [{"path": "/calls/0/requestFields/~1warehouse", "kind": "changed"}])
+            for side, checkout in (("baseline", self.project), ("candidate", candidate)):
+                self.assertFalse((runtime_directory(checkout, registry) / "session.json").exists())
+                self.assertEqual(Path(report["artifacts"][side]), self.project / "changed" / f"{side}.json")
+            before = json.loads(Path(report["artifacts"]["baseline"]).read_bytes())
+            after = json.loads(Path(report["artifacts"]["candidate"]).read_bytes())
+            self.assertEqual(before["scenarioDigest"], after["scenarioDigest"])
+            self.assertEqual(before["target"], after["target"])
+
+    def test_worktree_comparison_protects_existing_output_and_candidate_session(self):
+        with TemporaryDirectory() as folder:
+            candidate = Path(folder) / "candidate"
+            shutil.copytree(self.project, candidate)
+            args = ("compare-worktrees", "orders", "--project", self.project, "--candidate-project", candidate,
+                    "--profile", "local", "--scenario", self.project / "scenario.json")
+            output = self.project / "capture"
+            output.mkdir()
+            sentinel = output / "baseline.json"
+            sentinel.write_bytes(b"existing")
+            existing = self.cli(*args, "--output", output)
+            self.assertEqual(existing.returncode, 2)
+            self.assertIn("output directory already exists", existing.stderr)
+            self.assertEqual(sentinel.read_bytes(), b"existing")
+
+            with patch.dict(os.environ, {"INJECTOR_DEMO_WAREHOUSE": "seoul"}):
+                prepare(candidate, "orders", "local")
+            session = runtime_directory(candidate) / "session.json"
+            try:
+                original = session.read_bytes()
+                blocked = self.cli(*args, "--output", self.project / "blocked")
+                self.assertEqual(blocked.returncode, 2)
+                self.assertIn("candidate: stop the active Injector session", blocked.stderr)
+                self.assertFalse((self.project / "blocked").exists())
+                self.assertFalse(runtime_directory(self.project).exists())
+                self.assertEqual(session.read_bytes(), original)
+            finally:
+                stop(candidate)
+
     def test_unrecorded_fields_and_incompatible_plans_have_distinct_results(self):
         candidate = artifact()
         candidate["calls"][0]["requestFields"]["/optional"] = None

@@ -21,3 +21,15 @@ Load `examples/demo/http-observation` in Injector's web UI. Open **HTTP 관측 �
 The recorder uses one process target, one declared host URL injection, literal loopback HTTP addresses, and one synchronous JSON scenario. Use a quiet test environment because the recorder attributes calls to the active time window. It captures the method, path, status, and explicitly selected scalar JSON fields. It limits each exchange body to 1 MiB and each observation to 16 calls and 2 MiB. Stop any active Injector session for the same worktree and registry before recording. The recording stops its own session on completion. Choose a new output filename when repeating the steps. To compare actual worktrees, run the same scenario and profile in each checkout with equivalent starting data. [Scenario and observation schema](../../../schemas/http-observation-v1.schema.json)
 
 Set `"requestQuery": ["warehouse"]` in the scenario to capture the `warehouse` query parameter on the dependency call. Repeated values stay in request order and blank values are retained. A call with a query and no query policy makes the observation incomplete. Set `"requestQuery": []` to intentionally ignore query parameters. Record both sides again after changing the scenario.
+
+## Compare two worktrees
+
+Pass the two existing project directories and one scenario. The command records the baseline, stops its session, and then records the candidate. Both runs can reuse the same host ports.
+
+```text
+python injector.py compare-worktrees orders --project "path/to/baseline" --candidate-project "path/to/candidate" --profile local --scenario "path/to/scenario.json" --output .local/observations/worktree-comparison
+```
+
+By default each worktree uses its own `registry.json`. Add `--registry registries/my-repo` to share one registry. Build both checkouts as required by their registry and use equivalent starting data. Named volumes and external dependencies keep their usual state.
+
+Use a new output directory for each run. The command saves `baseline.json` and `candidate.json` there and prints the Verifier report and artifact paths to standard output. Load the two files into the web comparison to inspect the graph edge. If a later run fails, any completed recording stays in the output directory. The exit codes match `compare-http`.

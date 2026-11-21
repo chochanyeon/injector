@@ -4,7 +4,7 @@
 
 Injector prepares local dependencies and supplies JVM options, environment variables, and Spring configuration for applications you debug in IntelliJ IDEA. Verifier compares recorded local behavior and supports Gradle-based Spring upgrade checks. [Verifier guide](verifier/README.md)
 
-Start with the [work index](docs/index.md) when resuming development. Each work item records its design, implementation, verification, and resume point. The repository root contains Injector itself. The [HTTP observation demo](examples/demo/http-observation/README.md) exercises recording and comparison.
+Start with the [work index](docs/index.md) when resuming development. Each work item records its design, implementation, verification, and resume point. The repository root contains Injector itself. The HTTP observation demo shows how to record a dependency and compare the same scenario across two worktrees. [HTTP observation demo](examples/demo/http-observation/README.md)
 
 The [shop monorepo demo](examples/demo/monorepo/README.md) exercises six JVM services, shared PostgreSQL and Redis, Kafka delivery, WireMock for pricing and Vault KV v2, and correlated application logs in Loki.
 

@@ -14,7 +14,7 @@ from .loopback import LoopbackHTTPServer
 from .observation_contract import MAX_OBSERVATION_BYTES, read_document, validate_document
 from .registry import RegistryError, _parse_json
 from .resolution import _address_value, selected_variant
-from .runtime import prepare
+from .runtime import check_observation_idle, prepare, select_plan
 
 
 _MAX_BODY = 1024 * 1024
@@ -137,8 +137,7 @@ class HTTPObservation:
                 self.failed = True
             self.calls.append(call)
 
-    @contextmanager
-    def proxy(self, data, plan):
+    def _route(self, data, plan):
         caller = plan["targets"][0]
         dependency, endpoint = self.scenario["dependency"], self.scenario["dependencyEndpoint"]
         nodes = {node["id"]: node for node in data["nodes"]}
@@ -151,8 +150,13 @@ class HTTPObservation:
             raise RegistryError("the observed dependency needs a host URL injection on the target")
         _, provider = selected_variant(nodes, profile, dependency)
         self.target = _endpoint_url(application, self.scenario["targetEndpoint"])
-        upstream = _endpoint_url(provider, endpoint)
         self.edge = {"caller": caller, "dependency": dependency, "endpoint": endpoint}
+        return _endpoint_url(provider, endpoint)
+
+    @contextmanager
+    def proxy(self, data, plan):
+        upstream = self._route(data, plan)
+        caller, dependency, endpoint = (self.edge[key] for key in ("caller", "dependency", "endpoint"))
         observation = self
 
         class Proxy(BaseHTTPRequestHandler):
@@ -239,12 +243,10 @@ class HTTPObservation:
             "target": {"status": status, "fields": fields}}, "observation")
 
 
-def observe_http(project, target, profile, scenario_path, output, *, registry=None):
-    scenario = read_document(Path(scenario_path), "scenario")
-    destination = Path(output)
+def _record_http(project, target, profile, observation, destination, registry):
     if destination.exists() or destination.is_symlink():
         raise RegistryError("observation output already exists")
-    result = prepare(project, target, profile, registry=registry, observation=HTTPObservation(scenario))
+    result = prepare(project, target, profile, registry=registry, observation=observation)
     payload = (json.dumps(result, ensure_ascii=False, allow_nan=False, indent=2) + "\n").encode("utf-8")
     if len(payload) > MAX_OBSERVATION_BYTES:
         raise RegistryError("HTTP observation exceeds the 2 MiB file limit")
@@ -257,3 +259,48 @@ def observe_http(project, target, profile, scenario_path, output, *, registry=No
         destination.unlink(missing_ok=True)
         raise
     return {"output": str(destination), "coverage": result["coverage"], "calls": len(result["calls"])}
+
+
+def observe_http(project, target, profile, scenario_path, output, *, registry=None):
+    scenario = read_document(Path(scenario_path), "scenario")
+    return _record_http(project, target, profile, HTTPObservation(scenario), Path(output), registry)
+
+
+def compare_worktrees(project, candidate, target, profile, scenario_path, output, *, registry=None,
+                      emit=lambda side: None):
+    from verifier.compare_observations import compare_files
+
+    baseline, candidate = Path(project).resolve(), Path(candidate).resolve()
+    if not baseline.is_dir() or not candidate.is_dir():
+        raise RegistryError("baseline and candidate must be existing project directories")
+    if baseline.samefile(candidate):
+        raise RegistryError("baseline and candidate must be different project directories")
+    destination = Path(output)
+    if destination.exists() or destination.is_symlink():
+        raise RegistryError("comparison output directory already exists")
+    scenario = read_document(Path(scenario_path), "scenario")
+    checkouts = {"baseline": baseline, "candidate": candidate}
+    observations = {}
+    for side, checkout in checkouts.items():
+        try:
+            data, plan = select_plan(checkout, target, profile, registry=registry)
+            observation = HTTPObservation(scenario)
+            observation._route(data, plan)
+            check_observation_idle(checkout, registry=registry)
+            observations[side] = observation
+        except RegistryError as error:
+            raise RegistryError(f"{side}: {error}") from error
+
+    try:
+        destination.mkdir(parents=True)
+    except FileExistsError as error:
+        raise RegistryError("comparison output directory already exists") from error
+    artifacts = {side: destination / f"{side}.json" for side in checkouts}
+    for side, checkout in checkouts.items():
+        try:
+            emit(side)
+            _record_http(checkout, target, profile, observations[side], artifacts[side], registry)
+        except RegistryError as error:
+            raise RegistryError(f"{side}: {error}") from error
+    report = compare_files(artifacts["baseline"], artifacts["candidate"])
+    return {**report, "artifacts": {side: str(path) for side, path in artifacts.items()}}

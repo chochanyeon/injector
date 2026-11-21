@@ -2,7 +2,7 @@
 
 [English](README.md) · **한국어** · [Injector](../README.ko.md)
 
-Injector에서 기록한 HTTP 파일 두 개는 루트에서 `python injector.py compare-http <baseline.json> --candidate <current.json>`으로 비교한다. [HTTP 관측 데모](../examples/demo/http-observation/README.ko.md)
+Injector에서 기록한 HTTP 파일 두 개는 루트에서 `python injector.py compare-http <baseline.json> --candidate <current.json>`으로 비교한다. `compare-worktrees`는 기존 워크트리 두 개에서 같은 시나리오를 실행해 기록과 비교를 한 번에 수행한다. [HTTP 관측 데모](../examples/demo/http-observation/README.ko.md)
 
 의존성 업그레이드 전 **HEAD**와 변경 후 **현재 작업 디렉터리**에서 같은 검증 코드를 실행하는 로컬 POC다. 특정 라이브러리의 API를 하드코딩하지 않는다. 검증 항목이 모두 같으면 `PASS` / exit 0, 하나라도 다르거나 실행을 완료하지 못하면 `FAIL` / exit 1이다. stdout에는 판정 한 줄만 출력하며 Gradle 로그와 실패 원인은 stderr / JUnit 리포트에 남긴다.
 

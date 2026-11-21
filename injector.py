@@ -88,7 +88,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render",
                                             "vault-demo", "prepare", "stop", "serve", "hosts", "draft-check", "draft-convert",
-                                            "ide-tool", "observe-http", "compare-http"))
+                                            "ide-tool", "observe-http", "compare-http", "compare-worktrees"))
     parser.add_argument("target", nargs="?", help="application ID, draft path, or hosts action")
     parser.add_argument("--variant", action="append", default=[], metavar="NODE=VARIANT")
     parser.add_argument("--mode", choices=("dummy", "real"), help="prepare using a matching registry profile")
@@ -97,9 +97,10 @@ def main():
     parser.add_argument("--profile", help="profile name; legacy demo commands default to mock")
     parser.add_argument("--project", type=Path, help="source project or worktree directory")
     parser.add_argument("--registry", type=Path, help="registry file or a directory containing registry.json")
-    parser.add_argument("--output", type=Path, help="new file for draft conversion or an HTTP observation")
-    parser.add_argument("--scenario", type=Path, help="scenario JSON for observe-http")
+    parser.add_argument("--output", type=Path, help="new file for draft conversion or observe-http, new directory for compare-worktrees")
+    parser.add_argument("--scenario", type=Path, help="scenario JSON for observe-http or compare-worktrees")
     parser.add_argument("--candidate", type=Path, help="current observation file for compare-http")
+    parser.add_argument("--candidate-project", type=Path, help="candidate checkout directory for compare-worktrees")
     parser.add_argument("--expected-config", help="IntelliJ configuration fingerprint for a before-launch prepare")
     parser.add_argument("--node", help="node to resolve or render")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
@@ -109,11 +110,15 @@ def main():
     args = parser.parse_args()
     if args.expected_config is not None and (args.command != "prepare" or not args.expected_config):
         parser.error("--expected-config requires prepare and a configuration fingerprint")
-    if args.output and args.command not in ("draft-convert", "observe-http"):
-        parser.error("--output requires draft-convert or observe-http")
-    if (args.scenario and args.command != "observe-http") or (args.candidate and args.command != "compare-http"):
-        parser.error("--scenario requires observe-http and --candidate requires compare-http")
-    if args.command in ("observe-http", "compare-http"):
+    if args.output and args.command not in ("draft-convert", "observe-http", "compare-worktrees"):
+        parser.error("--output requires draft-convert, observe-http or compare-worktrees")
+    if args.scenario and args.command not in ("observe-http", "compare-worktrees"):
+        parser.error("--scenario requires observe-http or compare-worktrees")
+    if args.candidate and args.command != "compare-http":
+        parser.error("--candidate requires compare-http")
+    if args.candidate_project and args.command != "compare-worktrees":
+        parser.error("--candidate-project requires compare-worktrees")
+    if args.command in ("observe-http", "compare-http", "compare-worktrees"):
         from injector_core.registry import RegistryError
         try:
             if args.command == "observe-http":
@@ -124,13 +129,22 @@ def main():
                 from injector_core.observation import observe_http
                 result = observe_http(args.project, args.target, args.profile, args.scenario, args.output,
                                       registry=args.registry)
-                print(json.dumps(result, indent=2))
-            else:
+            elif args.command == "compare-http":
                 if not (args.target and args.candidate):
                     parser.error("compare-http requires a baseline file and --candidate")
                 from verifier.compare_observations import compare_files
                 result = compare_files(args.target, args.candidate)
-                print(json.dumps(result, indent=2))
+            else:
+                if not (args.target and args.project and args.candidate_project and args.profile and args.scenario and args.output):
+                    parser.error("compare-worktrees requires an app ID, --project, --candidate-project, --profile, --scenario and --output")
+                if args.variant or args.mode or args.node or args.open or args.infra or args.main_docker or args.with_vault or args.vault_service:
+                    parser.error("compare-worktrees uses the selections from the specified profile")
+                from injector_core.observation import compare_worktrees
+                result = compare_worktrees(args.project, args.candidate_project, args.target, args.profile,
+                                           args.scenario, args.output, registry=args.registry,
+                                           emit=lambda side: print(f"Recording {side} checkout", file=sys.stderr, flush=True))
+            print(json.dumps(result, indent=2))
+            if args.command != "observe-http":
                 parser.exit({"PASS": 0, "FAIL": 1, "INCONCLUSIVE": 2}[result["verdict"]])
         except (ValueError, OSError, RecursionError) as error:
             parser.exit(2, f"Observation failed: {error}\n" if isinstance(error, RegistryError)

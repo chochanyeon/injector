@@ -25,6 +25,7 @@ from .rendering import _artifact_path, plan_render
 from .resolution import resolve_node, selected_variant
 
 _processes = {}
+_active_observation_error = "stop the active Injector session before recording an observation"
 _docker_connection_keys = ("DOCKER_CONTEXT", "DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_TLS",
                            "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_API_VERSION",
                            "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH")
@@ -297,6 +298,14 @@ def stop(project, emit=lambda event: None, *, registry=None):
             for directory in directories:
                 _stop(directory, emit)
     return {"status": "stopped", "project": str(Path(project).resolve())}
+
+
+def check_observation_idle(project, *, registry=None):
+    """Check one checkout before a paired recording. Prepare checks again under the runtime lock."""
+    if runtime_directory(project, registry).is_dir():
+        with _locked_directories(project, registry) as directories:
+            if any(_session(directory) is not None for directory in directories):
+                raise RegistryError(_active_observation_error)
 
 
 def _endpoint(variant):
@@ -596,7 +605,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
         injection_urls = None
         if observation is not None:
             if previous is not None:
-                raise RegistryError("stop the active Injector session before recording an observation")
+                raise RegistryError(_active_observation_error)
             injection_urls = stack.enter_context(observation.proxy(data, plan))
         compose_fingerprints = {} if before_launch is not None else None
         prepared, artifact, write_config = _preflight(data, plan, root, target, registry, check_hosts=True,

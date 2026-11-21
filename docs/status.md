@@ -2,7 +2,7 @@
 
 **English** · [한국어](status.ko.md)
 
-Last updated November 21, 2026. See the [work index](index.md) and individual work items for design and verification details.
+Last updated November 22, 2026. See the [work index](index.md) and individual work items for design and verification details.
 
 ## 1. Current stage
 
@@ -38,7 +38,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Registry execution check | Implemented | Checks declared settings and required Compose dependencies. Reports the IntelliJ module and main class for IDE confirmation. | T-220, T-230 |
 | Dependency graph | Partially verified | Profile and app filters and direct connection highlighting. Small and large layout checks remain. | T-180 |
 | Verifier | Integrated | The original Gradle upgrade verifier runs from `verifier/`. | T-250 |
-| HTTP observation | Implemented for one local edge | CLI recording and Verifier comparison, with side-by-side results on the dependency graph. | T-260 |
+| HTTP observation | Implemented for one local edge | CLI recording, paired worktree execution, and Verifier comparison with side-by-side results on the dependency graph. | T-260, T-310 |
 | Shop monorepo demo | Implemented | Six Gradle JVM modules run with shared infrastructure and replaceable pricing. | T-270 |
 | Shop demo Vault and logs | Implemented | All six apps read their own Vault path, including both Pricing variants. One Loki query finds related checkout HTTP and Kafka events by request ID. | T-280, T-290 |
 | Execution and comparison review fixes | Implemented | Default registry session identity, Compose port validation, local process diagnostics, selected HTTP query values, and original array indexes for Verifier exclusions. | T-300 |
