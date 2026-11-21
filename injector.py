@@ -87,7 +87,7 @@ def compile_java():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render",
-                                            "vault-demo", "prepare", "stop", "serve", "hosts", "draft-check", "draft-convert",
+                                            "vault-demo", "check", "prepare", "stop", "serve", "hosts", "draft-check", "draft-convert",
                                             "ide-tool", "observe-http", "compare-http", "compare-worktrees"))
     parser.add_argument("target", nargs="?", help="application ID, draft path, or hosts action")
     parser.add_argument("--variant", action="append", default=[], metavar="NODE=VARIANT")
@@ -165,10 +165,10 @@ def main():
             parser.exit(1, "Injector failed: cannot read the draft or write the candidate registry\n")
         return
     if args.registry is not None and (args.project is None or args.command not in
-            ("validate", "resolve", "render", "plan", "prepare", "stop", "serve", "hosts", "ide-tool")):
+            ("validate", "resolve", "render", "plan", "check", "prepare", "stop", "serve", "hosts", "ide-tool")):
         parser.error("--registry requires --project and a registry command")
-    if args.variant and (args.command not in ("prepare", "plan", "ide-tool") or not args.target):
-        parser.error("--variant requires prepare, plan or ide-tool with an application ID")
+    if args.variant and (args.command not in ("check", "prepare", "plan", "ide-tool") or not args.target):
+        parser.error("--variant requires check, prepare, plan or ide-tool with an application ID")
     if args.command == "ide-tool":
         if not (args.target and args.project and args.profile) or args.mode or args.node or args.open or args.infra \
                 or args.main_docker or args.with_vault or args.vault_service:
@@ -198,16 +198,23 @@ def main():
         except OSError:
             parser.exit(1, "Injector failed: could not read or update the hosts file\n")
         return
-    if args.target and args.command != "prepare" and not (args.command == "plan" and args.project):
-        parser.error("target requires prepare or plan with --project")
+    if args.target and args.command not in ("check", "prepare") and not (args.command == "plan" and args.project):
+        parser.error("target requires check, prepare or plan with --project")
     if args.mode and args.command != "prepare":
         parser.error("--mode is supported only with prepare")
-    if args.command in ("prepare", "stop", "serve"):
+    if args.command in ("check", "prepare", "stop", "serve"):
         if args.infra or args.main_docker or args.with_vault or args.vault_service or args.node:
-            parser.error("prepare, stop and serve do not accept legacy demo options")
+            parser.error("check, prepare, stop and serve do not accept legacy demo options")
         from injector_core.registry import RegistryError
         try:
-            if args.command == "serve":
+            if args.command == "check":
+                if not (args.target and args.profile) or args.open:
+                    parser.error("check requires an application ID and --profile")
+                from injector_core.runtime import check_requirements, parse_variants
+                result = check_requirements(args.project or Path.cwd(), args.target, args.profile,
+                                            variants=parse_variants(args.variant), registry=args.registry)
+                print(json.dumps(result, indent=2))
+            elif args.command == "serve":
                 from injector_core.web import serve
                 serve(args.project or DEMO, args.port, args.open, registry=args.registry,
                       restore_selection=args.project is None)

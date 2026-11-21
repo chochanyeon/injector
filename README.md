@@ -65,6 +65,8 @@ Stop the app in the IDE before changing profiles. Preparing again replaces resou
 
 Use **Check registry execution requirements** (**Registry 실행 조건 검사**) before preparing to check the selected app, profile, variants, and their dependencies. The result identifies the first blocker in the declared settings or execution definitions. The check leaves services and generated files untouched. Prepare still checks host resolution, port conflicts, and service readiness.
 
+`python injector.py check platform-service --project examples/demo --profile dummy` runs the same check from the CLI. Pass `--registry` for a shared registry and `--variant NODE=VARIANT` to test an override. Success prints the execution order and any IntelliJ metadata as JSON. A failed check reports the first blocker and exits with code 1.
+
 Register each required Compose `depends_on` service in the calling node's dependency graph. For each registered host endpoint, the checker compares its port and transport with the service's fixed publication. With host networking, the host and bind ports must agree. Compose configuration and startup both receive the node's resolved environment. For an IntelliJ target, the check reports the module and main class for confirmation in the imported IDE project.
 
 Selecting the source folder's own `registry.json` explicitly uses the same execution session as leaving the Registry field empty. When a managed process exits before readiness, the error identifies the node and the path to its local diagnostic file when available. The file retains the last 64 KiB of process output and can contain application data. The browser and CLI show its path.
@@ -231,6 +233,7 @@ Keep work registry files in Injector's `registries/<repo-id>/registry.json` and 
 ```text
 python injector.py validate --project "<worktree path>" --registry registries/my-monorepo
 python injector.py plan platform-service --project "<worktree path>" --registry registries/my-monorepo --profile local
+python injector.py check platform-service --project "<worktree path>" --registry registries/my-monorepo --profile local
 python injector.py prepare platform-service --project "<worktree path>" --registry registries/my-monorepo --profile local
 python injector.py stop --project "<worktree path>" --registry registries/my-monorepo
 ```

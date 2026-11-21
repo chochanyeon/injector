@@ -84,11 +84,12 @@ Spring 앱의 프로필·import·실행 설정과 직접 읽는 코드는 [Sprin
 
 ## 5. 검증 명령과 완료 보고
 
-아래 명령의 Injector 경로와 target 경로는 실제 위치로 바꾼다. validate/plan은 무기동이며, resolve는 환경 참조를 읽고 redacted 출처를 출력한다. render는 생성 파일을 쓰지만 앱은 실행하지 않는다.
+아래 명령의 Injector 경로와 target 경로는 실제 위치로 바꾼다. validate는 구조를 검사하고 plan은 순서를 계산하며 check는 선택한 앱의 등록 설정과 실행 조건을 검사한다. 이 세 명령은 런타임 상태와 소스 파일을 유지한다. resolve는 환경 참조를 읽고 값을 가린 출처를 출력한다. render는 앱 실행 없이 파일을 생성한다.
 
 ```text
 python <Injector>/injector.py validate --project <target> --registry <registry-folder>
 python <Injector>/injector.py plan <app-id> --project <target> --registry <registry-folder> --profile <profile>
+python <Injector>/injector.py check <app-id> --project <target> --registry <registry-folder> --profile <profile>
 python <Injector>/injector.py resolve --project <target> --registry <registry-folder> --profile <profile> --node <node>
 python <Injector>/injector.py render --project <target> --registry <registry-folder> --profile <profile> --node <node>
 ```

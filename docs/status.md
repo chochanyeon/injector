@@ -35,7 +35,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Per-app files | Implemented | Combines `nodeFiles` and edits individual files in the browser. | T-190 |
 | Central registry storage | Partially verified | Select a registry file separately from the source folder. Shares settings from Injector's `registries/` and isolates runtime state per file and worktree. | T-200 |
 | Web selection persistence | Implemented | Normal launches restore the last successfully loaded project and registry paths. | T-240 |
-| Registry execution check | Implemented | Checks declared settings and required Compose dependencies. Reports the IntelliJ module and main class for IDE confirmation. | T-220, T-230 |
+| Registry execution check | Implemented | Browser and CLI check declared settings and runner requirements. Both report the IntelliJ module and main class for IDE confirmation. | T-220, T-230, T-320 |
 | Dependency graph | Partially verified | Profile and app filters and direct connection highlighting. Small and large layout checks remain. | T-180 |
 | Verifier | Integrated | The original Gradle upgrade verifier runs from `verifier/`. | T-250 |
 | HTTP observation | Implemented for one local edge | CLI recording, paired worktree execution, and Verifier comparison with side-by-side results on the dependency graph. | T-260, T-310 |

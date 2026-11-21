@@ -192,6 +192,32 @@ class RuntimeTests(unittest.TestCase):
         self.assertNotIn('PRIVATE_VALUE', str(raised.exception))
         self.assertNotIn('secret value', str(raised.exception))
 
+    def test_cli_check_reports_intellij_target_and_rejects_broken_variant_without_writes(self):
+        main = self.data['nodes'][0]['variants']['local']
+        main['execution'] = {'type': 'intellij', 'projectPath': '.', 'module': 'probe', 'mainClass': 'example.Main'}
+        dependency = self.data['nodes'][1]['variants']
+        dependency['broken'] = {**dependency['local'], 'execution': {
+            'type': 'process', 'command': ['./unavailable-runner'], 'workingDirectory': '.'}}
+        storage = self.root / 'central settings'
+        storage.mkdir()
+        registry = storage / 'fixture.settings'
+        registry.write_text(json.dumps(self.data), encoding='utf-8')
+        cli = Path(__file__).resolve().parents[1] / 'injector.py'
+        arguments = [sys.executable, str(cli), 'check', 'main', '--project', str(self.root),
+                     '--registry', str(registry), '--profile', 'dummy']
+        success = subprocess.run(arguments, text=True, capture_output=True, timeout=15)
+        self.assertEqual(success.returncode, 0, success.stderr)
+        self.assertEqual(json.loads(success.stdout), {'order': ['dependency', 'main'],
+            'intellij': {'module': 'probe', 'mainClass': 'example.Main'}})
+        self.assertNotIn('injected value', success.stdout)
+        failure = subprocess.run([*arguments, '--variant', 'dependency=broken'], text=True,
+                                 capture_output=True, timeout=15)
+        self.assertEqual(failure.returncode, 1, failure.stderr)
+        self.assertIn('dependency: process command or working directory is unavailable', failure.stderr)
+        self.assertFalse((self.root / '.local').exists())
+        self.assertFalse((self.root / '.run').exists())
+        self.assertFalse((storage / '.local').exists())
+
     def test_ide_task_checks_config_revision_and_reuses_owned_ready_dependencies(self):
         main = self.data['nodes'][0]['variants']['local']
         main['execution'] = {'type': 'intellij', 'projectPath': '.', 'module': 'probe', 'mainClass': 'example.Main'}

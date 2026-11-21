@@ -67,6 +67,8 @@ python -m venv .venv
 
 준비하기 전에 **Registry 실행 조건 검사**를 누르면 선택한 앱, 프로필, variant와 관련 의존성을 검사한다. 등록된 설정이나 실행 정의에서 발견한 첫 번째 문제를 표시한다. 검사 중 서비스 상태와 생성 파일은 그대로 유지된다. 호스트 이름 해석, 포트 충돌, 서비스 응답 여부는 실행 환경 준비 단계에서 확인한다.
 
+`python injector.py check platform-service --project examples/demo --profile dummy`로 같은 검사를 CLI에서 실행할 수 있다. 공유 레지스트리는 `--registry`로 지정하고, 노드 실행 방식을 바꿔 검사하려면 `--variant NODE=VARIANT`를 쓴다. 성공하면 실행 순서와 IntelliJ 확인 정보를 JSON으로 출력한다. 검사에 실패하면 첫 원인을 표시하고 종료 코드 1을 반환한다.
+
 Compose의 필수 `depends_on` 서비스는 이를 사용하는 노드의 Registry 의존성 그래프에 등록한다. 등록된 호스트 엔드포인트는 Compose의 고정 공개 포트와 전송 프로토콜을 대조한다. 호스트 네트워크를 쓰는 경우 호스트 포트는 바인드 포트와 일치해야 한다. Compose 검사와 실행에 모두 노드의 해석된 환경을 전달한다. IntelliJ 대상은 IDE에서 확인할 모듈과 메인 클래스가 검사 결과에 표시된다.
 
 소스 폴더의 기본 `registry.json`을 직접 선택하거나 Registry 입력란을 비워도 같은 실행 세션을 사용한다. 관리 프로세스가 준비 전에 종료되면 오류에 해당 노드와 로컬 진단 파일의 경로가 표시된다. 진단 파일은 프로세스 출력의 마지막 64 KiB를 보관하며 애플리케이션 데이터를 포함할 수 있다. 브라우저와 CLI는 진단 파일의 경로를 표시한다.
@@ -240,6 +242,7 @@ python injector.py vault-demo --vault-service payments
 ```text
 python injector.py validate --project "<워크트리 경로>" --registry registries/my-monorepo
 python injector.py plan platform-service --project "<워크트리 경로>" --registry registries/my-monorepo --profile local
+python injector.py check platform-service --project "<워크트리 경로>" --registry registries/my-monorepo --profile local
 python injector.py prepare platform-service --project "<워크트리 경로>" --registry registries/my-monorepo --profile local
 python injector.py stop --project "<워크트리 경로>" --registry registries/my-monorepo
 ```

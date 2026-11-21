@@ -74,11 +74,12 @@ Dependencies use process, Compose, or external runners. An IntelliJ dependency n
 
 ## 5. Verify and report
 
-Substitute real paths and IDs. Validate and plan are read-only. Resolve reads environment references and reports redacted provenance. Render generates files without starting the app.
+Substitute real paths and IDs. Validate checks structure, plan computes the order, and check resolves declared settings and inspects runner requirements for the selected app. Those three commands leave runtime state and source files untouched. Resolve reads environment references and reports redacted provenance. Render generates files without starting the app.
 
 ```text
 python <Injector>/injector.py validate --project <target> --registry <registry-folder>
 python <Injector>/injector.py plan <app-id> --project <target> --registry <registry-folder> --profile <profile>
+python <Injector>/injector.py check <app-id> --project <target> --registry <registry-folder> --profile <profile>
 python <Injector>/injector.py resolve --project <target> --registry <registry-folder> --profile <profile> --node <node>
 python <Injector>/injector.py render --project <target> --registry <registry-folder> --profile <profile> --node <node>
 ```
