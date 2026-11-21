@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import shlex
 import socket
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -11,7 +12,7 @@ from unittest.mock import patch
 import psutil
 
 from injector_core.registry import RegistryError, runtime_directory
-from injector_core.runtime import _directory, _lock, check_requirements, prepare, select_plan, stop
+from injector_core.runtime import _directory, _docker, _lock, check_requirements, prepare, select_plan, stop
 
 
 def free_port():
@@ -85,7 +86,8 @@ class RuntimeTests(unittest.TestCase):
 
         services['main']['depends_on'] = {'dependency': {'required': True}, 'database': {'required': False}}
         with patch('injector_core.runtime._docker', return_value=json.dumps({'services': services})) as docker, \
-                patch('injector_core.runtime._containers', side_effect=[[], ['dep-id'], [], ['main-id']]), \
+                patch('injector_core.runtime._docker_daemon', return_value='engine-one'), \
+                patch('injector_core.runtime._containers', side_effect=[[], [], [], ['dep-id'], [], ['main-id']]), \
                 patch('injector_core.runtime._occupied', return_value=None), patch('injector_core.runtime._wait'):
             try:
                 self.assertEqual(prepare(self.root, 'main', 'dummy')['status'], 'ready')
@@ -101,6 +103,37 @@ class RuntimeTests(unittest.TestCase):
             finally:
                 with patch('injector_core.runtime._containers', return_value=[]):
                     stop(self.root)
+
+    def test_cleanup_is_pinned_to_docker_engine_and_resumes_after_failure(self):
+        directory = _directory(self.root)
+        session = directory / 'session.json'
+        resources = [{'node': node, 'type': 'compose'} for node in ('database', 'service')]
+        session.write_text(json.dumps({'id': 'owned', 'dockerDaemon': 'original', 'resources': resources}), encoding='utf-8')
+        try:
+            with patch('injector_core.runtime._docker_daemon', return_value='different'), \
+                    patch('injector_core.runtime._containers') as containers:
+                with self.assertRaisesRegex(RegistryError, 'Docker engine changed'):
+                    stop(self.root)
+                containers.assert_not_called()
+            with patch('injector_core.runtime._docker_daemon', return_value='original'), \
+                    patch('injector_core.runtime._containers', side_effect=[['service-id'], ['db-id'], ['db-id']]), \
+                    patch('injector_core.runtime._docker', side_effect=['', RegistryError('remove failed'), '']) as docker:
+                with self.assertRaisesRegex(RegistryError, 'remove failed'):
+                    stop(self.root)
+                self.assertEqual(json.loads(session.read_bytes())['resources'], [resources[0]])
+                stop(self.root)
+                self.assertFalse(session.exists())
+                self.assertEqual([call.args[0][-1] for call in docker.call_args_list], ['service-id', 'db-id', 'db-id'])
+        finally:
+            session.unlink(missing_ok=True)
+
+    def test_docker_error_reports_stage_without_including_stderr(self):
+        result = subprocess.CompletedProcess([], 1, '', 'required variable PRIVATE_VALUE is missing; secret value here')
+        with patch('injector_core.runtime.subprocess.run', return_value=result):
+            with self.assertRaisesRegex(RegistryError, 'Docker compose config: configuration rejected') as raised:
+                _docker(['compose', 'config'])
+        self.assertNotIn('PRIVATE_VALUE', str(raised.exception))
+        self.assertNotIn('secret value', str(raised.exception))
 
     def test_mixed_variants_start_only_selected_dependencies_and_inject_their_addresses(self):
         from urllib.request import ProxyHandler, build_opener

@@ -40,7 +40,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Custom hostnames | Partially verified | Preview, apply, remove, and resolution checks on Windows and macOS. Elevated system application remains. | T-070, T-160 |
 | macOS and Windows launchers | Partially verified | Finder and VBS launchers with CI on both systems. Direct Finder verification remains. | T-160 |
 | Variant overrides | Complete | Request-specific choices apply to the plan, graph, and injection. | T-080 |
-| Sessions and recovery | Partial | Checks port ownership, writes IDE settings after readiness, and cleans process trees. Previous-session restoration and shared resources are follow-ons. | T-050, T-090 |
+| Sessions and recovery | Complete for documented ownership | Checks ports, foreign Compose services, and Docker engine identity. Stops owned resources in reverse order and records cleanup progress. | T-050, T-090 |
 
 `registration-draft.json` is a review artifact. Injector reads the runtime registry format.
 

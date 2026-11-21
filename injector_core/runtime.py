@@ -23,6 +23,8 @@ from .rendering import _artifact_path, plan_render
 from .resolution import resolve_node, selected_variant
 
 _processes = {}
+_docker_connection_keys = ("DOCKER_CONTEXT", "DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_TLS",
+                           "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH", "DOCKER_API_VERSION")
 
 
 def parse_variants(entries):
@@ -115,14 +117,35 @@ def _lock(directory):
 
 
 def _docker(arguments, *, env=None, timeout=180):
+    stage = arguments[0]
+    if stage == "compose":
+        stage = "compose config" if "config" in arguments else "compose up"
     try:
         result = subprocess.run(["docker", *arguments], env=env, capture_output=True,
-                                text=True, encoding="utf-8", timeout=timeout,
+                                text=True, encoding="utf-8", errors="replace", timeout=timeout,
                                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise RegistryError("Docker command unavailable or timed out; check Docker Desktop") from error
+    except OSError as error:
+        raise RegistryError(f"Docker {stage}: command unavailable; check Docker Desktop and PATH") from error
+    except subprocess.TimeoutExpired as error:
+        raise RegistryError(f"Docker {stage}: timed out") from error
     if result.returncode:
-        raise RegistryError("Docker command failed; check Docker Desktop, image/build and service configuration")
+        detail = result.stderr.lower()
+        if "permission denied while trying to connect" in detail or "docker api" in detail and "access is denied" in detail:
+            reason = "Docker engine access denied"
+        elif any(value in detail for value in ("cannot connect to the docker daemon", "error during connect",
+                                               "failed to connect to the docker api", "docker daemon is not running")):
+            reason = "Docker engine unreachable; check Docker Desktop and the active context"
+        elif "port is already allocated" in detail or "address already in use" in detail:
+            reason = "published port is already in use"
+        elif "pull access denied" in detail or "manifest unknown" in detail:
+            reason = "image unavailable; check image name or registry credentials"
+        elif "failed to solve" in detail:
+            reason = "image build failed"
+        elif stage == "compose config":
+            reason = "configuration rejected; check YAML, imports and required environment variables"
+        else:
+            reason = "command rejected"
+        raise RegistryError(f"Docker {stage}: {reason} (exit {result.returncode})")
     return result.stdout.strip()
 
 
@@ -131,6 +154,38 @@ def _containers(*filters):
     for value in filters:
         arguments.extend(["--filter", "label=" + value])
     return _docker(arguments).split()
+
+
+def _docker_daemon(env=None):
+    daemon = _docker(["info", "--format", "{{.ID}}"], env=env, timeout=15)
+    if not daemon or daemon == "<no value>":
+        raise RegistryError("Docker engine did not report its identity")
+    return daemon
+
+
+def _verify_daemon(session):
+    if session and session.get("dockerDaemon") and any(item["type"] == "compose" for item in session["resources"]):
+        if _docker_daemon() != session["dockerDaemon"]:
+            raise RegistryError("Docker engine changed; select the original Docker context before stopping this session")
+
+
+def _compose_conflicts(prepared, previous):
+    names = [(variant["execution"]["projectName"], variant["execution"]["service"], environment)
+             for _, variant, _, _, _, environment in prepared if variant["execution"]["type"] == "compose"]
+    if not names:
+        return None
+    daemon = _docker_daemon()
+    owned = None
+    for project, service, environment in names:
+        if any(environment.get(key) != os.environ.get(key) for key in _docker_connection_keys):
+            if _docker_daemon(environment) != daemon:
+                raise RegistryError(f"{service}: registry settings select another Docker engine")
+        candidates = _containers("com.docker.compose.project=" + project, "com.docker.compose.service=" + service)
+        if candidates and owned is None:
+            owned = set(_containers("io.injector.session=" + previous["id"])) if previous else set()
+        if candidates and set(candidates) - owned:
+            raise RegistryError(f"{service}: Compose service already exists outside this session; choose a dedicated projectName")
+    return daemon
 
 
 def _save(directory, session):
@@ -199,7 +254,9 @@ def _stop(directory, emit):
     session = _session(directory)
     if session is None:
         return
-    for resource in reversed(session["resources"]):
+    _verify_daemon(session)
+    while session["resources"]:
+        resource = session["resources"][-1]
         emit({"node": resource["node"], "phase": "stopping"})
         if resource["type"] == "compose":
             ids = _containers("io.injector.session=" + session["id"], "io.injector.node=" + resource["node"])
@@ -207,6 +264,8 @@ def _stop(directory, emit):
                 _docker(["rm", "-f", *ids])
         else:
             _stop_process(resource)
+        session["resources"].pop()
+        _save(directory, session)
     (directory / "session.json").unlink()
 
 
@@ -434,12 +493,15 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
     directory = _directory(root, registry)
     with _lock(directory):
         prepared, artifact, write_config = _preflight(data, plan, root, target, registry, check_hosts=True)
+        previous = _session(directory)
+        _verify_daemon(previous)
+        daemon = _compose_conflicts(prepared, previous)
         addresses = [endpoint["addresses"]["host"] for _, variant, _, _, _, _ in prepared
                      if variant["execution"]["type"] in ("process", "compose")
                      for endpoint in variant["endpoints"].values() if "host" in endpoint["addresses"]]
         occupied = {peer for address in addresses if (peer := _occupied(address)) is not None}
         if occupied:
-            listeners = _owned_listeners(_session(directory))
+            listeners = _owned_listeners(previous)
             for host, port in occupied:
                 wildcard = "::" if ":" in host else "0.0.0.0"
                 if (host, port) not in listeners and (wildcard, port) not in listeners:
@@ -447,6 +509,8 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
         emit({"phase": "planned", "order": plan["order"]})
         _stop(directory, emit)
         session = {"id": uuid.uuid4().hex, "profile": profile, "target": target, "resources": []}
+        if daemon is not None:
+            session["dockerDaemon"] = daemon
         _save(directory, session)
         try:
             for node, variant, settings, command, working, environment in prepared:
@@ -501,7 +565,11 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                 result["next"] = ("IntelliJ: import the generated configuration and press Debug" if registry is not None
                                   else f"IntelliJ: select Injector-{profile}-{target} and press Debug")
             return result
-        except BaseException:
+        except BaseException as error:
             emit({"phase": "rollback"})
-            _stop(directory, emit)
+            try:
+                _stop(directory, emit)
+            except Exception as cleanup:
+                message = str(error) if isinstance(error, RegistryError) else "preparation did not complete"
+                raise RegistryError(f"{message}; cleanup incomplete, run stop to retry") from cleanup
             raise

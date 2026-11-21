@@ -33,7 +33,7 @@
 | [T-230](work-items/T-230.ko.md) | 리뷰에서 확인한 실행 및 검증 문제 수정 | 완료 | 완료 | Compose, CLI, 화면 회귀 검증 |
 | [T-240](work-items/T-240.ko.md) | 프로젝트와 Registry 선택 기억 | 완료 | 완료 | 서버 재시작 및 화면 불러오기 회귀 검증 |
 | [T-080](work-items/T-080.ko.md) | 의존성별 실제 실행·모의 대체 | 완료 | 완료 | 완료(기본 데모·프로세스) |
-| [T-090](work-items/T-090.ko.md) | 세션·실패 처리·종료 정책 | 부분 확정 | 부분 완료 | 부분 검증(Windows·Linux·데모 Compose) |
+| [T-090](work-items/T-090.ko.md) | 세션·실패 처리·종료 정책 | 세션 소유권 범위 완료 | 완료 | Windows 회귀 및 Docker 엔진 식별 검증 |
 | [T-100](work-items/T-100.ko.md) | LLM 등록 초안의 검증·변환 | 초안 | 미착수 | 미수행 |
 | [T-110](work-items/T-110.ko.md) | 다중 앱 통합 검증 | 초안 | 미착수 | 미수행 |
 | [T-120](work-items/T-120.ko.md) | IDE 실행 전 자동 준비 연동 | 후보 | 미착수 | 미수행 |

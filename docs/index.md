@@ -33,7 +33,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-230](work-items/T-230.md) | Fix execution and validation issues found in review | Complete | Complete | Compose, CLI, and browser regression checks |
 | [T-240](work-items/T-240.md) | Remember the selected project and registry | Complete | Complete | Server restart and browser load regression checks |
 | [T-080](work-items/T-080.md) | Per-dependency real or mock execution | Complete | Complete | Demo and process scenarios verified |
-| [T-090](work-items/T-090.md) | Session, failure, and stop policies | Partially specified | Partially complete | Windows, Linux, and demo Compose verified in part |
+| [T-090](work-items/T-090.md) | Session, failure, and stop policies | Complete for session ownership | Complete | Windows regression and Docker identity verified |
 | [T-100](work-items/T-100.md) | LLM registration draft validation and conversion | Draft | Not started | Not run |
 | [T-110](work-items/T-110.md) | Multi-app integration verification | Draft | Not started | Not run |
 | [T-120](work-items/T-120.md) | Automatic preparation before IDE execution | Candidate | Not started | Not run |
