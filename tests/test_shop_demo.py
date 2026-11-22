@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 import time
 import unittest
@@ -19,7 +21,8 @@ from test_runtime import free_port
 from verifier.compare_observations import compare_files
 
 
-DEMO = Path(__file__).resolve().parents[1] / "examples" / "demo" / "monorepo"
+ROOT = Path(__file__).resolve().parents[1]
+DEMO = ROOT / "examples" / "demo" / "monorepo"
 SERVICES = {"storefront", "orders", "catalog", "pricing", "inventory", "notifications"}
 
 
@@ -79,6 +82,42 @@ def copy_with_isolated_ports(project, compose_name):
 
 @unittest.skipUnless(os.environ.get("INJECTOR_TEST_SHOP"), "build the shop with installDist and opt in")
 class ShopIntegrationTests(unittest.TestCase):
+    def test_fix_suite_runs_through_cli_and_preserves_evidence(self):
+        name = "injector-shop-suite-" + uuid4().hex[:10]
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            baseline, candidate = root / "baseline shop", root / "candidate shop"
+            copy_with_isolated_ports(baseline, name)
+            shutil.copytree(baseline, candidate)
+            fixture = baseline / "infra/vault/mappings/pricing.json"
+            mapping = json.loads(fixture.read_bytes())
+            mapping["response"]["jsonBody"]["data"]["data"]["mockUnitCents"] = 998
+            fixture.write_text(json.dumps(mapping), encoding="utf-8")
+            output = Path(os.environ.get("INJECTOR_TEST_REPORTS", root)) / "shop-suite"
+            command = [sys.executable, ROOT / "injector.py", "verify-suite",
+                       candidate / "scenarios/checkout-fix-suite.json", "--project", baseline,
+                       "--candidate-project", candidate, "--output", output]
+            try:
+                result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                report = json.loads(result.stdout)
+                self.assertEqual(report["verdict"], "PASS", report)
+                self.assertEqual(report["counts"]["PASS"], 2)
+                self.assertTrue((output / "summary.md").is_file())
+                for entry, expected in zip(report["cases"], (1, 0)):
+                    detail = json.loads((output / entry["report"]).read_bytes())
+                    for side in ("baseline", "candidate"):
+                        counts = [check["actual"]["count"] for check in detail[side]["checks"] if check["when"] == "trace"]
+                        self.assertEqual(counts, [expected, expected])
+            finally:
+                stop(candidate)
+                stop(baseline)
+                label = f"label=com.docker.compose.project={name}"
+                networks = _docker(["network", "ls", "-q", "--filter", label]).split()
+                if networks:
+                    _docker(["network", "rm", *networks])
+                self.assertFalse(_docker(["ps", "-aq", "--filter", label]))
+
     def test_checkout_trace_detects_changed_topic_and_missing_consumer(self):
         name = "injector-shop-trace-" + uuid4().hex[:10]
         with TemporaryDirectory() as temporary:

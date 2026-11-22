@@ -171,6 +171,18 @@ To run the main app in Docker, stop any instance running in IntelliJ or on the C
 python injector.py up --profile mock --main-docker
 ```
 
+## Run the full test environment
+
+Start Docker Desktop with Linux containers. Use Python 3.10+, JDK 17+, Node.js with `node --test`, and Git. On Windows use Git for Windows with Git Bash. On macOS make `bash` available. Run the command from the repository root.
+
+```text
+python verifier/verify_environment.py
+```
+
+The command creates a fresh Python environment, builds Spring Boot and the shop services, starts an isolated WireMock Vault, and enables all Python integration tests. It also runs the web JavaScript tests, the JVM baseline record and comparison, and the Git worktree integration checks. The shop integration runs the real fix and regression suite against PostgreSQL, Redis, Kafka, WireMock, and Loki. The command uses Maven from `PATH` or downloads a checksum-verified Maven distribution into the run directory. Gradle uses the repository wrapper.
+
+The command prints a JSON result and writes it to `report.json` under `.local/full-tests-*`. Each stage has a log. The `shop-suite` folder holds the worktree evidence and Markdown summary. Use `--output` to select a new directory. `PASS` requires every stage to pass and every Python test to run. The test environment cleans up its containers when it finishes. [Full verification design](docs/work-items/T-390.md)
+
 ## Legacy configuration and commands
 
 The legacy configuration lives at `examples/demo/config/project.json`. Profile values override shared environment variables, and profile VM options follow the shared list.

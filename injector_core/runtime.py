@@ -240,10 +240,14 @@ def _stop_process(resource):
     try:
         if runner and os.name == "nt":
             # If the runner has not joined its job yet, it cannot launch anything.
-            if not terminate_job(runner) and process is not None:
-                process.terminate()
+            terminated = terminate_job(runner)
+            if process is not None:
+                if not terminated:
+                    process.terminate()
+                # A venv launcher can sit outside the job and exit after its child.
                 process.wait(timeout=3)
-                terminate_job(runner)
+                if not terminated:
+                    terminate_job(runner)
         elif runner and process is not None:
             try:
                 processes = [*process.children(recursive=True), process]

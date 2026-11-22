@@ -177,6 +177,18 @@ python injector.py run --profile mock
 python injector.py up --profile mock --main-docker
 ```
 
+## 전체 테스트 환경 실행
+
+Docker Desktop을 Linux 컨테이너 모드로 시작한다. Python 3.10 이상, JDK 17 이상, `node --test`를 지원하는 Node.js, Git이 필요하다. Windows에는 Git Bash가 포함된 Git for Windows를 사용하고, macOS에서는 `bash`를 사용할 수 있어야 한다. 저장소 루트에서 다음 명령을 실행한다.
+
+```text
+python verifier/verify_environment.py
+```
+
+명령은 새 Python 환경을 만들고 Spring Boot와 쇼핑몰 서비스를 빌드한다. 격리된 WireMock Vault를 기동하고 모든 Python 통합 테스트를 활성화한다. 웹 JavaScript 테스트, JVM 기준 기록과 비교, Git 워크트리 통합 검사도 실행한다. 쇼핑몰 통합 검사는 PostgreSQL, Redis, Kafka, WireMock, Loki를 사용해 실제 수정·회귀 스위트를 실행한다. `PATH`에 Maven이 없으면 배포본의 체크섬을 검증해 실행 폴더에 내려받는다. Gradle은 저장소의 Wrapper를 사용한다.
+
+명령은 JSON으로 결과를 출력하고 `.local/full-tests-*`의 `report.json`에도 기록한다. 단계마다 로그를 남긴다. `shop-suite` 폴더에는 워크트리 증거와 Markdown 요약이 있다. 다른 새 폴더를 사용하려면 `--output`을 지정한다. 모든 단계가 통과하고 Python 테스트를 하나도 건너뛰지 않아야 `PASS`다. 테스트가 끝나면 실행에 사용한 컨테이너를 정리한다. [전체 검증 설계](docs/work-items/T-390.ko.md)
+
 ## 설정과 명령
 
 설정 파일은 `examples/demo/config/project.json`이다. 공통 환경변수에 프로필별 값을 덮어쓰고, VM 옵션은 공통 옵션 뒤에 프로필 옵션을 붙인다. 복잡한 충돌 해결·비밀값 저장 기능은 아직 없다.

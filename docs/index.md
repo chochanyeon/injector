@@ -51,6 +51,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-360](work-items/T-360.md) | Run a fix and its regression scenarios together | Complete | Complete | Windows process and live shop suite verified |
 | [T-370](work-items/T-370.md) | Verify required and forbidden event counts | Complete | Complete | Live Windows suite verified Kafka counts of one and zero |
 | [T-380](work-items/T-380.md) | Run registration and verification without manual prompts | Draft | Planned | Not run |
+| [T-390](work-items/T-390.md) | Build and run the full test environment | Complete | Complete | All 13 stages passed on Windows. Native macOS run pending |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 
