@@ -25,6 +25,11 @@
     "endpoint": "http",
     "app": "injector-shop",
     "timeoutSeconds": 15,
+    "settleSeconds": 2,
+    "eventCounts": [
+      {"id": "no-publish", "match": {"service": "orders", "event": "kafka_publish"}, "count": 0},
+      {"id": "no-consume", "match": {"service": "notifications", "event": "kafka_consume"}, "count": 0}
+    ],
     "requiredEvents": [
       {"service": "storefront", "event": "http_request"},
       {"service": "storefront", "event": "http_dependency", "dependency": "orders"},

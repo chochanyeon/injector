@@ -129,4 +129,4 @@ python injector.py compare-worktrees storefront --project "path/to/baseline-shop
 python injector.py verify-suite examples/demo/monorepo/scenarios/checkout-fix-suite.json --project "path/to/baseline-shop" --candidate-project "path/to/candidate-shop" --output .local/checkout-suite
 ```
 
-회귀 검사는 첫 시나리오와 같은 주문 ID를 사용한다. 초기 재고가 10개이고 기존 주문이 없어야 시작한다. HTTP `400`, 최종 재고 10개, 주문·배송 기록 없음을 확인한다. 두 결과는 `summary.md`에서 검토할 수 있다.
+회귀 검사는 첫 시나리오와 같은 주문 ID를 사용한다. 초기 재고가 10개이고 기존 주문이 없어야 시작한다. HTTP `400`, 최종 재고 10개, 주문·배송 기록 없음을 확인한다. 정상 주문은 같은 요청의 Kafka 발행·소비가 각 1회여야 하고, 거절된 주문은 각 0회여야 한다. 두 검사는 기록이 2초간 유지된 뒤 횟수를 판정한다. 두 결과는 `summary.md`에서 검토할 수 있다.

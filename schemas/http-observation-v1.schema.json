@@ -72,12 +72,22 @@
       "required": ["id", "when", "verdict", "expected"],
       "properties": {
         "id": {"$ref": "#/$defs/name"},
-        "when": {"enum": ["before", "response", "after"]},
+        "when": {"enum": ["before", "response", "after", "trace"]},
         "verdict": {"enum": ["PASS", "FAIL", "INCONCLUSIVE"]},
-        "expected": {"$ref": "#/$defs/expectedResponse"},
-        "actual": {"$ref": "#/$defs/expectedResponse"},
-        "reason": {"enum": ["response-unavailable", "invalid-response-fields", "unexpected-initial-state"]}
-      }
+        "expected": true,
+        "actual": true,
+        "reason": {"enum": ["response-unavailable", "invalid-response-fields", "unexpected-initial-state", "trace-incomplete"]}
+      },
+      "if": {"properties": {"when": {"const": "trace"}}},
+      "then": {"properties": {"expected": {"$ref": "#/$defs/countValue"}, "actual": {"$ref": "#/$defs/countValue"}}},
+      "else": {"properties": {"expected": {"$ref": "#/$defs/expectedResponse"}, "actual": {"$ref": "#/$defs/expectedResponse"}}}
+    },
+    "eventCount": {"type": "integer", "minimum": 0, "maximum": 128},
+    "countValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count"],
+      "properties": {"count": {"$ref": "#/$defs/eventCount"}}
     },
     "traceKind": {"enum": ["http_request", "http_dependency", "kafka_publish", "kafka_consume"]},
     "traceSelector": {
@@ -131,12 +141,19 @@
         "trace": {
           "type": "object",
           "additionalProperties": false,
+          "dependentRequired": {"eventCounts": ["settleSeconds"]},
           "required": ["node", "endpoint", "app", "timeoutSeconds", "requiredEvents"],
           "properties": {
             "node": {"$ref": "#/$defs/name"},
             "endpoint": {"$ref": "#/$defs/name"},
             "app": {"$ref": "#/$defs/name"},
             "timeoutSeconds": {"type": "integer", "minimum": 2, "maximum": 60},
+            "settleSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
+            "eventCounts": {"type": "array", "minItems": 1, "maxItems": 16, "items": {
+              "type": "object", "additionalProperties": false, "required": ["id", "match", "count"],
+              "properties": {"id": {"$ref": "#/$defs/name"}, "match": {"$ref": "#/$defs/traceSelector"},
+                             "count": {"$ref": "#/$defs/eventCount"}}
+            }},
             "requiredEvents": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true,
                                "items": {"$ref": "#/$defs/traceSelector"}}
           }
@@ -159,7 +176,7 @@
         "events": {"type": "array", "maxItems": 128, "items": {"$ref": "#/$defs/traceEvent"}},
         "missingEvents": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/traceSelector"}},
         "target": {"anyOf": [{"$ref": "#/$defs/observation/properties/target"}, {"type": "null"}]},
-        "checks": {"type": "array", "minItems": 1, "maxItems": 17, "items": {"$ref": "#/$defs/checkEvidence"}},
+        "checks": {"type": "array", "minItems": 1, "maxItems": 33, "items": {"$ref": "#/$defs/checkEvidence"}},
         "reason": {"enum": ["query-unavailable", "invalid-events", "missing-events", "unstable-events",
                             "request-id-mismatch", "invalid-target-fields", "initial-check-not-met", "state-check-unavailable"]}
       },

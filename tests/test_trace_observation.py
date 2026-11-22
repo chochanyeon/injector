@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
-from injector_core.observation_contract import read_document
+from injector_core.observation_contract import read_document, validate_document
 from injector_core.registry import RegistryError
 from injector_core.runtime import select_plan
 from injector_core.trace_observation import TraceObservation
@@ -81,7 +81,7 @@ class TraceObservationTests(unittest.TestCase):
         observation = TraceObservation(scenario)
         observation._route(data, plan)
 
-        def capture(initial_stock=10, final_stock=8, *, delivery_unavailable=False):
+        def capture(initial_stock=10, final_stock=8, *, delivery_unavailable=False, extra_publish=False, trace_reason=None):
             checkout_sent = False
             delivery_reads = 0
             now = 0
@@ -112,8 +112,10 @@ class TraceObservationTests(unittest.TestCase):
             events = [dict(event, topic="shop.orders") if event["event"].startswith("kafka_") else
                       dict(event, method="GET", path="/sample", status=200)
                       for event in scenario["trace"]["requiredEvents"]]
+            if extra_publish:
+                events.append(next(event for event in events if event["event"] == "kafka_publish"))
             with patch("injector_core.trace_observation._exchange", side_effect=exchange), \
-                    patch.object(observation, "_collect", return_value=(events, None)), \
+                    patch.object(observation, "_collect", return_value=(events, trace_reason)), \
                     patch("injector_core.trace_observation.time.monotonic", side_effect=lambda: now), \
                     patch("injector_core.trace_observation.time.sleep", side_effect=sleep):
                 return observation.capture(plan), checkout_sent, delivery_reads
@@ -138,7 +140,51 @@ class TraceObservationTests(unittest.TestCase):
         unavailable, _, _ = capture(delivery_unavailable=True)
         self.assertEqual(compare_observations(passing, unavailable)["verdict"], "INCONCLUSIVE")
         self.assertEqual(compare_observations(failed, unavailable, prove_fix="final-stock")["verdict"], "INCONCLUSIVE")
+        duplicate, _, _ = capture(extra_publish=True)
+        self.assertEqual(compare_observations(duplicate, duplicate)["verdict"], "FAIL")
+        self.assertEqual(compare_observations(duplicate, passing, prove_fix="one-publish")["verdict"], "PASS")
+        check = next(check for check in duplicate["checks"] if check["id"] == "one-publish")
+        self.assertEqual((check["expected"]["count"], check["actual"]["count"]), (1, 2))
+        incomplete, _, _ = capture(trace_reason="query-unavailable")
+        self.assertEqual(compare_observations(passing, incomplete)["verdict"], "INCONCLUSIVE")
+        check = next(check for check in incomplete["checks"] if check["id"] == "one-publish")
+        self.assertEqual(check["verdict"], "INCONCLUSIVE")
+        self.assertNotIn("actual", check)
 
         scenario["stateChecks"][0]["node"] = "pricing-db"
         with self.assertRaisesRegex(RegistryError, "outside the target dependency plan"):
             TraceObservation(scenario)._route(data, plan)
+
+    def test_zero_count_requires_a_settled_query_window(self):
+        scenario = read_document(DEMO / "scenarios" / "checkout-invalid-quantity.json", "scenario")
+        data, plan = select_plan(DEMO, "storefront", "mock")
+        observation = TraceObservation(scenario)
+        observation._route(data, plan)
+        events = [dict(event, method="POST", path="/checkout", status=400)
+                  for event in scenario["trace"]["requiredEvents"]]
+
+        def collect(late_publish_at=None):
+            now = 0
+
+            def sleep(seconds):
+                nonlocal now
+                now += seconds
+
+            def observed_events(*args):
+                if late_publish_at is not None and now >= late_publish_at:
+                    return [*events, {"service": "orders", "event": "kafka_publish", "topic": "shop.orders"}]
+                return events
+
+            with patch("injector_core.trace_observation._exchange", return_value=(200, [], b"")), \
+                    patch("injector_core.trace_observation._events", side_effect=observed_events), \
+                    patch("injector_core.trace_observation.time.monotonic", side_effect=lambda: now), \
+                    patch("injector_core.trace_observation.time.sleep", side_effect=sleep):
+                observed, reason = observation._collect("local-request", 0)
+            self.assertIsNone(reason)
+            return now, [check["verdict"] for check in observation._event_checks(observed, reason)]
+
+        self.assertEqual(collect(), (2, ["PASS", "PASS"]))
+        self.assertEqual(collect(late_publish_at=1.25), (3.25, ["FAIL", "PASS"]))
+        scenario["trace"]["requiredEvents"].append(scenario["trace"]["eventCounts"][0]["match"])
+        with self.assertRaisesRegex(RegistryError, "a required trace event cannot have a count of zero"):
+            validate_document(scenario, "scenario")

@@ -295,10 +295,11 @@ def _comparison_projects(project, candidate):
 def _plan_comparison(checkouts, target, profile, scenario, registry, prove_fix):
     if prove_fix is not None:
         checks = {check["id"] for check in scenario.get("stateChecks", []) if check["when"] == "after"}
+        checks.update(check["id"] for check in scenario.get("trace", {}).get("eventCounts", []))
         if "expect" in scenario:
             checks.add("response")
         if prove_fix not in checks:
-            raise RegistryError("the fix check must name 'response' or a configured after check")
+            raise RegistryError("the fix check must name 'response', an after check or an event count check")
     observations = {}
     for side, checkout in checkouts.items():
         try:

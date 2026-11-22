@@ -23,9 +23,18 @@ def validate_document(data, kind):
         location = "/".join(map(str, error.path)) or "document"
         raise RegistryError(f"invalid {_document_name(kind)} at {location}")
     if kind == "scenario" and trace:
-        identifiers = [check["id"] for check in data.get("stateChecks", [])]
+        trace_options = data["trace"]
+        event_checks = trace_options.get("eventCounts", [])
+        identifiers = [check["id"] for checks in (data.get("stateChecks", []), event_checks)
+                       for check in checks]
         if "response" in identifiers or len(set(identifiers)) != len(identifiers):
-            raise RegistryError("state check IDs must be unique and cannot use 'response'")
+            raise RegistryError("scenario check IDs must be unique and cannot use 'response'")
+        if trace_options.get("settleSeconds", 0) >= trace_options["timeoutSeconds"]:
+            raise RegistryError("trace settleSeconds must be less than timeoutSeconds")
+        if len({tuple(sorted(check["match"].items())) for check in event_checks}) != len(event_checks):
+            raise RegistryError("trace event count selectors must be unique")
+        if any(check["count"] == 0 and check["match"] in trace_options["requiredEvents"] for check in event_checks):
+            raise RegistryError("a required trace event cannot have a count of zero")
         if len(set(data.get("targetFields", [])) | data.get("expect", {}).get("fields", {}).keys()) > 16:
             raise RegistryError("too many target response fields")
     if kind == "observation":
@@ -37,6 +46,9 @@ def validate_document(data, kind):
                for values in fields for value in values.values()):
             raise RegistryError("invalid HTTP observation numeric field")
         if trace:
+            ids = [check["id"] for check in data.get("checks", [])]
+            if len(set(ids)) != len(ids):
+                raise RegistryError("trace observation has duplicate check IDs")
             services = {data["targetNode"], *(event["service"] for event in data["events"]),
                         *(event["service"] for event in data["missingEvents"])}
             if not services <= data["variants"].keys():

@@ -1,4 +1,5 @@
 """Collect a scenario's correlated HTTP and Kafka evidence from local Loki."""
+from collections import Counter
 from contextlib import nullcontext
 from http.client import HTTPException
 import json
@@ -90,10 +91,11 @@ class TraceObservation:
         self.collector = _endpoint_url(collector, self.trace["endpoint"])
         steps = {step["node"]: step for step in plan["steps"] if step["kind"] == "application"}
         self.services = set(steps)
-        for event in self.trace["requiredEvents"]:
+        selectors = self.trace["requiredEvents"] + [check["match"] for check in self.trace.get("eventCounts", [])]
+        for event in selectors:
             service, _, dependency = _selector(event)
             if service not in steps or dependency is not None and dependency not in steps[service]["dependencies"]:
-                raise RegistryError("required trace event is outside the selected application graph")
+                raise RegistryError("configured trace event is outside the selected application graph")
         self.check_endpoints = {}
         for check in self.scenario.get("stateChecks", []):
             if check["node"] not in plan["order"]:
@@ -114,6 +116,7 @@ class TraceObservation:
         parameters = urlencode({"query": query, "start": started - 5_000_000_000, "limit": _MAX_EVENTS + 1})
         route = self.collector.path.rstrip("/") + "/loki/api/v1/query_range?" + parameters
         deadline = time.monotonic() + self.trace["timeoutSeconds"]
+        settling = self.trace.get("settleSeconds", 0.75)
         events, stable_since, reason = [], None, "query-unavailable"
         while (remaining := deadline - time.monotonic()) > 0:
             try:
@@ -134,12 +137,22 @@ class TraceObservation:
                     events = current
                     if self._missing(events):
                         reason = "missing-events"
-                    elif now - stable_since >= 0.75:
+                    elif now - stable_since >= settling:
                         return events, None
                     else:
                         reason = "unstable-events"
             time.sleep(min(0.25, max(0, deadline - time.monotonic())))
         return events, reason
+
+    def _event_checks(self, events, reason):
+        counts = Counter(map(_selector, events))
+        for check in self.trace.get("eventCounts", []):
+            evidence = {"id": check["id"], "when": "trace", "expected": {"count": check["count"]}}
+            if reason:
+                yield {**evidence, "verdict": "INCONCLUSIVE", "reason": "trace-incomplete"}
+            else:
+                count = counts[_selector(check["match"])]
+                yield {**evidence, "actual": {"count": count}, "verdict": "PASS" if count == check["count"] else "FAIL"}
 
     def _state_checks(self, phase):
         for check in self.scenario.get("stateChecks", []):
@@ -190,6 +203,7 @@ class TraceObservation:
         echoed = [value for name, value in returned if name.lower() == "x-request-id"]
         events, reason = (self._collect(request_id, started) if echoed == [request_id]
                           else ([], "request-id-mismatch"))
+        checks.extend(self._event_checks(events, reason))
         expected = self.scenario.get("expect")
         pointers = set(self.scenario.get("targetFields", []))
         if expected is not None:

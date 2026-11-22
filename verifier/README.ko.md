@@ -11,10 +11,12 @@ Injector에서 기록한 HTTP 파일 두 개는 루트에서 `python injector.py
 버전 2 시나리오에서 `expect`로 주 요청의 기대 응답을, `stateChecks`로 의존성 그래프 안의 읽기 전용 GET 검사를 지정한다. `before` 검사로 초기 상태를 확인한다. 비동기 결과를 확인하는 `after` 검사에는 `timeoutSeconds`를 지정할 수 있다. 증거 파일에 보관해도 되는 필드만 선택한다.
 
 - 회귀 비교에는 `compare-worktrees`를 사용한다. 양쪽 모두 기대 동작을 충족하고 관측 결과가 일치해야 한다.
-- `--prove-fix CHECK_ID`를 추가하면 기준 쪽에서 지정한 실패가 재현되고 후보 쪽에서 모든 검사가 통과해야 한다. 주 응답 검사에는 `response`를, 최종 상태 검사에는 `after` 검사의 ID를 지정한다. `compare-http`에도 같은 옵션을 사용할 수 있다.
+- `--prove-fix CHECK_ID`를 추가하면 기준 쪽에서 지정한 실패가 재현되고 후보 쪽에서 모든 검사가 통과해야 한다. `response`, `after` 검사 ID, 이벤트 횟수 검사 ID를 지정할 수 있다. `compare-http`에도 같은 옵션을 사용할 수 있다.
 - 비교 출력 폴더의 `report.json`에서 판정, 노드별 기동 단계, 저장된 기록을 확인한다. 초기 상태가 다르거나 증거를 수집하지 못하면 `INCONCLUSIVE`가 나올 수 있다.
 
 [쇼핑몰 주문 수정 검증](../examples/demo/monorepo/README.ko.md#주문-버그-수정-검증)
+
+`trace.eventCounts`에서 서비스, 이벤트 종류, 필요한 경우 의존성에 해당하는 이벤트의 기대 횟수를 지정한다. 각 검사는 `id`, `match`, `count`를 사용한다. 필수 이벤트가 모두 도착하고 기록이 `trace.settleSeconds` 동안 동일하게 유지되면 Verifier가 횟수를 센다. 횟수 0은 해당 요청과 관측 시간에 적용한다. 기록이 부족하거나 계속 바뀌면 `INCONCLUSIVE`다.
 
 ## 스위트 실행
 

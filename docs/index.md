@@ -49,6 +49,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-340](work-items/T-340.md) | Search for dependency evidence during registration | Complete | Complete | Shop, scoped fixture, and installed copy verified |
 | [T-350](work-items/T-350.md) | Verify a fix with reproducible checkout evidence | Complete for one scenario | Complete | Windows Docker and JVM fix verification complete |
 | [T-360](work-items/T-360.md) | Run a fix and its regression scenarios together | Complete | Complete | Windows process and live shop suite verified |
+| [T-370](work-items/T-370.md) | Verify required and forbidden event counts | Complete | Complete | Live Windows suite verified Kafka counts of one and zero |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 
@@ -65,7 +66,7 @@ Keep decisions and evidence under the same T-ID. Link larger supporting document
 
 ## 3. Resume development
 
-The next development item is to assert event counts, including effects a rejected request must avoid. Recheck the suite on a work monorepo and the imported External Tool configuration on macOS. [T-360](work-items/T-360.md) · [T-120](work-items/T-120.md)
+The next development item is to run and inspect the suite in the local web UI. Recheck it on a work monorepo and verify the imported External Tool configuration on macOS. [T-370](work-items/T-370.md) · [T-120](work-items/T-120.md)
 
 1. Check `git status --short --branch` and recent commits. Identify the context of any uncommitted changes.
 2. Choose a T-ID and read it from design through the resume point. Consult the shared references as needed.

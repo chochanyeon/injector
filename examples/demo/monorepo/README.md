@@ -129,4 +129,4 @@ Run the fix and the invalid-quantity regression in one suite with the same two c
 python injector.py verify-suite examples/demo/monorepo/scenarios/checkout-fix-suite.json --project "path/to/baseline-shop" --candidate-project "path/to/candidate-shop" --output .local/checkout-suite
 ```
 
-The regression uses the same order ID as the first case. It requires a fresh fixture with 10 items and no existing order. It expects a `400` response, 10 items in stock, and no order or delivery. Open `summary.md` to review both results.
+The regression uses the same order ID as the first case. It requires a fresh fixture with 10 items and no existing order. It expects a `400` response, 10 items in stock, and no order or delivery. The first case expects one Kafka publish and one consume. The regression expects zero of each in the correlated trace. Both cases require a two-second settling window. Open `summary.md` to review both results.
