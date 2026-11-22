@@ -292,7 +292,7 @@ def _comparison_projects(project, candidate):
     return {"baseline": baseline, "candidate": candidate}
 
 
-def _plan_comparison(checkouts, target, profile, scenario, registry, prove_fix):
+def _validate_fix_check(scenario, prove_fix):
     if prove_fix is not None:
         checks = {check["id"] for check in scenario.get("stateChecks", []) if check["when"] == "after"}
         checks.update(check["id"] for check in scenario.get("trace", {}).get("eventCounts", []))
@@ -300,14 +300,22 @@ def _plan_comparison(checkouts, target, profile, scenario, registry, prove_fix):
             checks.add("response")
         if prove_fix not in checks:
             raise RegistryError("the fix check must name 'response', an after check or an event count check")
+
+
+def _plan_observation(scenario, data, plan):
+    observation = _observation_for(scenario)
+    observation._route(data, plan)
+    return observation
+
+
+def _plan_comparison(checkouts, target, profile, scenario, registry, prove_fix):
+    _validate_fix_check(scenario, prove_fix)
     observations = {}
     for side, checkout in checkouts.items():
         try:
             data, plan = select_plan(checkout, target, profile, registry=registry)
-            observation = _observation_for(scenario)
-            observation._route(data, plan)
+            observations[side] = _plan_observation(scenario, data, plan)
             check_observation_idle(checkout, registry=registry)
-            observations[side] = observation
         except RegistryError as error:
             raise RegistryError(f"{side}: {error}") from error
     return observations

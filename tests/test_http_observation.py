@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -10,7 +11,7 @@ from unittest.mock import patch
 
 from injector_core.observation import observe_http
 from injector_core.registry import RegistryError, runtime_directory
-from injector_core.runtime import prepare, stop
+from injector_core.runtime import _lock, prepare, stop
 from test_runtime import free_port
 from verifier.compare_observations import compare_observations
 from verifier.worktree_suite import verify_suite
@@ -244,12 +245,20 @@ class HTTPObservationTests(unittest.TestCase):
 
     def test_suite_preflights_later_cases_and_reports_remaining_cases_after_abort(self):
         invalid = self.suite(second_case={"scenario": "second scenario.json", "proveFix": "unknown"})
-        with TemporaryDirectory() as folder:
+        with TemporaryDirectory() as folder, patch.dict(os.environ, {"INJECTOR_DEMO_WAREHOUSE": "seoul"}):
             candidate = Path(folder) / "candidate"
             shutil.copytree(self.project, candidate)
             output = self.project / "suite-output"
             with self.assertRaisesRegex(RegistryError, "suite case 2: the fix check"):
                 verify_suite(invalid, self.project, candidate, output)
+            arguments = (invalid, "--project", self.project, "--candidate-project", candidate)
+            preflight = self.cli("check-suite", *arguments)
+            attempt = self.cli("verify-suite", *arguments, "--output", output)
+            self.assertEqual((preflight.returncode, attempt.returncode), (2, 2))
+            diagnostics = json.loads(preflight.stdout)
+            self.assertEqual(json.loads(attempt.stdout), diagnostics)
+            self.assertEqual(diagnostics["diagnostics"][0]["code"], "invalid_fix_check")
+            self.assertEqual(diagnostics["diagnostics"][0]["case"], 2)
             self.assertFalse(output.exists())
             self.assertFalse(runtime_directory(self.project).exists())
             suite = self.suite()
@@ -265,3 +274,44 @@ class HTTPObservationTests(unittest.TestCase):
             run = json.loads((interrupted_root / summary["cases"][0]["report"]).read_bytes())
             self.assertEqual(run["runs"]["baseline"]["status"], "interrupted")
             self.assertEqual(summary["cases"][1]["verdict"], "NOT_RUN")
+
+    def test_suite_check_reports_worktree_blockers_without_writing_runtime_files(self):
+        suite = self.suite()
+        runtime = runtime_directory(self.project)
+        runtime.mkdir(parents=True)
+        with TemporaryDirectory() as folder:
+            candidate = Path(folder) / "candidate"
+            shutil.copytree(self.project, candidate)
+            arguments = (suite, "--project", self.project, "--candidate-project", candidate)
+            ready = self.cli("check-suite", *arguments, warehouse="value-must-not-appear")
+            self.assertEqual(ready.returncode, 0, ready.stderr)
+            self.assertNotIn("value-must-not-appear", ready.stdout)
+            payload = json.loads(ready.stdout)
+            self.assertEqual(payload["status"], "READY")
+            self.assertEqual(payload["worktrees"]["candidate"]["order"], ["catalog", "orders"])
+
+            candidate_file = candidate / "registry.json"
+            registry = json.loads(candidate_file.read_bytes())
+            orders = registry["nodes"][0]["variants"]["local"]
+            orders["env"]["DEMO_WAREHOUSE"] = {"fromEnv": "INJECTOR_SUITE_TEST_UNSET"}
+            candidate_file.write_text(json.dumps(registry), encoding="utf-8")
+            address = registry["nodes"][1]["variants"]["local"]["endpoints"]["http"]["addresses"]["host"]
+            with socket.socket() as listener:
+                listener.bind((address["host"], address["port"]))
+                listener.listen()
+                blocked = self.cli("check-suite", *arguments)
+            self.assertEqual(blocked.returncode, 2, blocked.stderr)
+            payload = json.loads(blocked.stdout)
+            self.assertEqual(payload["status"], "BLOCKED")
+            port, missing = payload["diagnostics"]
+            self.assertEqual((port["side"], port["node"], port["port"], port["code"]),
+                             ("baseline", "catalog", address["port"], "port_in_use"))
+            self.assertEqual((missing["side"], missing["node"], missing["variable"], missing["code"]),
+                             ("candidate", "orders", "INJECTOR_SUITE_TEST_UNSET", "missing_environment"))
+            self.assertFalse(list(runtime.iterdir()))
+            self.assertFalse(list(runtime_directory(candidate).iterdir()))
+            with _lock(runtime):
+                locked = self.cli("check-suite", *arguments)
+                self.assertEqual(locked.returncode, 2, locked.stderr)
+                diagnostics = json.loads(locked.stdout)["diagnostics"]
+                self.assertEqual((diagnostics[0]["side"], diagnostics[0]["code"]), ("baseline", "session_blocked"))

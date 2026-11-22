@@ -22,11 +22,19 @@ Injector에서 기록한 HTTP 파일 두 개는 루트에서 `python injector.py
 
 `verify-suite`로 같은 대상과 프로필의 여러 시나리오를 실행한다. 버전 1 스위트는 `target`, `profile`, `cases`를 지정한다. 각 시나리오 경로는 스위트 파일이 있는 폴더 기준으로 작성한다. 기준 버전에 특정 실패를 재현하는 항목에는 `proveFix`를 지정한다. 나머지는 회귀 비교로 실행한다. 시나리오는 한 번씩 지정한다.
 
+세션이나 출력 폴더를 만들지 않고 실행 조건만 확인하려면 같은 스위트와 워크트리 경로를 `check-suite`에 전달한다.
+
+```text
+python injector.py check-suite suite.json --project path/to/baseline --candidate-project path/to/candidate
+```
+
+JSON 결과의 `phase`는 `preflight`다. `READY`는 종료 코드 0, `BLOCKED`는 2다. 워크트리별 레지스트리, 선택된 변형, 기동 순서와 시나리오 목록을 반환한다. 진단에는 확인 가능한 경우 `side`, `case`, `node`를 포함한다. `missing_environment`는 변수 이름을, `port_in_use`는 포트 번호를 제공한다. 실제 설정값은 포함하지 않는다. `READY`는 점검 시점에 선언된 실행 조건이 충족됐다는 뜻이다. 실제 기동은 런타임 잠금을 획득한 뒤 조건을 다시 확인한다.
+
 ```text
 python injector.py verify-suite examples/demo/monorepo/scenarios/checkout-fix-suite.json --project path/to/baseline --candidate-project path/to/candidate --output .local/checkout-suite
 ```
 
-서비스를 시작하기 전에 모든 항목을 검사한다. 워크트리와 시나리오마다 새 세션을 열며, 데이터를 보존하는 의존성은 초기 상태를 확인하거나 임시 저장소를 사용한다. 동작 차이가 확인돼도 다음 비교를 계속한다. 기동이나 정리에 실패하면 스위트를 중단하고 남은 항목을 `NOT_RUN`으로 표시한다. 실패가 하나라도 확인되면 전체 `FAIL`이다. 확인된 실패가 없고 증거가 부족하면 `INCONCLUSIVE`다.
+실행 명령도 같은 사전 점검을 사용한다. 실행할 수 없는 경우 사전 점검 JSON을 반환한다. 실행 시에는 워크트리와 시나리오마다 새 세션을 열며, 데이터를 보존하는 의존성은 초기 상태를 확인하거나 임시 저장소를 사용한다. 동작 차이가 확인돼도 다음 비교를 계속한다. 기동이나 정리에 실패하면 스위트를 중단하고 남은 항목을 `NOT_RUN`으로 표시한다. 실패가 하나라도 확인되면 전체 `FAIL`이다. 확인된 실패가 없고 증거가 부족하면 `INCONCLUSIVE`다.
 
 검토할 때는 `summary.md`를, 자동화에서는 `report.json`을 사용한다. 각 항목은 두 워크트리의 상세 보고서와 기록으로 연결된다. `compare-worktrees`와 같은 `--registry` 옵션도 사용할 수 있다.
 

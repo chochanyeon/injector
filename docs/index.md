@@ -50,7 +50,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-350](work-items/T-350.md) | Verify a fix with reproducible checkout evidence | Complete for one scenario | Complete | Windows Docker and JVM fix verification complete |
 | [T-360](work-items/T-360.md) | Run a fix and its regression scenarios together | Complete | Complete | Windows process and live shop suite verified |
 | [T-370](work-items/T-370.md) | Verify required and forbidden event counts | Complete | Complete | Live Windows suite verified Kafka counts of one and zero |
-| [T-380](work-items/T-380.md) | Run registration and verification without manual prompts | Draft | Planned | Not run |
+| [T-380](work-items/T-380.md) | Run registration and verification without manual prompts | Preflight defined | Partial | Shared suite preflight and CLI verified on Windows |
 | [T-390](work-items/T-390.md) | Build and run the full test environment | Complete | Complete | All 13 stages passed on Windows. Native macOS run pending |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
@@ -68,7 +68,7 @@ Keep decisions and evidence under the same T-ID. Link larger supporting document
 
 ## 3. Resume development
 
-The next development item is the non-interactive registration and verification workflow for an LLM. Its first step is a suite preflight with structured diagnostics. The local web UI will use the same workflow. Verify on a work monorepo and check the imported External Tool configuration on macOS. [T-380](work-items/T-380.md) · [T-120](work-items/T-120.md)
+Continue the non-interactive workflow for a registered target. Suite preflight now returns structured diagnostics. The next step is to classify runtime startup and cleanup results for automation. Verify on a work monorepo and check the imported External Tool configuration on macOS. [T-380](work-items/T-380.md) · [T-120](work-items/T-120.md)
 
 1. Check `git status --short --branch` and recent commits. Identify the context of any uncommitted changes.
 2. Choose a T-ID and read it from design through the resume point. Consult the shared references as needed.

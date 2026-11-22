@@ -24,11 +24,19 @@ Use `trace.eventCounts` to require an exact count of events matching a service, 
 
 Use `verify-suite` to run reviewed scenarios for one target and profile. A version 1 suite lists its `target`, `profile`, and `cases`. Each case points to a scenario file relative to the suite file. Use `proveFix` for a case that must reproduce a named failure on the baseline. Other cases check parity. Declare each scenario once.
 
+Use `check-suite` with the same suite and checkout paths to inspect launch conditions without creating a session or an output folder.
+
+```text
+python injector.py check-suite suite.json --project path/to/baseline --candidate-project path/to/candidate
+```
+
+The JSON result has `phase: preflight`, a status of `READY` or `BLOCKED`, and exit code 0 or 2. It lists the resolved registry, selected variants, and startup order for each worktree, plus the declared cases. Diagnostic codes identify the affected `side`, `case`, or `node` when known. `missing_environment` includes the variable name, and `port_in_use` includes the port. Resolved setting values are excluded. `READY` means the declared launch checks passed at inspection time. The actual run checks again when it takes the runtime lock.
+
 ```text
 python injector.py verify-suite examples/demo/monorepo/scenarios/checkout-fix-suite.json --project path/to/baseline --candidate-project path/to/candidate --output .local/checkout-suite
 ```
 
-The command validates all cases before starting any service. It starts a fresh session per checkout and case. Use temporary storage or verify the initial state for dependencies that retain data. A completed difference does not stop later cases. A runtime failure stops the suite and marks pending cases `NOT_RUN`. The overall verdict is `FAIL` when any case confirms a failure. It is `INCONCLUSIVE` when evidence is incomplete and no case confirms a failure.
+The command uses the same preflight and returns its JSON diagnostic report when execution is blocked. For execution, it starts a fresh session per checkout and case. Use temporary storage or verify the initial state for dependencies that retain data. A completed difference does not stop later cases. A runtime failure stops the suite and marks pending cases `NOT_RUN`. The overall verdict is `FAIL` when any case confirms a failure. It is `INCONCLUSIVE` when evidence is incomplete and no case confirms a failure.
 
 Open `summary.md` for review or `report.json` for automation. Each case links to its paired report and the available recordings. Use the same optional `--registry` as for `compare-worktrees`.
 

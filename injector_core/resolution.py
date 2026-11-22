@@ -77,6 +77,12 @@ def _property_key(key):
         raise RegistryError("invalid VM property key")
 
 
+class MissingEnvironmentReference(RegistryError):
+    def __init__(self, variable):
+        super().__init__("required environment reference is unavailable")
+        self.variable = variable
+
+
 def _resolve_value(value, environment, defer):
     references = []
     if isinstance(value, dict):
@@ -85,7 +91,7 @@ def _resolve_value(value, environment, defer):
             if defer:
                 return "${" + reference + "}", [reference]
             if reference not in environment:
-                raise RegistryError("required environment reference is unavailable")
+                raise MissingEnvironmentReference(reference)
             value = environment[reference]
             references.append(reference)
         else:

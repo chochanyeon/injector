@@ -88,7 +88,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("plan", "generate", "up", "down", "run", "validate", "resolve", "render",
                                             "vault-demo", "check", "prepare", "stop", "serve", "hosts", "draft-check", "draft-convert",
-                                            "ide-tool", "observe-http", "compare-http", "compare-worktrees", "verify-suite"))
+                                            "ide-tool", "observe-http", "compare-http", "compare-worktrees", "check-suite", "verify-suite"))
     parser.add_argument("target", nargs="?", help="application ID, draft or suite path, or hosts action")
     parser.add_argument("--variant", action="append", default=[], metavar="NODE=VARIANT")
     parser.add_argument("--mode", choices=("dummy", "real"), help="prepare using a matching registry profile")
@@ -100,7 +100,7 @@ def main():
     parser.add_argument("--output", type=Path, help="new file for draft conversion or observe-http, new directory for comparisons")
     parser.add_argument("--scenario", type=Path, help="scenario JSON for observe-http or compare-worktrees")
     parser.add_argument("--candidate", type=Path, help="current observation file for compare-http")
-    parser.add_argument("--candidate-project", type=Path, help="candidate checkout directory for compare-worktrees or verify-suite")
+    parser.add_argument("--candidate-project", type=Path, help="candidate checkout directory for a worktree check or comparison")
     parser.add_argument("--prove-fix", metavar="CHECK_ID", help="require the named check to fail only on the baseline")
     parser.add_argument("--expected-config", help="IntelliJ configuration fingerprint for a before-launch prepare")
     parser.add_argument("--node", help="node to resolve or render")
@@ -117,11 +117,11 @@ def main():
         parser.error("--scenario requires observe-http or compare-worktrees")
     if args.candidate and args.command != "compare-http":
         parser.error("--candidate requires compare-http")
-    if args.candidate_project and args.command not in ("compare-worktrees", "verify-suite"):
-        parser.error("--candidate-project requires compare-worktrees or verify-suite")
+    if args.candidate_project and args.command not in ("compare-worktrees", "check-suite", "verify-suite"):
+        parser.error("--candidate-project requires compare-worktrees, check-suite or verify-suite")
     if args.prove_fix is not None and (not args.prove_fix or args.command not in ("compare-http", "compare-worktrees")):
         parser.error("--prove-fix requires compare-http or compare-worktrees and a check ID")
-    if args.command in ("observe-http", "compare-http", "compare-worktrees", "verify-suite"):
+    if args.command in ("observe-http", "compare-http", "compare-worktrees", "check-suite", "verify-suite"):
         from injector_core.registry import RegistryError
         try:
             if args.command == "observe-http":
@@ -137,15 +137,24 @@ def main():
                     parser.error("compare-http requires a baseline file and --candidate")
                 from verifier.compare_observations import compare_files
                 result = compare_files(args.target, args.candidate, prove_fix=args.prove_fix)
-            elif args.command == "verify-suite":
-                if not (args.target and args.project and args.candidate_project and args.output):
-                    parser.error("verify-suite requires a suite file, --project, --candidate-project and --output")
+            elif args.command in ("check-suite", "verify-suite"):
+                if not (args.target and args.project and args.candidate_project):
+                    parser.error(f"{args.command} requires a suite file, --project and --candidate-project")
+                if args.command == "verify-suite" and args.output is None:
+                    parser.error("verify-suite requires --output")
                 if (args.profile or args.variant or args.mode or args.node or args.open or args.infra
                         or args.main_docker or args.with_vault or args.vault_service):
-                    parser.error("verify-suite uses the target and profile from the suite file")
-                from verifier.worktree_suite import verify_suite
-                result = verify_suite(args.target, args.project, args.candidate_project, args.output, registry=args.registry,
-                                      emit=lambda case, side: print(f"Recording {case}: {side}", file=sys.stderr, flush=True))
+                    parser.error(f"{args.command} uses the target and profile from the suite file")
+                from verifier.worktree_suite import SuitePreflightError, check_suite, verify_suite
+                if args.command == "check-suite":
+                    result = check_suite(args.target, args.project, args.candidate_project, registry=args.registry)
+                else:
+                    try:
+                        result = verify_suite(args.target, args.project, args.candidate_project, args.output,
+                                              registry=args.registry, emit=lambda case, side: print(
+                                                  f"Recording {case}: {side}", file=sys.stderr, flush=True))
+                    except SuitePreflightError as error:
+                        result = error.report
             else:
                 if not (args.target and args.project and args.candidate_project and args.profile and args.scenario and args.output):
                     parser.error("compare-worktrees requires an app ID, --project, --candidate-project, --profile, --scenario and --output")
@@ -157,6 +166,8 @@ def main():
                                            emit=lambda side: print(f"Recording {side} checkout", file=sys.stderr, flush=True),
                                            prove_fix=args.prove_fix)
             print(json.dumps(result, indent=2))
+            if "exitCode" in result:
+                parser.exit(result["exitCode"])
             if args.command != "observe-http":
                 parser.exit({"PASS": 0, "FAIL": 1, "INCONCLUSIVE": 2}[result["verdict"]])
         except (ValueError, OSError, RecursionError) as error:

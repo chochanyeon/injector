@@ -31,6 +31,13 @@ _docker_connection_keys = ("DOCKER_CONTEXT", "DOCKER_HOST", "DOCKER_CONFIG", "DO
                            "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH")
 
 
+class ExecutionRequirementError(RegistryError):
+    def __init__(self, node, message, *, port=None):
+        super().__init__(f"{node}: {message}")
+        self.node = node
+        self.port = port
+
+
 def parse_variants(entries):
     variants = {}
     for entry in entries:
@@ -92,11 +99,18 @@ def _directory(project, registry=None):
 
 
 @contextmanager
-def _lock(directory):
+def _lock(directory, *, create=True):
     """OS lock is released even when the CLI or web server crashes."""
     path = directory / "runtime.lock"
     _artifact_path(directory, path)
-    with path.open("a+b") as handle:
+    try:
+        handle = path.open("a+b" if create else "r+b")
+    except FileNotFoundError:
+        if create:
+            raise
+        yield
+        return
+    with handle:
         handle.seek(0)
         if os.name == "nt":
             import msvcrt
@@ -305,10 +319,19 @@ def stop(project, emit=lambda event: None, *, registry=None):
 
 
 def check_observation_idle(project, *, registry=None):
-    """Check one checkout before a paired recording. Prepare checks again under the runtime lock."""
-    if runtime_directory(project, registry).is_dir():
-        with _locked_directories(project, registry) as directories:
-            if any(_session(directory) is not None for directory in directories):
+    """Inspect session manifests without creating files."""
+    path = registry_path(project, registry)
+    directory = runtime_directory(project, registry)
+    directories = [directory]
+    if path == registry_path(project):
+        legacy = partitioned_runtime_directory(project, path)
+        _artifact_path(directory, legacy / "session.json")
+        if (legacy / "session.json").exists():
+            directories.append(legacy)
+    with ExitStack() as stack:
+        for item in directories:
+            stack.enter_context(_lock(item, create=False))
+            if (item / "session.json").exists():
                 raise RegistryError(_active_observation_error)
 
 
@@ -531,7 +554,7 @@ def _preflight(data, plan, root, target, registry, *, check_hosts=False, compose
                 elif kind != "external":
                     raise RegistryError("unsupported runner")
         except RegistryError as error:
-            raise RegistryError(f"{node}: {error}") from error
+            raise ExecutionRequirementError(node, str(error)) from error
         compose_dependencies[node] = dependencies
         prepared.append((node, variant, settings, command, working, environment))
     return prepared, artifact, write_config
@@ -549,6 +572,31 @@ def check_requirements(project, target, profile, *, variants=None, registry=None
     if execution["type"] == "intellij":
         result["intellij"] = {"module": execution["module"], "mainClass": execution["mainClass"]}
     return result
+
+
+def _check_host_ports(prepared, previous):
+    occupied = {}
+    for node, variant, _, _, _, _ in prepared:
+        if variant["execution"]["type"] not in ("process", "compose"):
+            continue
+        for endpoint in variant["endpoints"].values():
+            address = endpoint["addresses"].get("host")
+            if address and (peer := _occupied(address)) is not None:
+                occupied[peer] = node
+    if occupied:
+        listeners = _owned_listeners(previous)
+        for (host, port), node in occupied.items():
+            wildcard = "::" if ":" in host else "0.0.0.0"
+            if (host, port) not in listeners and (wildcard, port) not in listeners:
+                raise ExecutionRequirementError(node, f"registered host port is already in use ({port})", port=port)
+
+
+def check_recording_requirements(project, target, data, plan, *, registry=None):
+    """Check the launch conditions used by a recording without creating a session."""
+    root = Path(project).resolve()
+    prepared, _, _ = _preflight(data, plan, root, target, registry, check_hosts=True)
+    _compose_conflicts(prepared, None, root)
+    _check_host_ports(prepared, None)
 
 
 def _ide_session_ready(session, prepared, key):
@@ -633,16 +681,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                 if _ide_session_ready(previous, prepared, ide_key):
                     emit({"phase": "reused", "order": plan["order"]})
                     return {"status": "ready", "profile": profile, "target": target, "order": plan["order"], "reused": True}
-        addresses = [endpoint["addresses"]["host"] for _, variant, _, _, _, _ in prepared
-                     if variant["execution"]["type"] in ("process", "compose")
-                     for endpoint in variant["endpoints"].values() if "host" in endpoint["addresses"]]
-        occupied = {peer for address in addresses if (peer := _occupied(address)) is not None}
-        if occupied:
-            listeners = _owned_listeners(previous)
-            for host, port in occupied:
-                wildcard = "::" if ":" in host else "0.0.0.0"
-                if (host, port) not in listeners and (wildcard, port) not in listeners:
-                    raise RegistryError("registered host port is already in use")
+        _check_host_ports(prepared, previous)
         emit({"phase": "planned", "order": plan["order"]})
         _stop(directory, emit)
         session = {"id": uuid.uuid4().hex, "profile": profile, "target": target, "resources": []}
