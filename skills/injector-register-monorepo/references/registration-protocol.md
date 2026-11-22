@@ -68,6 +68,8 @@ Record commands as argument arrays for review. Use structured sources and keep s
 
 Document scope, exclusions, app inventory and evidence, selected graph, existing endpoints, local proposals, conflicts, questions, and next actions. Mark readiness and launch unknowns as blockers where relevant even when an order can be calculated.
 
+Record the dependency search scopes and any custom rules, then keep the remaining candidates and the first follow-up in findings. A resumed investigation can start from those candidates and repeat the search for changed source or launch settings.
+
 ## Review the graph
 
 1. Draw edges from caller to dependency. Trace prerequisites recursively.

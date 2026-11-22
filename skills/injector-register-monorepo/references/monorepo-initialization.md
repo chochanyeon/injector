@@ -15,7 +15,21 @@ For a scoped request, start with that subtree and the build or launch definition
 
 Record ID, module path, kind, launch evidence with file and line, and investigation status. Keep an app's ID stable across worktrees.
 
-## 2. Inspect the target and infrastructure
+## 2. Search for dependency candidates
+
+Once the first target and its source directories are known, run the bundled search on the app and its related configuration. Replace `<skill-dir>` with the directory containing this guide's `SKILL.md` and adjust the project paths.
+
+```text
+python "<skill-dir>/scripts/find_dependency_candidates.py" "<repo>" --scope services/orders --scope infra/compose.yaml
+```
+
+The search reads Java, Kotlin, YAML, and properties files and reports repo-relative paths, line numbers, and rule names. Its built-in rules cover common HTTP, Kafka, DB, Redis, and Vault clients and connection settings. The directory walk skips build output, vendor trees, and `src/test`. The JSON lists the searched scope and unreadable paths. If Python is unavailable, use scoped `rg -n` searches for the same categories.
+
+Start with client and setting-reference matches. Open the surrounding code and the configuration for the selected launch. If a shared wrapper recurs, inspect its implementation once to find the parameter or key that identifies its target. Then rerun the search with a rule such as `--source-pattern 'partner-client=\bPartnerClient\s*(\(|\.)'` and follow the matched call sites. Extend the scope to a sibling app or shared module when the caller or configuration points there.
+
+Keep one row per distinct candidate in findings with caller, setting key, provider candidates, profile or activation condition, and source locations. Mark it confirmed when the active caller, effective setting, and provider agree. Follow up on unmatched calls, dynamic values, duplicate provider names, and missing sources. For a remaining blocker, ask for the exact key or provider choice and explain which scenario it affects. A search with zero matches leaves the category unverified until the relevant wrapper or configuration has been checked.
+
+## 3. Inspect the target and infrastructure
 
 1. Check entry point, working directory, command or IntelliJ module, profiles, bind port, and readiness. Set `projectPath` from the actual IntelliJ project root.
 2. Find databases, Kafka, Redis, Vault, Config Server, and other prerequisite resources. Check whether they are shared and where the caller runs. Distinguish published ports, internal ports, and service names. Use one node per shared resource.
@@ -24,7 +38,7 @@ Record ID, module path, kind, launch evidence with file and line, and investigat
 
 Reconstruct one concrete launch before choosing values. Record the source module, runner and working directory, build selection, Spring profiles, and the Injector profile separately. Identify where each profile or argument is set. Trace shared conventions and launcher overrides back to their declarations. A source fallback remains a candidate until its activation condition is established.
 
-## 3. Complete the app graph
+## 4. Complete the app graph
 
 - Locate each call in code and in the selected profile. Trace caller → service ID → endpoint and record build references separately.
 - Distinguish startup or readiness calls from request-specific and background calls. Add edges for the selected local scenario to `dependencies` and link consumer keys with `injections`.
@@ -34,7 +48,7 @@ Reconstruct one concrete launch before choosing values. Record the source module
 
 For each relevant edge, record the caller's key or entry point, the activation condition, the provider identity and endpoint evidence, and the local decision (real, mock, external, or unresolved). Distinguish a startup requirement from a service used only by the requested request path or an enabled worker. Treat an external dependency as locally usable only after confirming its endpoint, readiness contract, and permission for the intended local scenario. Keep remote defaults visible in findings until an explicit local decision replaces or permits them.
 
-## 4. Register and verify the first target
+## 5. Register and verify the first target
 
 For discovery only, save draft and findings under Injector's `registries/<repo-id>/onboarding/`. For reviewed registry work, write `registry.json` and app and infrastructure files in the same registry directory. [Draft protocol](registration-protocol.md) · [Runtime guide](runtime-registry-guide.md)
 

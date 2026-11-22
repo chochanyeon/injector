@@ -22,8 +22,8 @@ Draft v0.1 is a discovery artifact. Runtime files follow the current Injector sc
 ## Investigate and record
 
 1. Classify runnable apps and libraries. Find entry point, working directory, and active profiles.
-2. Trace endpoints and keys through JVM options, environment variables, configuration files, references, and defaults.
-3. Identify runtime dependencies separately from build dependencies and follow them recursively.
+2. Run the [dependency search](references/monorepo-initialization.md#2-search-for-dependency-candidates) on the selected source and configuration. Reuse the reported locations and add a rule for repeated in-house client wrappers when helpful.
+3. Inspect the remaining candidates and gaps. Combine caller code, effective launch settings, and provider evidence, then follow relevant runtime dependencies recursively.
 4. Construct the graph for the selected mode, profile, and caller context. Check shared nodes, cycles, port collisions, and unresolved references.
 5. Produce a draft and findings with file and line evidence, inferences, unknowns, and questions ordered by their effect on execution.
 

@@ -22,7 +22,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | `plan` | Complete for planning | `--project` prints DFS order and dependency metadata. The legacy summary remains available. | T-040 |
 | `down` | Partial | Removes containers and networks for the fixed Compose project. Session ownership and recovery are tracked separately. | `injector.py:compose` |
 | Vault mock | Complete for demo | WireMock KV v2 read paths with per-service values and a fixed local token. Company Vault and SDK integrations remain unverified. | T-130, T-131 |
-| LLM registration | Complete for documentation | Onboarding guide, Spring checklist, draft protocol, and runtime guide. | T-005, T-140 |
+| LLM registration | Implemented | A reusable search gathers source locations. The onboarding guide resolves remaining candidates and records evidence before registry review. | T-005, T-140, T-340 |
 | Registry schema | Complete | Version 1.0 and the 1.1 Spring extension. | T-010, T-140 |
 | Spring YAML and JVM settings | Complete for local rendering | Types and environment placeholders are preserved. IntelliJ uses an additional location. | T-140 |
 | Registry loading | Complete for validation | Validates schema, references, and paths. Prepare can use external projects. | T-020 |

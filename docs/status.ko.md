@@ -22,7 +22,7 @@
 | `plan` | 완료(계획) | --project 사용 시 DFS 순서·모드·의존성 메타데이터 출력. 실제 기동 없음. 기존 데모 요약도 유지 | T-040 |
 | `down` | 부분 구현 | 고정 Compose 프로젝트의 컨테이너·네트워크 제거. 세션 소유권·복구 관리 아님 | `injector.py:compose` |
 | Vault API 대역 | 완료(데모) | 별도 WireMock KV v2 조회·서비스 ID별 값 분리. 고정 토큰만 사용, 회사 Vault/SDK 미연동 | T-130, T-131 |
-| LLM 등록 지원 | 완료 | 최초 등록 가이드, Spring 설정 조사 체크리스트, 초안 프로토콜과 실행용 registry 가이드 제공 | T-005, T-140 |
+| LLM 등록 지원 | 구현 | 검색 도구로 근거 위치를 모으고, 최초 등록 가이드에 남은 후보 조사와 근거 확인 절차를 제공한다. | T-005, T-140, T-340 |
 | 실행용 등록 스키마 | 완료 | v1.0 기본 계약·v1.1 Spring 확장. 실행 엔진 아님 | T-010, T-140 |
 | Spring 외부 YAML·VM 값 생성 | 완료(로컬) | 타입·환경 placeholder 보존, additional-location 주입. IntelliJ 타입만 지원 | T-140 |
 | 앱 등록 로딩·외부 프로젝트 지정 | 완료(검증) | --project의 registry.json 구조·참조·경로 검사. prepare에서 외부 등록 실행 지원 | T-020 |
