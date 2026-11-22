@@ -15,6 +15,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -91,7 +92,8 @@ public final class Api {
         }
     }
 
-    public static JsonNode request(String address, String path, JsonNode body) throws Exception {
+    public static JsonNode request(String dependency, String path, JsonNode body) throws Exception {
+        String address = dependency.toUpperCase(Locale.ROOT) + "_URL";
         HttpRequest.Builder request = HttpRequest.newBuilder(url(address, path))
                 .timeout(Duration.ofSeconds(8));
         if (requestId() != null) {
@@ -102,6 +104,8 @@ public final class Api {
                     .POST(HttpRequest.BodyPublishers.ofByteArray(JSON.writeValueAsBytes(body)));
         }
         HttpResponse<byte[]> response = CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofByteArray());
+        ShopLog.write("http_dependency", requestId(), Map.of("dependency", dependency,
+                "method", body == null ? "GET" : "POST", "path", response.uri().getRawPath(), "status", response.statusCode()));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             int status = response.statusCode();
             throw new Problem(status >= 400 && status < 500 ? status : 502, "Upstream " + address + " returned " + status);

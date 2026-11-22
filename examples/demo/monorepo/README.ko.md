@@ -98,3 +98,17 @@ python injector.py observe-http storefront --project examples/demo/monorepo --pr
 ```
 
 코드 버전을 비교할 때는 같은 시나리오와 프로필로 각각 기록하고 `compare-http`로 비교한다. 실제 통합 테스트는 빌드 뒤 `INJECTOR_TEST_SHOP=1`을 설정하고 `python -m unittest discover -s tests -p test_shop_demo.py`로 실행한다.
+
+## 주문 흐름 비교
+
+쇼핑몰 워크트리를 양쪽 모두 빌드하고 같은 초기 데이터와 프로필을 사용한다. 명령은 각 워크트리를 차례로 실행하고 해당 세션을 종료하기 전에 Loki에서 기록을 가져온다.
+
+```text
+python injector.py compare-worktrees storefront --project "path/to/baseline-shop" --candidate-project "path/to/candidate-shop" --profile mock --scenario examples/demo/monorepo/scenarios/checkout-trace.json --output .local/checkout-trace
+```
+
+Injector는 주문 요청마다 새 `X-Request-Id`를 보내고, 대상 응답이 같은 ID를 돌려주는지 확인한다. 시나리오는 아웃바운드 HTTP 연결 네 개와 Kafka 발행·소비를 필수로 지정한다. 결과에는 HTTP 메서드·경로·상태, Kafka 토픽, 선택한 주문 응답 필드가 들어간다. 요청 ID·시각·하위 HTTP 본문·Kafka 본문은 제외한다. Verifier는 로그가 도착한 순서와 무관하게 이벤트 수와 값을 비교한다. 필수 이벤트가 제한 시간 안에 보이지 않으면 누락 목록과 함께 `INCONCLUSIVE`를 반환한다.
+
+기록 두 개는 웹의 **HTTP·Kafka 관측 비교**에서 열 수 있다. 한쪽만 기록하려면 같은 시나리오를 `observe-http`에 전달하고, 이미 저장한 두 파일을 다시 비교하려면 `compare-http`를 사용한다.
+
+요청 흐름 시나리오의 스키마 버전은 2다. 연동 앱은 Loki 스트림에 `app`과 `service` 라벨을, JSON 로그에 `requestId`, `event`, `details`를 둔다. HTTP 로그는 `http_request` 또는 `http_dependency`와 메서드·경로·상태를 기록한다. 아웃바운드 로그는 논리 의존성 이름도 기록한다. Kafka 로그는 토픽과 함께 `event` 또는 `details.traceKind`에 `kafka_publish`나 `kafka_consume`을 지정한다. 필수 이벤트가 모이면 잠시 더 조회해 기록이 안정되는지 확인한다. [시나리오·기록 스키마](../../../schemas/http-observation-v1.schema.json) · [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/#query-logs-within-a-range-of-time)

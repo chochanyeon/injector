@@ -98,3 +98,17 @@ python injector.py observe-http storefront --project examples/demo/monorepo --pr
 ```
 
 To compare code versions, record the same scenario and profile into two files and use `compare-http`. For the live integration test, build the distributions, set `INJECTOR_TEST_SHOP=1`, and run `python -m unittest discover -s tests -p test_shop_demo.py`.
+
+## Compare a checkout trace
+
+Build both shop worktrees and start with equivalent data. Use one profile for both sides. The command starts each checkout in sequence and queries its Loki before stopping the session.
+
+```text
+python injector.py compare-worktrees storefront --project "path/to/baseline-shop" --candidate-project "path/to/candidate-shop" --profile mock --scenario examples/demo/monorepo/scenarios/checkout-trace.json --output .local/checkout-trace
+```
+
+Injector sends a fresh `X-Request-Id` with the checkout and requires the target to echo it. The scenario declares four outbound HTTP edges and both Kafka events. The artifact stores HTTP methods, paths, statuses, and Kafka topics, plus the selected checkout response fields. Request IDs, log timestamps, and bodies from downstream HTTP or Kafka are excluded. Verifier compares the event counts and values independently of log arrival order. Required events that fail to appear before the timeout produce `INCONCLUSIVE` with a list of missing events.
+
+The two artifacts open in **HTTP·Kafka 관측 비교** in the web UI. To record just one checkout, use the same scenario with `observe-http`. To compare completed files again, use `compare-http`.
+
+The trace scenario uses schema version 2. A compatible app emits Loki streams labeled `app` and `service`. Each JSON line carries `requestId`, `event`, and `details`. HTTP lines use `http_request` or `http_dependency` with method, path, and status. Outbound lines include the logical dependency. Kafka lines include the topic and declare `kafka_publish` or `kafka_consume` through `event` or `details.traceKind`. Checkouts capture the required events and a short settling window. [Scenario and artifact schema](../../../schemas/http-observation-v1.schema.json) · [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/#query-logs-within-a-range-of-time)

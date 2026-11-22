@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "name": "checkout-trace",
+  "targetEndpoint": "http",
+  "request": {
+    "method": "POST",
+    "path": "/checkout",
+    "json": {"id": "trace-order", "sku": "sample", "quantity": 2}
+  },
+  "targetFields": ["/id", "/totalCents"],
+  "trace": {
+    "node": "loki",
+    "endpoint": "http",
+    "app": "injector-shop",
+    "timeoutSeconds": 15,
+    "requiredEvents": [
+      {"service": "storefront", "event": "http_request"},
+      {"service": "storefront", "event": "http_dependency", "dependency": "orders"},
+      {"service": "orders", "event": "http_dependency", "dependency": "catalog"},
+      {"service": "orders", "event": "http_dependency", "dependency": "inventory"},
+      {"service": "catalog", "event": "http_dependency", "dependency": "pricing"},
+      {"service": "orders", "event": "kafka_publish"},
+      {"service": "notifications", "event": "kafka_consume"}
+    ]
+  }
+}

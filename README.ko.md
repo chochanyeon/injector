@@ -8,7 +8,7 @@ Injector는 IntelliJ에서 JVM 앱을 디버깅할 때 VM 옵션·환경변수�
 
 저장소 루트는 Injector 자체의 개발 공간이다. `examples/demo/`에 Java와 Docker 예제를 보관한다. HTTP 관측 데모에서 의존성 호출을 기록하고 같은 시나리오를 두 워크트리에서 비교할 수 있다. [HTTP 관측 데모](examples/demo/http-observation/README.ko.md)
 
-[쇼핑몰 모노레포 데모](examples/demo/monorepo/README.ko.md)에서 JVM 서비스 여섯 개, 공유 PostgreSQL·Redis, Kafka 배송 이벤트, WireMock 가격·Vault KV v2 대역, Loki 애플리케이션 로그를 실행해 볼 수 있다.
+쇼핑몰 모노레포 데모는 JVM 서비스 여섯 개, 공유 PostgreSQL·Redis, Kafka 배송 이벤트, WireMock 가격·Vault KV v2 대역을 실행한다. 주문 시나리오로 두 워크트리의 HTTP 호출과 Kafka 이벤트를 함께 비교할 수 있다. [쇼핑몰 모노레포 데모](examples/demo/monorepo/README.ko.md)
 
 ```text
 injector/

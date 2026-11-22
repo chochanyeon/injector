@@ -4,6 +4,8 @@
 
 Injector에서 기록한 HTTP 파일 두 개는 루트에서 `python injector.py compare-http <baseline.json> --candidate <current.json>`으로 비교한다. `compare-worktrees`는 기존 워크트리 두 개에서 같은 시나리오를 실행해 기록과 비교를 한 번에 수행한다. [HTTP 관측 데모](../examples/demo/http-observation/README.ko.md)
 
+두 명령 모두 Loki에서 수집한 버전 2 HTTP·Kafka 요청 흐름을 비교할 수 있다. [쇼핑몰 주문 흐름](../examples/demo/monorepo/README.ko.md#주문-흐름-비교)
+
 의존성 업그레이드 전 **HEAD**와 변경 후 **현재 작업 디렉터리**에서 같은 검증 코드를 실행하는 로컬 POC다. 특정 라이브러리의 API를 하드코딩하지 않는다. 검증 항목이 모두 같으면 `PASS` / exit 0, 하나라도 다르거나 실행을 완료하지 못하면 `FAIL` / exit 1이다. stdout에는 판정 한 줄만 출력하며 Gradle 로그와 실패 원인은 stderr / JUnit 리포트에 남긴다.
 
 Gradle 검증은 **Java 17 이상, Spring Boot 3.x, Spring MVC, Jackson 2, Gradle Java 플러그인**을 사용하는 서비스가 대상이다. 데모는 Boot 3.5.7이다. 대상 저장소는 Groovy / Kotlin DSL 모두 가능하며, 대상의 Gradle Wrapper와 JDK 호환성은 해당 프로젝트 설정을 따른다. 이 도구 자체의 Wrapper(Gradle 9.3.1)는 데모 실행용이다. Gradle 검증 소스는 `src/test`에 있다.

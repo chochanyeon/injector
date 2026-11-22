@@ -32,7 +32,8 @@ public final class Main {
                         var header = event.headers().lastHeader(Api.REQUEST_ID);
                         String requestId = header == null || header.value() == null
                                 ? null : new String(header.value(), StandardCharsets.UTF_8);
-                        ShopLog.write("notification_stored", requestId, Map.of("orderId", event.key()));
+                        ShopLog.write("notification_stored", requestId,
+                                Map.of("traceKind", "kafka_consume", "topic", event.topic(), "orderId", event.key()));
                     }
                     if (!events.isEmpty()) {
                         consumer.commitSync();

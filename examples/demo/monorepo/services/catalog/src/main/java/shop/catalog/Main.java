@@ -19,7 +19,7 @@ public final class Main {
             if (cached != null) {
                 Api.reply(exchange, 200, ((ObjectNode) Api.JSON.readTree(cached)).put("cache", "hit"));
             } else {
-                var price = (ObjectNode) Api.request("PRICING_URL", "/prices/" + sku, null);
+                var price = (ObjectNode) Api.request("pricing", "/prices/" + sku, null);
                 redis.setex(key, ttl, Api.JSON.writeValueAsString(price));
                 Api.reply(exchange, 200, price.put("cache", "miss"));
             }

@@ -1,4 +1,5 @@
-"""Compare recorded HTTP behavior using the shared artifact contract."""
+"""Compare recorded dependency behavior using the shared artifact contract."""
+import json
 from pathlib import Path
 
 from injector_core.observation_contract import read_document, validate_document
@@ -26,15 +27,26 @@ def _differences(before, after, pointer=""):
 def compare_observations(baseline, candidate):
     validate_document(baseline, "observation")
     validate_document(candidate, "observation")
-    keys = ("scenario", "scenarioDigest", "profile", "variants", "edge")
+    if baseline["schemaVersion"] != candidate["schemaVersion"]:
+        return {"verdict": "INCONCLUSIVE", "reason": "observation formats differ"}
+    trace = baseline["schemaVersion"] == 2
+    location = "targetNode" if trace else "edge"
+    keys = ("scenario", "scenarioDigest", "profile", "variants", location)
     if any(baseline[key] != candidate[key] for key in keys):
-        return {"verdict": "INCONCLUSIVE", "reason": "scenario, profile, variants or edge differ"}
-    result = {"edge": baseline["edge"], "profile": baseline["profile"], "variants": baseline["variants"]}
-    compared = ("coverage", "target", "calls")
+        scope = "target" if trace else "edge"
+        return {"verdict": "INCONCLUSIVE", "reason": f"scenario, profile, variants or {scope} differ"}
+    result = {location: baseline[location], "profile": baseline["profile"], "variants": baseline["variants"]}
+    compared = ("coverage", "target", "events", "missingEvents") if trace else ("coverage", "target", "calls")
     for name, document in (("baseline", baseline), ("candidate", candidate)):
         result[name] = {key: document[key] for key in compared}
+        if trace:
+            result[name]["events"] = sorted(document["events"], key=lambda event: json.dumps(event, sort_keys=True))
+            if "reason" in document:
+                result[name]["reason"] = document["reason"]
     if any(document["coverage"] != "observed" for document in (baseline, candidate)):
-        return {**result, "verdict": "INCONCLUSIVE", "reason": "at least one recording has missing or incomplete calls"}
+        reason = ("at least one recording has incomplete coverage" if trace
+                  else "at least one recording has missing or incomplete calls")
+        return {**result, "verdict": "INCONCLUSIVE", "reason": reason}
     changes = list(_differences(result["baseline"], result["candidate"]))
     return {**result, "verdict": "FAIL" if changes else "PASS", "changes": changes[:50],
             "changeCount": len(changes)}

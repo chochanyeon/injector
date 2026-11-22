@@ -367,8 +367,8 @@ async function compareObservations() {
       new TextDecoder('utf-8', {fatal:true}).decode(await file.arrayBuffer())));
     const report = await api('/api/observations/compare', {baseline:before, candidate:after});
     const verdict = {PASS:'일치', FAIL:'차이 발견', INCONCLUSIVE:'판정 보류'}[report.verdict];
-    const edge = report.edge ? ` · ${report.edge.caller} → ${report.edge.dependency} · ${report.profile}` : '';
-    status.textContent = `${verdict}${edge}${report.reason ? ' · ' + report.reason : ''}`;
+    const scope = report.edge ? `${report.edge.caller} → ${report.edge.dependency}` : report.targetNode;
+    status.textContent = `${verdict}${scope ? ' · ' + scope + ' · ' + report.profile : ''}${report.reason ? ' · ' + report.reason : ''}`;
     if (report.baseline && report.candidate) {
       $('observation-before').textContent = report.baseline;
       $('observation-after').textContent = report.candidate;

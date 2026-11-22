@@ -6,6 +6,8 @@ Verifier compares an application's behavior before and after a dependency upgrad
 
 Use `python injector.py compare-http <baseline.json> --candidate <current.json>` from the repository root for two Injector HTTP recordings. Use `compare-worktrees` to record and compare one scenario across two existing checkouts in a single command. [HTTP observation demo](../examples/demo/http-observation/README.md)
 
+Both commands also compare version 2 HTTP and Kafka traces collected through Loki. [Shop checkout trace](../examples/demo/monorepo/README.md#compare-a-checkout-trace)
+
 ## Verify an application
 
 ```bash

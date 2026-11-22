@@ -6,7 +6,7 @@ Injector prepares local dependencies and supplies JVM options, environment varia
 
 Start with the [work index](docs/index.md) when resuming development. Each work item records its design, implementation, verification, and resume point. The repository root contains Injector itself. The HTTP observation demo shows how to record a dependency and compare the same scenario across two worktrees. [HTTP observation demo](examples/demo/http-observation/README.md)
 
-The [shop monorepo demo](examples/demo/monorepo/README.md) exercises six JVM services, shared PostgreSQL and Redis, Kafka delivery, WireMock for pricing and Vault KV v2, and correlated application logs in Loki.
+The shop monorepo demo exercises six JVM services, shared PostgreSQL and Redis, Kafka delivery, and WireMock for pricing and Vault KV v2. Its checkout scenario compares correlated HTTP and Kafka activity across worktrees. [Shop monorepo demo](examples/demo/monorepo/README.md)
 
 ```text
 injector/

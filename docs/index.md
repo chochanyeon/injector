@@ -45,6 +45,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-300](work-items/T-300.md) | Review fixes for execution and comparison | Complete | Complete | Five regressions and both shop profiles verified |
 | [T-310](work-items/T-310.md) | Compare one HTTP scenario across worktrees | Complete | Complete | Live Git worktree comparison verified on Windows |
 | [T-320](work-items/T-320.md) | Check registry execution requirements from the CLI | Complete | Complete | Windows CLI and live Compose configuration verified |
+| [T-330](work-items/T-330.md) | Compare a correlated HTTP and Kafka trace | Complete | Complete | Live PASS, downstream change and missing consumer verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 

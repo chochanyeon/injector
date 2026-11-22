@@ -12,17 +12,24 @@ _VALIDATOR = Draft202012Validator(_SCHEMA)
 
 
 def validate_document(data, kind):
-    error = next(_VALIDATOR.descend(data, _SCHEMA["$defs"][kind]), None)
+    trace = isinstance(data, dict) and data.get("schemaVersion") == 2
+    definition = "trace" + kind.capitalize() if trace and kind in ("scenario", "observation") else kind
+    error = next(_VALIDATOR.descend(data, _SCHEMA["$defs"][definition]), None)
     if error:
         location = "/".join(map(str, error.path)) or "document"
         raise RegistryError(f"invalid HTTP {kind} at {location}")
     if kind == "observation":
-        fields = [data["target"]["fields"]] + [call[key] for call in data["calls"]
-                                                for key in ("requestFields", "responseFields")]
+        fields = [data["target"]["fields"]] + [call[key] for call in data.get("calls", [])
+                                               for key in ("requestFields", "responseFields")]
         if any(isinstance(value, float) and not math.isfinite(value)
                for values in fields for value in values.values()):
             raise RegistryError("invalid HTTP observation numeric field")
-        if not all(data["edge"][key] in data["variants"] for key in ("caller", "dependency")):
+        if trace:
+            services = {data["targetNode"], *(event["service"] for event in data["events"]),
+                        *(event["service"] for event in data["missingEvents"])}
+            if not services <= data["variants"].keys():
+                raise RegistryError("trace service is outside the selected variants")
+        elif not all(data["edge"][key] in data["variants"] for key in ("caller", "dependency")):
             raise RegistryError("observation edge is outside the selected variants")
     return data
 

@@ -1,4 +1,4 @@
-"""Record a single local HTTP dependency while Injector owns the session."""
+"""Record local dependency behavior while Injector owns the session."""
 from contextlib import contextmanager
 from hashlib import sha256
 from http.client import HTTPConnection, HTTPException
@@ -45,8 +45,8 @@ def _filtered(headers, *excluded):
     return [(name, value) for name, value in items if name.lower() not in skip]
 
 
-def _exchange(endpoint, method, path, body=None, headers=()):
-    connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=8)
+def _exchange(endpoint, method, path, body=None, headers=(), *, timeout=8):
+    connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=timeout)
     try:
         connection.putrequest(method, path, skip_accept_encoding=True)
         for name, value in headers:
@@ -100,14 +100,19 @@ def _project_fields(body, pointers):
     return fields
 
 
+def _scenario_inputs(scenario):
+    digest = sha256(json.dumps(scenario, sort_keys=True, allow_nan=False).encode("utf-8")).hexdigest()
+    request = scenario["request"]
+    body = json.dumps(request["json"], ensure_ascii=False, allow_nan=False).encode("utf-8") if "json" in request else None
+    if body is not None and len(body) > _MAX_BODY:
+        raise RegistryError("HTTP scenario input exceeds 1 MiB")
+    return digest, body
+
+
 class HTTPObservation:
     def __init__(self, scenario):
         self.scenario = scenario
-        self.digest = sha256(json.dumps(scenario, sort_keys=True, allow_nan=False).encode("utf-8")).hexdigest()
-        request = scenario["request"]
-        self.body = json.dumps(request["json"], ensure_ascii=False, allow_nan=False).encode("utf-8") if "json" in request else None
-        if self.body is not None and len(self.body) > _MAX_BODY:
-            raise RegistryError("HTTP scenario input exceeds 1 MiB")
+        self.digest, self.body = _scenario_inputs(scenario)
         self.lock = threading.Lock()
         self.calls = []
         self.active = False
@@ -258,12 +263,20 @@ def _record_http(project, target, profile, observation, destination, registry):
     except OSError:
         destination.unlink(missing_ok=True)
         raise
-    return {"output": str(destination), "coverage": result["coverage"], "calls": len(result["calls"])}
+    captured = "events" if "events" in result else "calls"
+    return {"output": str(destination), "coverage": result["coverage"], captured: len(result[captured])}
+
+
+def _observation_for(scenario):
+    if scenario["schemaVersion"] == 2:
+        from .trace_observation import TraceObservation
+        return TraceObservation(scenario)
+    return HTTPObservation(scenario)
 
 
 def observe_http(project, target, profile, scenario_path, output, *, registry=None):
     scenario = read_document(Path(scenario_path), "scenario")
-    return _record_http(project, target, profile, HTTPObservation(scenario), Path(output), registry)
+    return _record_http(project, target, profile, _observation_for(scenario), Path(output), registry)
 
 
 def compare_worktrees(project, candidate, target, profile, scenario_path, output, *, registry=None,
@@ -284,7 +297,7 @@ def compare_worktrees(project, candidate, target, profile, scenario_path, output
     for side, checkout in checkouts.items():
         try:
             data, plan = select_plan(checkout, target, profile, registry=registry)
-            observation = HTTPObservation(scenario)
+            observation = _observation_for(scenario)
             observation._route(data, plan)
             check_observation_idle(checkout, registry=registry)
             observations[side] = observation

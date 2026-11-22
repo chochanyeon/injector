@@ -75,8 +75,8 @@ public final class Main {
                 try (var db = Api.database()) {
                     var order = find(db, id);
                     if (order == null) {
-                        var item = Api.request("CATALOG_URL", "/items/" + sku, null);
-                        var stock = Api.request("INVENTORY_URL", "/stock/" + sku, null);
+                        var item = Api.request("catalog", "/items/" + sku, null);
+                        var stock = Api.request("inventory", "/stock/" + sku, null);
                         if (stock.required("available").intValue() < quantity) {
                             throw new Api.Problem(409, "Insufficient stock");
                         }
@@ -90,7 +90,8 @@ public final class Main {
                         var event = new ProducerRecord<>(topic, id, Api.JSON.writeValueAsString(result));
                         event.headers().add(Api.REQUEST_ID, Api.requestId().getBytes(StandardCharsets.UTF_8));
                         producer.send(event).get(6, TimeUnit.SECONDS);
-                        ShopLog.write("order_published", Api.requestId(), Map.of("orderId", id));
+                        ShopLog.write("order_published", Api.requestId(),
+                                Map.of("traceKind", "kafka_publish", "topic", topic, "orderId", id));
                         try (var mark = db.prepareStatement("UPDATE orders SET published = TRUE WHERE id = ?")) {
                             mark.setString(1, id);
                             mark.executeUpdate();

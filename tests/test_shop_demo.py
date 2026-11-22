@@ -12,10 +12,11 @@ from uuid import uuid4
 
 import yaml
 
-from injector_core.observation import observe_http
+from injector_core.observation import compare_worktrees, observe_http
 from injector_core.registry import runtime_directory
 from injector_core.runtime import _docker, prepare, select_plan, stop
 from test_runtime import free_port
+from verifier.compare_observations import compare_files
 
 
 DEMO = Path(__file__).resolve().parents[1] / "examples" / "demo" / "monorepo"
@@ -78,6 +79,61 @@ def copy_with_isolated_ports(project, compose_name):
 
 @unittest.skipUnless(os.environ.get("INJECTOR_TEST_SHOP"), "build the shop with installDist and opt in")
 class ShopIntegrationTests(unittest.TestCase):
+    def test_checkout_trace_detects_changed_topic_and_missing_consumer(self):
+        name = "injector-shop-trace-" + uuid4().hex[:10]
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            baseline, candidate = root / "baseline shop", root / "candidate shop"
+            copy_with_isolated_ports(baseline, name)
+            shutil.copytree(baseline, candidate)
+            scenario = baseline / "scenarios" / "checkout-trace.json"
+
+            def set_topic(service, topic):
+                fixture = candidate / "infra" / "vault" / "mappings" / f"{service}.json"
+                mapping = json.loads(fixture.read_bytes())
+                mapping["response"]["jsonBody"]["data"]["data"]["orderTopic"] = topic
+                fixture.write_text(json.dumps(mapping), encoding="utf-8")
+
+            try:
+                for service in ("orders", "notifications"):
+                    set_topic(service, "shop.orders.candidate")
+                report = compare_worktrees(baseline, candidate, "storefront", "mock", scenario, root / "paired")
+                self.assertEqual(report["verdict"], "FAIL", report)
+                before, after = report["baseline"], report["candidate"]
+                self.assertEqual(before["target"], after["target"])
+                self.assertEqual(before["target"]["status"], 201)
+                self.assertEqual(before["events"], [
+                    {**event, "topic": "shop.orders"} if "topic" in event else event for event in after["events"]
+                ])
+                self.assertEqual(len(report["changes"]), 2)
+                self.assertTrue(all(change["path"].endswith("/topic") for change in report["changes"]))
+                edges = {(event["service"], event["dependency"]) for event in after["events"]
+                         if event["event"] == "http_dependency"}
+                self.assertEqual(edges, {("storefront", "orders"), ("orders", "catalog"),
+                                         ("orders", "inventory"), ("catalog", "pricing")})
+                baseline_path = Path(report["artifacts"]["baseline"])
+                self.assertFalse((runtime_directory(baseline) / "session.json").exists())
+                self.assertFalse((runtime_directory(candidate) / "session.json").exists())
+
+                set_topic("notifications", "shop.orders.other")
+                missing_path = root / "missing.json"
+                captured = observe_http(candidate, "storefront", "mock", scenario, missing_path)
+                self.assertEqual(captured["coverage"], "incomplete")
+                missing = compare_files(baseline_path, missing_path)
+                self.assertEqual(missing["verdict"], "INCONCLUSIVE")
+                self.assertEqual(missing["candidate"]["missingEvents"],
+                                 [{"service": "notifications", "event": "kafka_consume"}])
+                self.assertEqual(missing["candidate"]["target"], before["target"])
+                self.assertFalse((runtime_directory(candidate) / "session.json").exists())
+            finally:
+                stop(candidate)
+                stop(baseline)
+                label = f"label=com.docker.compose.project={name}"
+                networks = _docker(["network", "ls", "-q", "--filter", label]).split()
+                if networks:
+                    _docker(["network", "rm", *networks])
+                self.assertFalse(_docker(["ps", "-aq", "--filter", label]))
+
     def test_checkout_profiles_and_http_observation(self):
         self.assertTrue((DEMO / "services" / "storefront" / "build" / "install" / "storefront" / "lib").is_dir(),
                         "run the shop installDist task first")
