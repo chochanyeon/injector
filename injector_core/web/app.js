@@ -2,14 +2,18 @@ const $ = id => document.getElementById(id);
 let token, catalog, busy = false, timer;
 let editor, editorBusy = false, pickerBusy = false;
 let variants = {}, planReady = false, planRequest = 0, loadRequest = 0;
-let checking = false;
+let checking = false, suiteChecking = false, activeAction, selectionWarning = '';
 const phases = {starting:'시작 중', waiting:'준비 확인 중', ready:'준비 완료', 'debug-ready':'Debug 가능', stopping:'종료 중'};
+const runners = {process:'로컬 프로세스', compose:'Docker Compose', intellij:'IntelliJ', external:'외부 서비스'};
+const sides = {baseline:'기준', candidate:'후보'};
+const verdicts = {PASS:'통과', FAIL:'실패', INCONCLUSIVE:'판정 보류', NOT_RUN:'미실행'};
 async function api(path, body) {
   const endpoint = path.split('?')[0];
   let response, result;
   try {
     response = await fetch(path, body === undefined ? {} : {method:'POST', headers:{'Content-Type':'application/json', 'X-Injector-Token':token}, body:JSON.stringify(body)});
   } catch {
+    connection(false);
     throw new Error(`Injector 서버에 연결할 수 없습니다 (${endpoint}).`);
   }
   try {
@@ -20,6 +24,7 @@ async function api(path, body) {
   if (!result || typeof result !== 'object' || Array.isArray(result)) {
     throw new Error(`Injector 서버 응답 형식이 올바르지 않습니다 (${endpoint}).`);
   }
+  connection(true);
   if (!response.ok) throw new Error(result.error || '요청에 실패했습니다.');
   return result;
 }
@@ -28,22 +33,54 @@ const registryDialog = $('registry-editor');
 function selection() {
   return {project:$('project').value.trim(), registry:$('registry').value.trim()};
 }
-function error(message) { $('result').textContent = message; $('badge').textContent = '확인 필요'; $('badge').className = 'badge failed'; }
+function feedback(id, message, state = '') {
+  $(id).textContent = message;
+  $(id).dataset.state = state;
+}
+function badge(id, message, state = '') {
+  $(id).textContent = message;
+  $(id).className = `badge ${state}`.trim();
+}
+function connection(online) {
+  $('connection').dataset.state = online ? 'online' : 'offline';
+  $('connection').textContent = online ? '로컬 연결됨' : '연결 확인 필요';
+}
+function error(message) { feedback('result', message, 'error'); badge('badge', '확인 필요', 'failed'); }
+function suiteSelection() {
+  return {...selection(), suite:$('suite-file').value.trim(), candidate:$('suite-candidate').value.trim()};
+}
+function suiteButtons(locked) {
+  const pending = locked || suiteChecking;
+  const input = suiteSelection();
+  for (const id of ['suite-candidate','suite-file']) $(id).disabled = pending;
+  for (const id of ['suite-pick-candidate','suite-pick-file']) $(id).disabled = pending || editorBusy || !token;
+  for (const id of ['suite-check','suite-run']) $(id).disabled = pending || !catalog || !input.candidate || !input.suite;
+}
 function buttons() {
   const locked = busy || pickerBusy;
   $('prepare').disabled = locked || !planReady;
   $('check').disabled = locked || checking || !planReady;
   $('variant-options').disabled = locked;
-  for (const id of ['load','stop','project','registry']) $(id).disabled = locked;
+  for (const id of ['load','project','registry']) $(id).disabled = locked;
+  $('stop').disabled = locked || !selection().project;
   for (const id of ['target','profile']) $(id).disabled = locked || !catalog;
   $('pick-project').disabled = locked || editorBusy || !token;
   $('pick-registry').disabled = $('pick-project').disabled;
+  suiteButtons(locked);
   editorButtons();
+}
+function clearPlan(message) {
+  $('progress').hidden = $('execution-log').hidden = $('ide-hint').hidden = true;
+  $('plan').replaceChildren();
+  $('summary').textContent = message;
 }
 async function plan() {
   const generation = ++planRequest;
   planReady = false;
-  $('check-result').textContent = '';
+  feedback('check-result', '');
+  clearPlan('계획을 읽는 중…');
+  badge('badge', '계획을 읽는 중');
+  feedback('result', selectionWarning, selectionWarning ? 'pending' : '');
   buttons();
   try {
     const query = new URLSearchParams({...selection(), target:$('target').value, profile:$('profile').value});
@@ -55,11 +92,14 @@ async function plan() {
       const item = document.createElement('li'); item.dataset.node = step.node;
       const number = document.createElement('span'); number.className='number'; number.textContent=String(index+1).padStart(2,'0');
       const name = document.createElement('span'); name.className='node'; name.textContent=step.node;
-      const runner = document.createElement('span'); runner.className='runner'; runner.textContent=step.runner.toUpperCase() + ' / ' + step.variant; name.append(runner);
+      const runner = document.createElement('span'); runner.className='runner'; runner.textContent=(runners[step.runner] || step.runner) + ' · ' + step.variant; name.append(runner);
       const phase = document.createElement('span'); phase.className='phase'; phase.textContent='대기';
       item.append(number,name,phase); $('plan').append(item);
     });
-    $('summary').textContent = `${result.order.length}개 노드 · 아래 순서로 의존성을 준비합니다.`;
+    $('summary').textContent = `${result.order.length}개 노드`;
+    $('ide-hint').hidden = result.steps.at(-1)?.runner !== 'intellij';
+    badge('badge', '실행 대기');
+    if (!selectionWarning) feedback('result', '실행 환경을 준비할 수 있습니다.');
     planReady = true;
     buttons();
   } catch(e) {
@@ -71,14 +111,15 @@ async function plan() {
 }
 function refreshPlan() {
   const name = $('profile').value;
+  if (!catalog?.profiles[name]) return;
   return Promise.all([plan(),
-    dependencyGraph.update(catalog.project, name, catalog.profiles[name].applications, variants, catalog.registry)]);
+    dependencyGraph.update(catalog.project, name, catalog.profiles[name].applications, variants, catalog.registry, $('target').value)]);
 }
 async function checkRequirements() {
   const generation = planRequest;
   const result = $('check-result');
   checking = true;
-  result.textContent = 'Registry 실행 조건을 검사하고 있습니다…';
+  feedback('check-result', '실행 조건을 확인하는 중…', 'pending');
   buttons();
   try {
     const check = await api('/api/check', {...selection(), target:$('target').value, profile:$('profile').value, variants});
@@ -86,9 +127,10 @@ async function checkRequirements() {
       result.textContent = check.intellij
         ? `IDE 확인 필요 · 등록된 실행 조건을 확인했습니다. IntelliJ에서 모듈 ${check.intellij.module}과 메인 클래스 ${check.intellij.mainClass}를 확인하세요.`
         : `통과 · 선택한 앱과 의존성 ${check.order.length}개 노드의 등록된 실행 조건을 확인했습니다.`;
+      result.dataset.state = 'success';
     }
   } catch(e) {
-    if (generation === planRequest) result.textContent = `확인 필요 · ${e.message}`;
+    if (generation === planRequest) feedback('check-result', `확인 필요 · ${e.message}`, 'error');
   } finally {
     checking = false;
     buttons();
@@ -111,11 +153,6 @@ async function targets(preferred) {
     select.onchange = () => {
       if (select.value === choice.default) delete variants[node];
       else variants[node] = select.value;
-      if ($('badge').classList.contains('failed')) {
-        $('badge').className = 'badge';
-        $('badge').textContent = '대기 중';
-        $('result').textContent = '실행 환경을 준비할 수 있습니다.';
-      }
       refreshPlan();
     };
     label.append(select);
@@ -128,7 +165,11 @@ async function load(remember = false) {
   const generation = ++loadRequest;
   const profile = $('profile').value, target = $('target').value;
   catalog = null; planReady = false; planRequest++; $('variant-picker').hidden = true; buttons();
-  $('check-result').textContent = '';
+  badge('project-state', '불러오는 중', 'running');
+  clearPlan('프로젝트를 읽는 중…');
+  selectionWarning = '';
+  feedback('check-result', '');
+  suiteChanged();
   try {
     const paths = selection();
     let result;
@@ -143,35 +184,37 @@ async function load(remember = false) {
     }
     if (generation !== loadRequest) return;
     catalog = result;
-    $('project').value = catalog.project;
-    $('registry').value = catalog.registry;
+    $('project').title = $('project').value = catalog.project;
+    $('registry').title = $('registry').value = catalog.registry;
     $('profile').replaceChildren(...Object.keys(catalog.profiles).map(name => new Option(name,name)));
     if (Object.hasOwn(catalog.profiles, profile)) $('profile').value = profile;
-    $('badge').textContent = '대기 중';
-    $('badge').className = 'badge';
-    $('result').textContent = result.remembered === false
-      ? '경로를 불러왔습니다. 이 선택이 저장됐는지는 확인할 수 없습니다.'
-      : '실행 환경을 준비할 수 있습니다.';
+    badge('project-state', '불러옴', 'succeeded');
+    if (result.remembered === false) selectionWarning = '경로를 불러왔습니다. 이 선택이 저장됐는지는 확인할 수 없습니다.';
+    feedback('result', selectionWarning || '실행 환경을 준비할 수 있습니다.', selectionWarning ? 'pending' : '');
+    $('suite-baseline').textContent = `기준 워크트리 · ${catalog.project}`;
     buttons(); await targets($('profile').value === profile ? target : undefined);
   } catch(e) {
     if (generation !== loadRequest) return;
     dependencyGraph.reset();
+    badge('project-state', '불러오기 실패', 'failed');
+    clearPlan('프로젝트 경로와 Registry 파일을 확인하세요.');
     error(e.message);
   }
 }
 
-async function pickPath(kind, inEditor = false) {
+async function pickPath(kind, inEditor = false, field = kind, buttonId = inEditor ? 'registry-pick-project' : 'pick-' + kind) {
   if (busy || editorBusy || pickerBusy) return;
-  const button = $(inEditor ? 'registry-pick-project' : 'pick-' + kind);
+  const button = $(buttonId);
   const caption = button.textContent;
   let project;
   pickerBusy = true;
   button.textContent = '선택 중…';
   buttons();
   try {
-    ({project} = await api('/api/project/pick', {kind, project:(inEditor && editor?.project) || selection()[kind]}));
+    ({project} = await api('/api/project/pick', {kind, project:(inEditor && editor?.project) || $(field).value.trim()}));
   } catch (e) {
     if (inEditor) registryStatus(e.message, 'error');
+    else if (field.startsWith('suite-')) feedback('suite-result', e.message, 'error');
     else error(e.message);
     return;
   } finally {
@@ -185,43 +228,180 @@ async function pickPath(kind, inEditor = false) {
     await openEditor(project);
     if (editor?.project !== project) return;
   }
-  $(kind).value = project;
+  $(field).value = project;
+  if (field.startsWith('suite-')) return suiteChanged();
   await load(true);
 }
-async function poll() {
+async function poll(restore = false) {
   let job;
   try {
     job = await api('/api/job');
+    connection(true);
   } catch(e) {
-    error(`${e.message} 작업 상태를 다시 확인합니다…`);
-    timer = setTimeout(poll, 1500);
+    connection(false);
+    feedback(activeAction === 'suite' ? 'suite-result' : 'result', `${e.message} 작업 상태를 다시 확인합니다…`, 'error');
+    timer = setTimeout(() => poll(restore), 1500);
     return;
+  }
+  if (restore && job.action === 'suite' && job.context?.project === selection().project
+      && job.context.registry === selection().registry && !suiteSelection().suite && !suiteSelection().candidate) {
+    $('suite-file').value = job.context.suite;
+    $('suite-candidate').value = job.context.candidate;
   }
   busy = job.status === 'running'; buttons();
   if (job.status === 'idle') return;
-  $('badge').className='badge '+job.status;
-  $('badge').textContent=({running:'진행 중', succeeded:'완료', failed:'실패'})[job.status];
-  $('events').textContent=job.events.map(event => event.order ? '계획: '+event.order.join(' → ') : [event.node, phases[event.phase] || event.phase].filter(Boolean).join(' · ')).join('\n');
-  job.events.forEach(event => {
-    const row = [...$('plan').children].find(item => item.dataset.node === event.node);
-    if (row) { const phase=row.querySelector('.phase'); phase.textContent=phases[event.phase] || event.phase; phase.className='phase '+event.phase; }
-  });
+  activeAction = job.action;
+  if (matchesJob(job)) {
+    if (job.action === 'suite') {
+      if (job.status === 'succeeded') showSuiteResult(job.result);
+      else if (job.status === 'failed') {
+        badge('suite-badge', '실행 실패', 'failed');
+        feedback('suite-result', job.error, 'error');
+      } else {
+        const current = job.events.at(-1);
+        badge('suite-badge', '검증 중', 'running');
+        feedback('suite-result', current ? `${current.case} · ${sides[current.side]} 워크트리 실행 중` : '실행 조건을 확인하는 중…', 'pending');
+      }
+    } else showExecution(job);
+  } else if (busy) feedback('result', '다른 실행 대상의 작업이 진행 중입니다.', 'pending');
+  if (busy) timer=setTimeout(poll, 700);
+}
+function matchesJob(job) {
+  const context = job.context;
+  if (!context) return true;
+  const current = job.action === 'suite' ? suiteSelection() : selection();
+  if (current.project !== context.project || current.registry !== context.registry) return false;
+  if (job.action === 'suite') return current.suite === context.suite && current.candidate === context.candidate;
+  if (job.action !== 'prepare') return true;
+  const prepared = context.variants || {};
+  return $('target').value === context.target && $('profile').value === context.profile
+    && Object.keys(variants).length === Object.keys(prepared).length
+    && Object.entries(variants).every(([node, variant]) => prepared[node] === variant);
+}
+function showExecution(job) {
+  badge('badge', ({running:'진행 중', succeeded:job.action === 'stop' ? '종료됨' : '준비 완료', failed:'실패'})[job.status], job.status);
+  const events = job.events || [];
+  $('execution-log').hidden = !events.length;
+  $('events').textContent = events.map(event => event.order ? event.order.join(' → ')
+    : [event.node, phases[event.phase] || event.phase].filter(Boolean).join(' · ')).join('\n');
+  const states = new Map(events.filter(event => event.node).map(event => [event.node, event.phase]));
+  let ready = 0;
+  for (const row of $('plan').children) {
+    const state = states.get(row.dataset.node);
+    const phase = row.querySelector('.phase');
+    phase.textContent = job.status === 'succeeded' && job.action === 'stop' ? '대기' : phases[state] || state || '대기';
+    phase.className = 'phase ' + (state || '');
+    if (['ready', 'debug-ready'].includes(state)) ready++;
+  }
+  const progress = $('progress');
+  progress.max = Math.max(1, $('plan').children.length);
+  progress.value = ready;
+  progress.hidden = job.status !== 'running' || job.action === 'stop' || !$('plan').children.length;
   if (job.status==='succeeded') {
     const result=job.result;
     const instruction = result.externalRunConfiguration
       ? 'IntelliJ에서 아래 실행 구성을 가져온 뒤 Debug를 누르세요.'
       : `IntelliJ에서 Injector-${result.profile}-${result.target}를 선택하고 Debug를 누르세요.`;
-    $('result').textContent = result.status==='stopped' ? 'Injector가 만든 의존성을 종료했습니다. IDE에서 시작한 앱은 직접 종료하세요.' : result.runConfiguration ? `준비 완료. ${instruction}\n\n${result.runConfiguration}` : '앱과 의존성이 모두 준비되었습니다.';
+    const message = result.status==='stopped' ? 'Injector가 시작한 자원을 종료했습니다.'
+      : result.runConfiguration ? `${instruction}\n${result.runConfiguration}` : '앱과 의존성이 준비됐습니다.';
+    feedback('result', message, 'success');
   } else if(job.status==='failed') error(job.error);
-  else $('result').textContent='의존성을 순서대로 준비하고 있습니다…';
-  if (busy) timer=setTimeout(poll, 700);
+  else {
+    const current = events.filter(event => event.node).at(-1);
+    const message = current ? `${current.node} · ${phases[current.phase] || current.phase}`
+      : job.action === 'stop' ? '의존성을 종료하는 중…' : '의존성을 준비하는 중…';
+    feedback('result', message, 'pending');
+  }
 }
 async function run(action) {
+  activeAction = action;
+  const suite = action === 'suite';
+  if (suite) {
+    suiteChanged();
+    badge('suite-badge', '시작 중', 'running');
+    feedback('suite-result', '실행 조건을 확인하는 중…', 'pending');
+  } else {
+    badge('badge', '시작 중', 'running');
+    feedback('result', action === 'stop' ? '종료 요청 중…' : '준비 요청 중…', 'pending');
+  }
   busy=true; buttons(); clearTimeout(timer);
   try {
-    await api('/api/'+action,{...selection(),target:$('target').value,profile:$('profile').value,variants});
+    const inputs = suite ? suiteSelection() : {...selection(),target:$('target').value,profile:$('profile').value,variants};
+    await api(suite ? '/api/suite/run' : '/api/'+action, inputs);
     await poll();
-  } catch(e) { busy=false; buttons(); error(e.message); }
+  } catch(e) {
+    busy=false; buttons();
+    if (!suite) error(e.message);
+    else {
+      badge('suite-badge', '확인 필요', 'failed');
+      feedback('suite-result', e.message, 'error');
+    }
+  }
+}
+
+function suiteChanged() {
+  badge('suite-badge', '대기 중');
+  feedback('suite-result', '');
+  $('suite-entries').replaceChildren();
+  $('suite-entries').hidden = $('suite-evidence').hidden = true;
+  buttons();
+}
+function showSuiteResult(report) {
+  const preflight = report.phase === 'preflight';
+  const success = preflight ? report.status === 'READY' : report.verdict === 'PASS';
+  const label = preflight ? success ? '실행 가능' : '실행 조건 확인 필요' : verdicts[report.verdict];
+  const state = success ? 'success' : report.verdict === 'INCONCLUSIVE' ? 'pending' : 'error';
+  const cases = report.cases || [];
+  badge('suite-badge', label, success ? 'succeeded' : state === 'pending' ? 'running' : 'failed');
+  feedback('suite-result', `${label}${report.suite ? ` · ${report.suite}` : ''}${cases.length ? ` · 시나리오 ${cases.length}개` : ''}`, state);
+  const rows = (preflight && !success ? report.diagnostics.map(entry => [
+    sides[entry.side], entry.case ? `시나리오 ${entry.case}` : '', entry.node, entry.variable,
+    entry.message
+  ].filter(Boolean).join(' · ')) : cases.map(entry => [entry.scenario || entry.file,
+    entry.verdict ? verdicts[entry.verdict] || entry.verdict : '', entry.reason].filter(Boolean).join(' · ')));
+  $('suite-entries').replaceChildren(...rows.map(text => {
+    const item = document.createElement('li'); item.textContent = text; return item;
+  }));
+  $('suite-entries').hidden = !rows.length;
+  $('suite-evidence').hidden = !report.report;
+  $('suite-report').textContent = report.report || '';
+  $('suite-copy').textContent = '보고서 경로 복사';
+}
+
+async function copySuiteReport() {
+  const path = $('suite-report');
+  try {
+    await navigator.clipboard.writeText(path.textContent);
+    $('suite-copy').textContent = '복사됨';
+  } catch {
+    const range = document.createRange();
+    range.selectNodeContents(path);
+    const selected = window.getSelection();
+    selected.removeAllRanges();
+    selected.addRange(range);
+    $('suite-copy').textContent = '경로 선택됨';
+  }
+}
+async function checkSuite() {
+  const input = suiteSelection();
+  suiteChanged();
+  suiteChecking = true;
+  buttons();
+  badge('suite-badge', '점검 중', 'running');
+  feedback('suite-result', '워크트리와 시나리오의 실행 조건을 확인하는 중…', 'pending');
+  const unchanged = () => JSON.stringify(input) === JSON.stringify(suiteSelection());
+  try {
+    const report = await api('/api/suite/check', input);
+    if (unchanged()) showSuiteResult(report);
+  } catch(e) {
+    if (unchanged()) {
+      badge('suite-badge', '확인 필요', 'failed');
+      feedback('suite-result', e.message, 'error');
+    }
+  } finally {
+    suiteChecking = false;
+    buttons();
+  }
 }
 
 function draftChanged() {
@@ -264,7 +444,7 @@ async function openEditor(project, {filename, reload = false, registry = selecti
   const file = filename ?? (sameProject ? editor.file : '');
   if (!reload && sameProject && file === editor.file) {
     if (!registryDialog.open) registryDialog.showModal();
-    $('registry-text').focus({preventScroll:true});
+    if (!window.matchMedia?.('(pointer: coarse)').matches) $('registry-text').focus({preventScroll:true});
     return;
   }
   if (!discardDraft()) {
@@ -290,7 +470,7 @@ async function openEditor(project, {filename, reload = false, registry = selecti
     editorBusy = false;
     updateEditorFiles();
     editorButtons();
-    if (editor) $('registry-text').focus({preventScroll:true});
+    if (editor && !window.matchMedia?.('(pointer: coarse)').matches) $('registry-text').focus({preventScroll:true});
   }
 }
 
@@ -392,15 +572,31 @@ async function compareObservations() {
 
 $('observation-compare').onclick = compareObservations;
 $('observation-baseline').onchange = $('observation-candidate').onchange = clearObservationComparison;
-$('load').onclick=() => load(true);
+$('project-form').onsubmit = $('load').onclick = event => { event?.preventDefault(); return load(true); };
 $('pick-project').onclick=() => pickPath('project');
 $('pick-registry').onclick=() => pickPath('registry');
 $('profile').onchange=() => targets();
-$('target').onchange=plan;
-$('project').oninput=$('registry').oninput=() => {catalog=null; planReady=false; planRequest++; loadRequest++; $('check-result').textContent=''; $('variant-picker').hidden=true; $('target').replaceChildren(); dependencyGraph.reset(); buttons();};
+$('target').onchange=refreshPlan;
+$('project').oninput=$('registry').oninput=() => {
+  catalog=null; planReady=false; planRequest++; loadRequest++;
+  feedback('check-result', ''); feedback('result', '바뀐 경로를 불러오세요.');
+  badge('project-state', '불러오기 필요'); badge('badge', '대기 중');
+  $('variant-picker').hidden=true;
+  $('project').title = $('project').value;
+  $('registry').title = $('registry').value;
+  $('target').replaceChildren(new Option('프로젝트를 불러오세요', ''));
+  $('suite-baseline').textContent = '기준 워크트리는 위에서 선택한 프로젝트입니다.';
+  clearPlan('실행 대상을 선택하세요.'); dependencyGraph.reset(); suiteChanged();
+};
 $('check').onclick=checkRequirements;
 $('prepare').onclick=() => run('prepare');
 $('stop').onclick=() => run('stop');
+$('suite-pick-candidate').onclick = () => pickPath('project', false, 'suite-candidate', 'suite-pick-candidate');
+$('suite-pick-file').onclick = () => pickPath('suite', false, 'suite-file', 'suite-pick-file');
+$('suite-candidate').oninput = $('suite-file').oninput = suiteChanged;
+$('suite-check').onclick = checkSuite;
+$('suite-run').onclick = () => run('suite');
+$('suite-copy').onclick = copySuiteReport;
 $('edit-registry').onclick = () => openEditor($('project').value.trim());
 $('registry-pick-project').onclick = () => pickPath('project', true);
 $('registry-file').onchange = () => openEditor(editor.project, {filename:$('registry-file').value, registry:editor.registry});
@@ -425,11 +621,12 @@ window.addEventListener('beforeunload', event => {
 (async () => {
   try {
     const info=await api('/api/info');
+    connection(true);
     token=info.token;
     $('project').value=info.project;
     $('registry').value=info.registry;
     $('registries').replaceChildren(...info.registries.map(path => new Option(path, path)));
     await load();
-    await poll();
-  } catch(e) {error(e.message);}
+    await poll(true);
+  } catch(e) {connection(false); error(e.message);}
 })();

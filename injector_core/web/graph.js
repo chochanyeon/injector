@@ -27,12 +27,14 @@ class DependencyGraph {
     this.status.textContent = '프로젝트를 불러오세요.';
   }
 
-  update(project, profile, apps, variants = {}, registry = '') {
-    const active = this.project === project && this.registry === registry ? this.scope.value : '';
+  update(project, profile, apps, variants = {}, registry = '', target = '') {
+    const sameSelection = this.project === project && this.registry === registry && this.target === target;
+    const active = sameSelection ? this.scope.value : target;
     this.project = project;
     this.registry = registry;
     this.profile = profile;
     this.variants = variants;
+    this.target = target;
     this.scope.replaceChildren(new Option('전체 앱', ''), ...apps.map(app => new Option(app, app)));
     this.scope.value = apps.includes(active) ? active : '';
     this.scope.disabled = false;
@@ -163,7 +165,7 @@ class DependencyGraph {
         button.className = 'secondary';
         button.textContent = `${edge.caller} → ${edge.dependency} 관측 비교 보기`;
         button.onclick = () => {
-          const panel = this.panel.querySelector('#graph-observations');
+          const panel = document.getElementById('graph-observations');
           panel.open = true;
           panel.scrollIntoView({block:'nearest'});
         };
@@ -235,7 +237,7 @@ class DependencyGraph {
     const ordered = [...this.links].sort((a, b) => rank(a) - rank(b));
     for (const link of ordered) {
       const {from, to} = link;
-      context.strokeStyle = context.fillStyle = isActive(link) ? '#12644f' : this.active ? '#cad7d0' : '#587a6b';
+      context.strokeStyle = context.fillStyle = isActive(link) ? '#284bb8' : this.active ? '#cfdbef' : '#627ca7';
       context.lineWidth = isActive(link) ? 2.5 : 1.5;
       if (this.isCompared(link)) {
         const color = {PASS:'#12644f', FAIL:'#ad4c16', INCONCLUSIVE:'#52645a'}[this.comparison.verdict];

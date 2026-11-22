@@ -12,7 +12,7 @@ function browser(fetch) {
   const comparisons = [];
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
-      value: '', textContent: '', children: [], addEventListener() {}, focus() {},
+      value: '', textContent: '', children: [], dataset: {}, addEventListener() {}, focus() {},
       replaceChildren(...children) { this.children = children; }
     });
     return elements.get(id);
@@ -40,6 +40,8 @@ test('a failed status request is retried without starting another job', async ()
       ? {status: 'running', events: []}
       : {status: 'succeeded', events: [], result: {status: 'ready'}}};
   });
+
+  page.element('project').value = 'C:\\source';
 
   await page.run('planReady = true; poll()');
   await page.timers.shift()();
@@ -124,4 +126,33 @@ test('observation comparison displays both recordings and highlights the reporte
   assert.match(page.element('observation-status').textContent, /orders → catalog/);
   assert.match(page.element('observation-changes').children[0].textContent, /~1id/);
   assert.deepEqual(page.comparisons.at(-1).edge, edge);
+});
+
+test('a blocked suite identifies the affected worktree and does not overwrite execution status', async () => {
+  const page = browser(async (url, options) => {
+    assert.equal(url, '/api/suite/check');
+    assert.equal(JSON.parse(options.body).candidate, 'C:\\candidate');
+    return {ok:true, json:async () => ({phase:'preflight', status:'BLOCKED', suite:'checkout', cases:[{}],
+      diagnostics:[{side:'candidate', case:1, node:'orders', variable:'LOCAL_DATABASE', message:'설정 누락'}]})};
+  });
+  page.element('project').value = 'C:\\baseline';
+  page.element('suite-candidate').value = 'C:\\candidate';
+  page.element('suite-file').value = 'C:\\settings\\suite.json';
+  page.element('result').textContent = '앱이 준비됐습니다.';
+  await page.element('suite-check').onclick();
+  assert.equal(page.element('result').textContent, '앱이 준비됐습니다.');
+  assert.equal(page.element('suite-result').dataset.state, 'error');
+  assert.match(page.element('suite-entries').children[0].textContent, /후보.*시나리오 1.*orders.*LOCAL_DATABASE/);
+});
+
+test('a completed job for another target cannot update the current execution view', async () => {
+  const project = 'C:\\source';
+  const page = browser(async () => ({ok:true, json:async () => ({status:'succeeded', action:'prepare',
+    context:{project, registry:'', profile:'local', target:'catalog'}, events:[], result:{status:'ready'}})}));
+  page.element('project').value = project;
+  page.element('profile').value = 'local';
+  page.element('target').value = 'orders';
+  page.element('result').textContent = '실행 환경을 준비할 수 있습니다.';
+  await page.run('poll()');
+  assert.equal(page.element('result').textContent, '실행 환경을 준비할 수 있습니다.');
 });

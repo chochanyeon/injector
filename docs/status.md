@@ -2,7 +2,7 @@
 
 **English** · [한국어](status.ko.md)
 
-Last updated November 22, 2026. See the [work index](index.md) and individual work items for design and verification details.
+Last updated November 23, 2026. See the [work index](index.md) and individual work items for design and verification details.
 
 ## 1. Current stage
 
@@ -45,6 +45,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Trace event counts | Implemented for correlated events | Checks expected and forbidden effects within a configured settling window. | T-370 |
 | Non-interactive agent workflow | Partially implemented | `check-suite` and `verify-suite` share a read-only preflight with structured diagnostics. The full target-project workflow is open. | T-380 |
 | Full test environment | Verified on Windows | A clean checkout passed all 13 stages, including 150 unskipped Python tests, the live shop suite and the JVM verifier. | T-390 |
+| Web dashboard | Verified in Windows Chrome | Project selection, execution, the dependency graph, and worktree verification share the local browser workflow. | T-400 |
 | Shop monorepo demo | Implemented | Six Gradle JVM modules run with shared infrastructure and replaceable pricing. | T-270 |
 | Shop demo Vault and logs | Implemented | All six apps read their own Vault path, including both Pricing variants. One Loki query finds related checkout HTTP and Kafka events by request ID. | T-280, T-290 |
 | Execution and comparison review fixes | Implemented | Default registry session identity, Compose port validation, local process diagnostics, selected HTTP query values, and original array indexes for Verifier exclusions. | T-300 |

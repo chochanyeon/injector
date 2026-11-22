@@ -2,51 +2,72 @@
 <html lang="ko">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Injector</title><link rel="stylesheet" href="/style.css"><script src="/graph.js" defer></script><script src="/app.js" defer></script></head>
 <body>
-<header><h1 class="brand"><a href="/">Injector</a></h1></header>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/" aria-label="Injector 홈"><span class="brand-mark" aria-hidden="true"></span>Injector</a>
+    <nav aria-label="대시보드"><a href="#execution">실행</a><a href="#dependency-graph">의존성</a><a href="#verification">검증</a></nav>
+    <span id="connection" class="connection" data-state="pending">연결 확인 중</span>
+  </div>
+</header>
 <main>
-  <div class="workspace">
+  <h1 class="page-title">실행 환경</h1>
+  <form id="project-form" class="card project-card" aria-labelledby="project-title">
+    <div class="card-heading">
+      <h2 id="project-title">프로젝트</h2>
+      <span id="project-state" class="badge" role="status">불러오는 중</span>
+    </div>
+    <div class="project-fields">
+      <div class="field">
+        <label for="project">프로젝트 폴더</label>
+        <div class="path-row">
+          <input id="project" placeholder="소스 또는 워크트리 폴더" spellcheck="false" autocomplete="off">
+          <button id="pick-project" class="secondary" type="button" disabled>폴더 선택</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="registry">Registry 파일</label>
+        <div class="path-row">
+          <input id="registry" list="registries" placeholder="기본 registry.json" spellcheck="false" autocomplete="off">
+          <datalist id="registries"></datalist>
+          <button id="pick-registry" class="secondary" type="button" disabled>파일 선택</button>
+        </div>
+      </div>
+    </div>
+    <div class="project-actions">
+      <button id="load" class="secondary">불러오기</button>
+      <button id="edit-registry" class="quiet" type="button" aria-controls="registry-editor" aria-haspopup="dialog" disabled>Registry 편집</button>
+    </div>
+  </form>
+  <div id="execution" class="workspace">
     <section class="card settings" aria-labelledby="setup-title">
-      <h2 id="setup-title">실행 대상</h2>
-      <label for="project">프로젝트 폴더</label>
-      <div class="path-row">
-        <input id="project" placeholder="소스 또는 워크트리 폴더" spellcheck="false">
-        <button id="pick-project" class="secondary" disabled>폴더 선택</button>
-      </div>
-      <label for="registry">Registry 파일</label>
-      <div class="path-row">
-        <input id="registry" list="registries" placeholder="파일 경로 · 비워두면 프로젝트 폴더 사용" spellcheck="false">
-        <datalist id="registries"></datalist>
-        <button id="pick-registry" class="secondary" disabled>파일 선택</button>
-      </div>
-      <button id="load" class="secondary registry-open">불러오기</button>
-      <button id="edit-registry" class="secondary registry-open" aria-controls="registry-editor" aria-haspopup="dialog" disabled>Registry 편집</button>
+      <div class="card-heading"><h2 id="setup-title">실행 대상</h2></div>
       <label for="profile">프로필</label><select id="profile" disabled><option>프로젝트를 불러오세요</option></select>
-      <label for="target">애플리케이션</label><select id="target" disabled></select>
+      <label for="target">애플리케이션</label><select id="target" disabled><option>프로젝트를 불러오세요</option></select>
       <details id="variant-picker" hidden>
-        <summary>노드별 실행·대역 선택</summary>
+        <summary>노드별 실행 방식</summary>
         <fieldset id="variant-options" aria-label="노드별 variant"></fieldset>
       </details>
-      <button id="check" class="secondary registry-open" disabled>Registry 실행 조건 검사</button>
-      <p id="check-result" class="hint" role="status"></p>
-      <div class="note">IntelliJ 앱은 준비가 끝나면 IDE에서 <strong>Debug</strong>로 실행하세요.</div>
-      <button id="prepare" class="primary" disabled>실행 환경 준비</button>
-      <button id="stop" class="secondary stop">이 프로젝트의 의존성 종료</button>
+      <p id="ide-hint" class="hint" hidden>준비가 끝나면 IntelliJ에서 Debug로 실행하세요.</p>
+      <div class="execution-actions">
+        <button id="prepare" class="primary" disabled>실행 환경 준비</button>
+        <button id="check" class="secondary" disabled>실행 조건 확인</button>
+        <button id="stop" class="quiet stop" title="Injector가 시작한 자원만 종료">의존성 종료</button>
+      </div>
+      <p id="check-result" class="feedback" role="status"></p>
     </section>
     <section class="card execution" aria-labelledby="execution-title">
-      <div class="execution-heading"><h2 id="execution-title">준비 현황</h2><span id="badge" class="badge">대기 중</span></div>
-      <details class="plan-disclosure" open>
-        <summary>실행 순서</summary>
-        <p id="summary" class="hint">프로필과 앱을 선택하면 실행 순서를 확인할 수 있습니다.</p>
-        <ol id="plan" class="plan"></ol>
-      </details>
-      <div id="result" role="status" aria-live="polite">실행 환경을 준비할 수 있습니다.</div>
-      <details><summary>진행 기록</summary><pre id="events">아직 실행한 작업이 없습니다.</pre></details>
+      <div class="card-heading"><h2 id="execution-title">준비 현황</h2><span id="badge" class="badge">대기 중</span></div>
+      <div id="result" class="feedback" role="status" aria-live="polite">프로젝트와 실행 대상을 선택하세요.</div>
+      <progress id="progress" aria-label="실행 준비 진행률" max="1" value="0" hidden></progress>
+      <div class="plan-heading"><h3>실행 순서</h3><p id="summary" class="hint">실행 대상을 선택하세요.</p></div>
+      <ol id="plan" class="plan" tabindex="0" aria-label="의존성 기동 순서"></ol>
+      <details id="execution-log" class="subpanel" hidden><summary>진행 기록</summary><pre id="events"></pre></details>
     </section>
   </div>
   <details id="dependency-graph" class="card dependency-graph" open>
-    <summary class="graph-heading">의존성 그래프</summary>
+    <summary class="section-heading">의존성 그래프</summary>
     <div class="graph-filter">
-      <label for="graph-scope">표시할 앱</label>
+      <label for="graph-scope">표시 범위</label>
       <select id="graph-scope" disabled><option value="">전체 앱</option></select>
     </div>
     <p id="graph-status" class="hint" role="status">프로젝트를 불러오세요.</p>
@@ -61,7 +82,31 @@
       <summary>직접 의존성 목록</summary>
       <ul id="graph-direct"></ul>
     </details>
-    <details id="graph-observations" class="graph-observations">
+  </details>
+  <section id="verification" class="card verification" aria-labelledby="verification-title">
+    <div class="card-heading"><h2 id="verification-title">워크트리 검증</h2><span id="suite-badge" class="badge">대기 중</span></div>
+    <p id="suite-baseline" class="hint suite-baseline">기준 워크트리는 위에서 선택한 프로젝트입니다.</p>
+    <div class="project-fields">
+      <div class="field">
+        <label for="suite-candidate">후보 워크트리</label>
+        <div class="path-row"><input id="suite-candidate" placeholder="후보 워크트리 폴더" spellcheck="false" autocomplete="off"><button id="suite-pick-candidate" class="secondary" type="button" disabled>폴더 선택</button></div>
+      </div>
+      <div class="field">
+        <label for="suite-file">스위트 파일</label>
+        <div class="path-row"><input id="suite-file" placeholder="스위트 JSON 경로" spellcheck="false" autocomplete="off"><button id="suite-pick-file" class="secondary" type="button" disabled>파일 선택</button></div>
+      </div>
+    </div>
+    <div class="project-actions">
+      <button id="suite-check" class="secondary" type="button" disabled>사전 점검</button>
+      <button id="suite-run" class="primary" type="button" disabled>스위트 실행</button>
+    </div>
+    <div id="suite-result" class="feedback" role="status" aria-live="polite"></div>
+    <ul id="suite-entries" class="suite-entries" hidden></ul>
+    <div id="suite-evidence" class="suite-evidence" hidden>
+      <p id="suite-report" class="report-path" aria-label="JSON 보고서 경로"></p>
+      <button id="suite-copy" class="secondary" type="button">보고서 경로 복사</button>
+    </div>
+    <details id="graph-observations" class="subpanel graph-observations">
       <summary>HTTP·Kafka 관측 비교</summary>
       <div class="observation-columns">
         <label>기준선 JSON<input id="observation-baseline" type="file" accept=".json,application/json"></label>
@@ -75,13 +120,13 @@
         <section><h3>현재</h3><pre id="observation-after"></pre></section>
       </div>
     </details>
-  </details>
+  </section>
   <dialog id="registry-editor" class="card registry-editor" aria-labelledby="registry-title">
     <div class="registry-heading">
       <h2 id="registry-title">Registry 편집</h2>
       <div class="registry-window-actions">
         <button id="registry-fold" class="secondary" title="초안을 유지하고 편집기 접기">접기</button>
-        <button id="registry-close" class="secondary">닫기</button>
+        <button id="registry-close" class="secondary" autofocus>닫기</button>
       </div>
     </div>
     <div id="registry-file-picker" class="registry-file-picker" hidden>
@@ -101,5 +146,4 @@
     </div>
     <p id="registry-status" class="registry-status" role="status" aria-live="polite"></p>
   </dialog>
-  <footer>종료는 Injector가 만든 자원에만 적용됩니다.</footer>
 </main></body></html>

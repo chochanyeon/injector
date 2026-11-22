@@ -2,7 +2,7 @@
 
 **English** · [한국어](index.ko.md)
 
-Last updated November 22, 2026. Each T-ID groups design, development, verification, and the point at which to resume.
+Last updated November 23, 2026. Each T-ID groups design, development, verification, and the point at which to resume.
 
 ## 1. Work items
 
@@ -52,6 +52,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-370](work-items/T-370.md) | Verify required and forbidden event counts | Complete | Complete | Live Windows suite verified Kafka counts of one and zero |
 | [T-380](work-items/T-380.md) | Run registration and verification without manual prompts | Preflight defined | Partial | Shared suite preflight and CLI verified on Windows |
 | [T-390](work-items/T-390.md) | Build and run the full test environment | Complete | Complete | All 13 stages passed on Windows. Native macOS run pending |
+| [T-400](work-items/T-400.md) | Run and inspect local work in the web dashboard | Complete | Complete | Windows Chrome desktop and narrow layouts verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 

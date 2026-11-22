@@ -42,7 +42,8 @@ def choose_path(start, kind):
                                                        ctypes.POINTER(pointer)]
         _check(shell.SHCreateItemFromParsingName(start, None, shell_item_interface, ctypes.byref(initial)))
         _check(_call(dialog, 12, hresult, [pointer], initial))  # SetFolder
-        title = "Injector — 폴더 선택" if kind == "project" else "Injector — Registry 파일 선택"
+        title = {"project": "폴더 선택", "registry": "Registry 파일 선택", "suite": "스위트 JSON 파일 선택"}[kind]
+        title = "Injector — " + title
         _check(_call(dialog, 17, hresult, [wintypes.LPCWSTR], title))  # SetTitle
         result = _call(dialog, 3, hresult, [wintypes.HWND], None)  # Show
         if result & 0xFFFFFFFF == 0x800704C7:  # HRESULT_FROM_WIN32(ERROR_CANCELLED)

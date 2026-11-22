@@ -419,6 +419,36 @@ class WebTests(unittest.TestCase):
             runner.assert_called_once()
             self.assertEqual(runner.call_args.kwargs['variants'], {'dependency': 'mock'})
 
+    def test_suite_web_uses_verifier_and_preserves_a_blocked_report(self):
+        from verifier.worktree_suite import SuitePreflightError
+
+        token = json.loads(self.request('/api/info')[1])['token']
+        headers = {'X-Injector-Token': token}
+        root = Path(self.temporary.name).resolve()
+        body = {'project': str(root), 'candidate': str(root / 'candidate'), 'suite': str(root / 'suite.json')}
+        report = {'phase': 'preflight', 'status': 'BLOCKED', 'diagnostics': [{'code': 'invalid_suite', 'message': 'bad suite'}]}
+        (root / 'suite.json').write_text('{}', encoding='utf-8')
+        with patch('injector_core.web.choose_suite_file', return_value=body['suite']) as picker:
+            status, chosen = self.request('/api/project/pick', {'kind': 'suite'}, headers)
+            self.assertEqual((status, json.loads(chosen)['project']), (200, body['suite']))
+            picker.assert_called_once_with(str(root))
+        self.assertEqual(self.request('/api/suite/check', body)[0], 403)
+        with patch('verifier.worktree_suite.check_suite', return_value=report) as checker:
+            status, content = self.request('/api/suite/check', body, headers)
+            self.assertEqual((status, json.loads(content)), (200, report))
+            checker.assert_called_once_with(root / 'suite.json', root, root / 'candidate', registry=None)
+        with patch('verifier.worktree_suite.verify_suite', side_effect=SuitePreflightError(report)) as runner:
+            self.assertEqual(self.request('/api/suite/run', body, headers)[0], 202)
+            for _ in range(100):
+                job = json.loads(self.request('/api/job')[1])
+                if job['status'] != 'running':
+                    break
+                time.sleep(.01)
+            self.assertEqual(job['action'], 'suite')
+            self.assertEqual(job['result'], report)
+            self.assertEqual(job['context']['candidate'], body['candidate'])
+            runner.assert_called_once()
+
     def test_errors_do_not_expose_unexpected_exception_values(self):
         token = json.loads(self.request('/api/info')[1])['token']
         with patch('injector_core.web.stop', side_effect=OSError('secret-value')):

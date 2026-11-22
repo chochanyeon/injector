@@ -10,10 +10,12 @@ MACOS_SCRIPT = """
 on run argv
     try
         set initialFolder to (POSIX file (item 1 of argv)) as alias
-        if (item 2 of argv) is "registry" then
-            set selectedItem to choose file with prompt "Registry 파일을 선택하세요." default location initialFolder
-        else
+        if (item 2 of argv) is "project" then
             set selectedItem to choose folder with prompt "Injector에서 사용할 폴더를 선택하세요." default location initialFolder
+        else
+            set caption to "Registry 파일을 선택하세요."
+            if (item 2 of argv) is "suite" then set caption to "스위트 JSON 파일을 선택하세요."
+            set selectedItem to choose file with prompt caption default location initialFolder
         end if
         return POSIX path of selectedItem
     on error messageText number errorNumber
@@ -32,10 +34,14 @@ def choose_registry_file(initial):
     return _choose_path(initial, "registry")
 
 
+def choose_suite_file(initial):
+    return _choose_path(initial, "suite")
+
+
 def _choose_path(initial, kind):
     try:
         start = Path(initial).resolve()
-        if kind == "registry" and not start.is_dir():
+        if kind != "project" and not start.is_dir():
             start = start.parent
         if not start.is_dir():
             start = Path.home()

@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.request import ProxyHandler, build_opener
 import webbrowser
 
-from .folder_picker import choose_project_folder, choose_registry_file
+from .folder_picker import choose_project_folder, choose_registry_file, choose_suite_file
 from .loopback import LoopbackHTTPServer
 from .observation_contract import MAX_OBSERVATION_BYTES, decode_document
 from .registry import RegistryError, _parse_json, registry_path
@@ -19,6 +19,7 @@ from .runtime import check_requirements, parse_variants, prepare, project_info, 
 ASSETS = Path(__file__).resolve().parent / "web"
 REGISTRIES = ASSETS.parent.parent / "registries"
 WEB_SELECTION = ASSETS.parent.parent / ".local" / "web-selection.json"
+VERIFICATION_RUNS = ASSETS.parent.parent / ".local" / "verification"
 
 
 class Control:
@@ -67,7 +68,7 @@ class Control:
         if not isinstance(initial, str):
             raise RegistryError("project path must be a string")
         kind = body.get("kind", "project")
-        if kind not in ("project", "registry"):
+        if kind not in ("project", "registry", "suite"):
             raise RegistryError("unknown picker kind")
         if not self.picker_lock.acquire(blocking=False):
             raise RegistryConflict("선택 창이 이미 열려 있습니다.")
@@ -75,14 +76,14 @@ class Control:
             default = self.selection["project"]
             if kind == "registry":
                 default = self.selection["registry"] or str(REGISTRIES if REGISTRIES.is_dir() else REGISTRIES.parent)
-            picker = choose_registry_file if kind == "registry" else choose_project_folder
+            picker = {"project": choose_project_folder, "registry": choose_registry_file, "suite": choose_suite_file}[kind]
             selected = picker(initial.strip() or default)
             if selected is None:
                 return {"project": None}
-            if kind == "registry":
+            if kind != "project":
                 file = Path(selected)
                 if not file.is_file() or file.is_symlink():
-                    raise RegistryError("Registry 파일을 선택하세요.")
+                    raise RegistryError("기존 파일을 선택하세요.")
                 return {"project": str(file.resolve())}
             folder = Path(selected).resolve()
             if not folder.is_dir():
@@ -120,6 +121,12 @@ class Control:
                 raise RegistryConflict("wait for the running job before saving")
             return save_registry(project, text, revision, filename, registry=registry)
 
+    def suite_inputs(self, body):
+        keys = ("suite", "project", "candidate")
+        if not all(isinstance(body.get(key), str) and body[key].strip() and "\x00" not in body[key] for key in keys):
+            raise RegistryError("스위트 파일과 기준·후보 워크트리 경로를 입력하세요.")
+        return tuple(Path(body[key]).resolve() for key in keys)
+
     def start(self, action, body):
         project = body.get("project", self.selection["project"])
         if not isinstance(project, str) or not project:
@@ -127,10 +134,19 @@ class Control:
         registry = self.registry_for(body)
         if action == "prepare" and not all(isinstance(body.get(key), str) for key in ("target", "profile")):
             raise RegistryError("target and profile are required")
+        if action == "suite":
+            suite_inputs = self.suite_inputs(body)
+            destination = VERIFICATION_RUNS / secrets.token_hex(8)
+            _artifact_path(ASSETS.parent.parent, destination / "report.json")
+        context = {"project": str(Path(project).resolve()), "registry": str(registry or "")}
+        if action == "prepare":
+            context.update(target=body["target"], profile=body["profile"], variants=body.get("variants", {}))
+        elif action == "suite":
+            context.update(suite=body["suite"].strip(), candidate=body["candidate"].strip())
         with self.lock:
             if self.job["status"] == "running":
                 raise RegistryError("a job is already running")
-            self.job = {"status": "running", "action": action, "events": []}
+            self.job = {"status": "running", "action": action, "context": context, "events": []}
 
         def emit(event):
             with self.lock:
@@ -141,6 +157,13 @@ class Control:
                 if action == "prepare":
                     result = prepare(project, body["target"], profile=body["profile"], emit=emit,
                                      variants=body.get("variants"), registry=registry)
+                elif action == "suite":
+                    from verifier.worktree_suite import SuitePreflightError, verify_suite
+                    try:
+                        result = verify_suite(*suite_inputs, destination, registry=registry,
+                                              emit=lambda case, side: emit({"case": case, "side": side}))
+                    except SuitePreflightError as error:
+                        result = error.report
                 else:
                     result = stop(project, emit, registry=registry)
                 with self.lock:
@@ -226,7 +249,8 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
                 return
             editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save")
             comparison = self.path == "/api/observations/compare"
-            if not editor and not comparison and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop"):
+            if not editor and not comparison and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop",
+                                                                    "/api/suite/check", "/api/suite/run"):
                 return self.respond(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -255,6 +279,10 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
                     return self.respond(200, control.load_project(body))
                 if editor:
                     return self.respond(200, control.edit_registry(action, body))
+                if self.path == "/api/suite/check":
+                    from verifier.worktree_suite import check_suite
+                    inputs = control.suite_inputs(body)
+                    return self.respond(200, check_suite(*inputs, registry=control.registry_for(body)))
                 if action == "check":
                     keys = ("project", "target", "profile")
                     if not all(isinstance(body.get(key), str) and body[key].strip() for key in keys):
@@ -262,7 +290,7 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
                     result = check_requirements(body["project"], body["target"], body["profile"],
                                                 variants=body.get("variants"), registry=control.registry_for(body))
                     return self.respond(200, result)
-                control.start(action, body)
+                control.start("suite" if self.path == "/api/suite/run" else action, body)
                 self.respond(202, {"status": "running"})
             except RegistryConflict as error:
                 self.respond(409, {"error": str(error)})

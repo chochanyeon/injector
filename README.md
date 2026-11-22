@@ -57,13 +57,13 @@ Both use `http://127.0.0.1:18770` and reuse a running Injector server. Keep the 
 2. Select `dummy` or `real` and choose `platform-service`.
 3. Review the execution order and click **Prepare environment** (**실행 환경 준비**). Redis starts before Catalog. With `real`, PostgreSQL also starts before Catalog.
 4. After preparation, open `examples/demo/pom.xml` and Debug **`Injector-dummy-platform-service`** or **`Injector-real-platform-service`**. Check the response at `http://127.0.0.1:19080/demo`.
-5. Stop the app in the IDE. Use **Stop this project's dependencies** (**이 프로젝트의 의존성 종료**) to stop Injector-managed processes and containers. Closing the browser leaves both the server and the dependencies running.
+5. Stop the app in the IDE. Use **Stop dependencies** (**의존성 종료**) to stop Injector-managed processes and containers. Closing the browser leaves both the server and the dependencies running.
 
 Injector remembers the last successfully loaded project folder and registry file. The next launch preselects and loads them. An explicit `serve --project` takes precedence when starting a new server. Injector stores only the paths in its Git-ignored `.local/web-selection.json`.
 
 Stop the app in the IDE before changing profiles. Preparing again replaces resources from the previous Injector session for that project. Ports in use by other programs and existing Compose services are treated as conflicts. Container volumes and Compose networks are preserved.
 
-Use **Check registry execution requirements** (**Registry 실행 조건 검사**) before preparing to check the selected app, profile, variants, and their dependencies. The result identifies the first blocker in the declared settings or execution definitions. The check leaves services and generated files untouched. Prepare still checks host resolution, port conflicts, and service readiness.
+Use **Check execution requirements** (**실행 조건 확인**) before preparing to check the selected app, profile, variants, and their dependencies. The result identifies the first blocker in the declared settings or execution definitions. The check leaves services and generated files untouched. Prepare still checks host resolution, port conflicts, and service readiness.
 
 `python injector.py check platform-service --project examples/demo --profile dummy` runs the same check from the CLI. Pass `--registry` for a shared registry and `--variant NODE=VARIANT` to test an override. Success prints the execution order and any IntelliJ metadata as JSON. A failed check reports the first blocker and exits with code 1.
 
@@ -86,7 +86,7 @@ python injector.py stop --project examples/demo
 python injector.py serve --open
 ```
 
-The **Per-node execution and mock selection** panel (**노드별 실행·대역 선택**) updates the execution order and graph. On the CLI, pass `--variant NODE=VARIANT` once per node. The override applies to the request. A newly required dependency must have an entry in the profile's `selections`. Injector regenerates the IntelliJ configuration under the same app and profile name.
+The **Per-node execution** panel (**노드별 실행 방식**) updates the execution order and graph. On the CLI, pass `--variant NODE=VARIANT` once per node. The override applies to the request. A newly required dependency must have an entry in the profile's `selections`. Injector regenerates the IntelliJ configuration under the same app and profile name.
 
 Use `--profile local-dev` for an explicit profile. `--mode dummy` resolves to one of `dummy`, `local-mock`, and `mock`, while `--mode real` resolves to `real` or `local-real`. Use `--profile` if more than one alias exists.
 
@@ -106,11 +106,17 @@ The native file and folder dialogs open on the desktop running Injector. When us
 
 The graph shows the applications in the selected profile and the infrastructure they use. Arrows point from each node to its direct dependencies. A shared dependency is shown once.
 
-Choose an app under **Apps to show** (**표시할 앱**) to see its dependencies. Click a node to highlight its direct connections and inspect which nodes it uses and which nodes use it. Click it again to clear the selection. The graph refreshes when the profile changes or the registry is saved. **Direct dependencies** (**직접 의존성 목록**) shows the relationships as text.
+The graph opens for the selected app. Use **Display scope** (**표시 범위**) to switch apps or show all apps. Select a node to highlight its direct connections. The details show which nodes it uses and which nodes use it. **Direct dependencies** (**직접 의존성 목록**) shows the relationships as text.
 
-Click the graph, execution order, or log heading to toggle that section. Readiness and results stay visible when the execution-order panel is collapsed.
+Use the header navigation to move between execution, dependencies, and verification. Preparation status, progress, and execution order appear together. Expand **Progress log** (**진행 기록**) for individual events.
 
 In the demo, **All apps** (**전체 앱**) shows both apps sharing Catalog and the Vault mock. Both `platform-service` and Catalog connect to Redis. The `dummy` profile has five nodes. The `real` profile adds PostgreSQL as a Catalog dependency.
+
+## Verify worktrees in the browser
+
+Open **Verification** (**검증**). The active project is the baseline. Select a candidate worktree and suite JSON. **Preflight** (**사전 점검**) lists blockers by worktree, scenario, or node. **Run suite** (**스위트 실행**) uses the same Verifier logic and reports the verdict for each case. Copy the report path from the result. The server saves evidence under its `.local/verification/` folder.
+
+Reloading the page restores the latest suite inputs and result for the same project while the same server is running. Expand **HTTP·Kafka 관측 비교** to compare two existing observation JSON files. [Verifier suite format](verifier/README.md#run-a-suite)
 
 ## Use local hostnames
 
