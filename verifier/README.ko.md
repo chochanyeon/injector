@@ -6,6 +6,16 @@ Injector에서 기록한 HTTP 파일 두 개는 루트에서 `python injector.py
 
 두 명령 모두 Loki에서 수집한 버전 2 HTTP·Kafka 요청 흐름을 비교할 수 있다. [쇼핑몰 주문 흐름](../examples/demo/monorepo/README.ko.md#주문-흐름-비교)
 
+## 로컬에서 버그 수정 검증
+
+버전 2 시나리오에서 `expect`로 주 요청의 기대 응답을, `stateChecks`로 의존성 그래프 안의 읽기 전용 GET 검사를 지정한다. `before` 검사로 초기 상태를 확인한다. 비동기 결과를 확인하는 `after` 검사에는 `timeoutSeconds`를 지정할 수 있다. 증거 파일에 보관해도 되는 필드만 선택한다.
+
+- 회귀 비교에는 `compare-worktrees`를 사용한다. 양쪽 모두 기대 동작을 충족하고 관측 결과가 일치해야 한다.
+- `--prove-fix CHECK_ID`를 추가하면 기준 쪽에서 지정한 실패가 재현되고 후보 쪽에서 모든 검사가 통과해야 한다. 주 응답 검사에는 `response`를, 최종 상태 검사에는 `after` 검사의 ID를 지정한다. `compare-http`에도 같은 옵션을 사용할 수 있다.
+- 비교 출력 폴더의 `report.json`에서 판정, 노드별 기동 단계, 저장된 기록을 확인한다. 초기 상태가 다르거나 증거를 수집하지 못하면 `INCONCLUSIVE`가 나올 수 있다.
+
+[쇼핑몰 주문 수정 검증](../examples/demo/monorepo/README.ko.md#주문-버그-수정-검증)
+
 의존성 업그레이드 전 **HEAD**와 변경 후 **현재 작업 디렉터리**에서 같은 검증 코드를 실행하는 로컬 POC다. 특정 라이브러리의 API를 하드코딩하지 않는다. 검증 항목이 모두 같으면 `PASS` / exit 0, 하나라도 다르거나 실행을 완료하지 못하면 `FAIL` / exit 1이다. stdout에는 판정 한 줄만 출력하며 Gradle 로그와 실패 원인은 stderr / JUnit 리포트에 남긴다.
 
 Gradle 검증은 **Java 17 이상, Spring Boot 3.x, Spring MVC, Jackson 2, Gradle Java 플러그인**을 사용하는 서비스가 대상이다. 데모는 Boot 3.5.7이다. 대상 저장소는 Groovy / Kotlin DSL 모두 가능하며, 대상의 Gradle Wrapper와 JDK 호환성은 해당 프로젝트 설정을 따른다. 이 도구 자체의 Wrapper(Gradle 9.3.1)는 데모 실행용이다. Gradle 검증 소스는 `src/test`에 있다.

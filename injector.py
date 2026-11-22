@@ -101,6 +101,7 @@ def main():
     parser.add_argument("--scenario", type=Path, help="scenario JSON for observe-http or compare-worktrees")
     parser.add_argument("--candidate", type=Path, help="current observation file for compare-http")
     parser.add_argument("--candidate-project", type=Path, help="candidate checkout directory for compare-worktrees")
+    parser.add_argument("--prove-fix", metavar="CHECK_ID", help="require the named check to fail only on the baseline")
     parser.add_argument("--expected-config", help="IntelliJ configuration fingerprint for a before-launch prepare")
     parser.add_argument("--node", help="node to resolve or render")
     parser.add_argument("--infra", nargs="*", choices=INFRA, default=[])
@@ -118,6 +119,8 @@ def main():
         parser.error("--candidate requires compare-http")
     if args.candidate_project and args.command != "compare-worktrees":
         parser.error("--candidate-project requires compare-worktrees")
+    if args.prove_fix is not None and (not args.prove_fix or args.command not in ("compare-http", "compare-worktrees")):
+        parser.error("--prove-fix requires compare-http or compare-worktrees and a check ID")
     if args.command in ("observe-http", "compare-http", "compare-worktrees"):
         from injector_core.registry import RegistryError
         try:
@@ -133,7 +136,7 @@ def main():
                 if not (args.target and args.candidate):
                     parser.error("compare-http requires a baseline file and --candidate")
                 from verifier.compare_observations import compare_files
-                result = compare_files(args.target, args.candidate)
+                result = compare_files(args.target, args.candidate, prove_fix=args.prove_fix)
             else:
                 if not (args.target and args.project and args.candidate_project and args.profile and args.scenario and args.output):
                     parser.error("compare-worktrees requires an app ID, --project, --candidate-project, --profile, --scenario and --output")
@@ -142,7 +145,8 @@ def main():
                 from injector_core.observation import compare_worktrees
                 result = compare_worktrees(args.project, args.candidate_project, args.target, args.profile,
                                            args.scenario, args.output, registry=args.registry,
-                                           emit=lambda side: print(f"Recording {side} checkout", file=sys.stderr, flush=True))
+                                           emit=lambda side: print(f"Recording {side} checkout", file=sys.stderr, flush=True),
+                                           prove_fix=args.prove_fix)
             print(json.dumps(result, indent=2))
             if args.command != "observe-http":
                 parser.exit({"PASS": 0, "FAIL": 1, "INCONCLUSIVE": 2}[result["verdict"]])

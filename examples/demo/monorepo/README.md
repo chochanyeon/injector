@@ -112,3 +112,13 @@ Injector sends a fresh `X-Request-Id` with the checkout and requires the target 
 The two artifacts open in **HTTP·Kafka 관측 비교** in the web UI. To record just one checkout, use the same scenario with `observe-http`. To compare completed files again, use `compare-http`.
 
 The trace scenario uses schema version 2. A compatible app emits Loki streams labeled `app` and `service`. Each JSON line carries `requestId`, `event`, and `details`. HTTP lines use `http_request` or `http_dependency` with method, path, and status. Outbound lines include the logical dependency. Kafka lines include the topic and declare `kafka_publish` or `kafka_consume` through `event` or `details.traceKind`. Checkouts capture the required events and a short settling window. [Scenario and artifact schema](../../../schemas/http-observation-v1.schema.json) · [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/#query-logs-within-a-range-of-time)
+
+## Verify a checkout fix
+
+Use `checkout-evidence.json` with the `mock` profile. Before checkout, Verifier reads the initial stock and checks that the order ID is absent. After checkout, it checks the 1,998-cent response, the stored order, the final stock, and the delivery written by the Kafka consumer. Open `report.json` for each node's startup stages and the expected and actual values recorded by each checkout.
+
+```text
+python injector.py compare-worktrees storefront --project "path/to/baseline-shop" --candidate-project "path/to/candidate-shop" --profile mock --scenario examples/demo/monorepo/scenarios/checkout-evidence.json --output .local/checkout-fix --prove-fix response
+```
+
+To reproduce this fix, set `mockUnitCents` to `998` in the baseline copy of `infra/vault/mappings/pricing.json` and keep `999` in the candidate. The `response` check fails on the baseline with 1,996 cents. The candidate must pass every check and record the required trace. For a regression comparison, run the same scenario without `--prove-fix`. Use a new output directory for each run.

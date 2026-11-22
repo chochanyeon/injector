@@ -112,3 +112,13 @@ Injector는 주문 요청마다 새 `X-Request-Id`를 보내고, 대상 응답�
 기록 두 개는 웹의 **HTTP·Kafka 관측 비교**에서 열 수 있다. 한쪽만 기록하려면 같은 시나리오를 `observe-http`에 전달하고, 이미 저장한 두 파일을 다시 비교하려면 `compare-http`를 사용한다.
 
 요청 흐름 시나리오의 스키마 버전은 2다. 연동 앱은 Loki 스트림에 `app`과 `service` 라벨을, JSON 로그에 `requestId`, `event`, `details`를 둔다. HTTP 로그는 `http_request` 또는 `http_dependency`와 메서드·경로·상태를 기록한다. 아웃바운드 로그는 논리 의존성 이름도 기록한다. Kafka 로그는 토픽과 함께 `event` 또는 `details.traceKind`에 `kafka_publish`나 `kafka_consume`을 지정한다. 필수 이벤트가 모이면 잠시 더 조회해 기록이 안정되는지 확인한다. [시나리오·기록 스키마](../../../schemas/http-observation-v1.schema.json) · [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/#query-logs-within-a-range-of-time)
+
+## 주문 버그 수정 검증
+
+`mock` 프로필과 `checkout-evidence.json`을 사용한다. 주문을 보내기 전에 초기 재고와 기존 주문 유무를 확인한다. 주문 후에는 응답 금액 1,998센트, 저장된 주문, 최종 재고, Kafka 소비자가 저장한 배송 상태를 확인한다. `report.json`에서 양쪽의 노드별 기동 단계와 검사별 기대값·관측값을 확인할 수 있다.
+
+```text
+python injector.py compare-worktrees storefront --project "path/to/baseline-shop" --candidate-project "path/to/candidate-shop" --profile mock --scenario examples/demo/monorepo/scenarios/checkout-evidence.json --output .local/checkout-fix --prove-fix response
+```
+
+이 예제를 재현하려면 기준 복사본의 `infra/vault/mappings/pricing.json`에서 `mockUnitCents`를 `998`로 설정하고 후보에서는 `999`를 유지한다. 기준 버전은 1,996센트를 반환하므로 `response` 검사에서 실패한다. 후보는 모든 검사를 통과하고 필수 이벤트를 기록해야 한다. 회귀 검증에는 같은 시나리오를 `--prove-fix` 없이 실행한다. 매번 새 출력 폴더를 지정한다.

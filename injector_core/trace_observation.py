@@ -25,6 +25,26 @@ def _selector(event):
     return event["service"], event["event"], event.get("dependency")
 
 
+def _check(check_id, phase, expected, status, content):
+    evidence = {"id": check_id, "when": phase, "expected": expected, "verdict": "INCONCLUSIVE"}
+    if status is None:
+        return {**evidence, "reason": "response-unavailable"}
+    actual = evidence["actual"] = {"status": status}
+    expected_fields = expected.get("fields", {})
+    if status == expected["status"]:
+        try:
+            fields = actual["fields"] = _project_fields(content, expected_fields)
+        except (ValueError, RecursionError):
+            verdict = "INCONCLUSIVE" if phase == "before" else "FAIL"
+            return {**evidence, "verdict": verdict, "reason": "invalid-response-fields"}
+        if fields.keys() == expected_fields.keys() and all(
+                type(fields[key]) is type(value) and fields[key] == value for key, value in expected_fields.items()):
+            return {**evidence, "verdict": "PASS"}
+    if phase == "before":
+        return {**evidence, "reason": "unexpected-initial-state"}
+    return {**evidence, "verdict": "FAIL"}
+
+
 def _events(content, request_id, services):
     document = _parse_json(content.decode("utf-8"))
     if document["status"] != "success" or document["data"]["resultType"] != "streams":
@@ -74,6 +94,12 @@ class TraceObservation:
             service, _, dependency = _selector(event)
             if service not in steps or dependency is not None and dependency not in steps[service]["dependencies"]:
                 raise RegistryError("required trace event is outside the selected application graph")
+        self.check_endpoints = {}
+        for check in self.scenario.get("stateChecks", []):
+            if check["node"] not in plan["order"]:
+                raise RegistryError(f"state check {check['id']} is outside the target dependency plan")
+            _, variant = selected_variant(nodes, profile, check["node"])
+            self.check_endpoints[check["id"]] = _endpoint_url(variant, check["endpoint"])
 
     def proxy(self, data, plan):
         self._route(data, plan)
@@ -115,7 +141,42 @@ class TraceObservation:
             time.sleep(min(0.25, max(0, deadline - time.monotonic())))
         return events, reason
 
+    def _state_checks(self, phase):
+        for check in self.scenario.get("stateChecks", []):
+            if check["when"] != phase:
+                continue
+            endpoint = self.check_endpoints[check["id"]]
+            timeout = check.get("timeoutSeconds")
+            remaining = timeout or 3
+            deadline = time.monotonic() + remaining
+            while remaining > 0:
+                try:
+                    status, _, content = _exchange(endpoint, "GET", check["path"], timeout=min(3, remaining))
+                except (OSError, HTTPException, ValueError):
+                    status, content = None, b""
+                evidence = _check(check["id"], phase, check["expect"], status, content)
+                if not timeout or evidence["verdict"] == "PASS":
+                    break
+                time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+                remaining = deadline - time.monotonic()
+            yield evidence
+
+    def _recording(self, plan, target, events, reason, checks):
+        result = {"schemaVersion": 2, "scenario": self.scenario["name"], "scenarioDigest": self.digest,
+                  "profile": plan["profile"], "targetNode": plan["targets"][0],
+                  "variants": {step["node"]: step["variant"] for step in plan["steps"]},
+                  "coverage": "incomplete" if reason else "observed", "target": target,
+                  "events": events, "missingEvents": self._missing(events)}
+        if checks:
+            result["checks"] = checks
+        if reason:
+            result["reason"] = reason
+        return validate_document(result, "observation")
+
     def capture(self, plan):
+        checks = list(self._state_checks("before"))
+        if any(check["verdict"] != "PASS" for check in checks):
+            return self._recording(plan, None, [], "initial-check-not-met", checks)
         request_id = uuid4().hex
         headers = [("X-Request-Id", request_id)]
         if self.body is not None:
@@ -129,15 +190,16 @@ class TraceObservation:
         echoed = [value for name, value in returned if name.lower() == "x-request-id"]
         events, reason = (self._collect(request_id, started) if echoed == [request_id]
                           else ([], "request-id-mismatch"))
+        expected = self.scenario.get("expect")
+        pointers = set(self.scenario.get("targetFields", []))
+        if expected is not None:
+            checks.append(_check("response", "response", expected, status, content))
+            pointers.update(expected.get("fields", {}))
         try:
-            fields = _project_fields(content, self.scenario.get("targetFields", []))
+            fields = _project_fields(content, sorted(pointers))
         except (ValueError, RecursionError):
             fields, reason = {}, "invalid-target-fields"
-        result = {"schemaVersion": 2, "scenario": self.scenario["name"], "scenarioDigest": self.digest,
-                  "profile": plan["profile"], "targetNode": plan["targets"][0],
-                  "variants": {step["node"]: step["variant"] for step in plan["steps"]},
-                  "coverage": "incomplete" if reason else "observed", "target": {"status": status, "fields": fields},
-                  "events": events, "missingEvents": self._missing(events)}
-        if reason:
-            result["reason"] = reason
-        return validate_document(result, "observation")
+        checks.extend(self._state_checks("after"))
+        if not reason and any(check["verdict"] == "INCONCLUSIVE" for check in checks):
+            reason = "state-check-unavailable"
+        return self._recording(plan, {"status": status, "fields": fields}, events, reason, checks)

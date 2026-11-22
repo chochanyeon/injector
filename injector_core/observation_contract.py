@@ -18,9 +18,17 @@ def validate_document(data, kind):
     if error:
         location = "/".join(map(str, error.path)) or "document"
         raise RegistryError(f"invalid HTTP {kind} at {location}")
+    if kind == "scenario" and trace:
+        identifiers = [check["id"] for check in data.get("stateChecks", [])]
+        if "response" in identifiers or len(set(identifiers)) != len(identifiers):
+            raise RegistryError("state check IDs must be unique and cannot use 'response'")
+        if len(set(data.get("targetFields", [])) | data.get("expect", {}).get("fields", {}).keys()) > 16:
+            raise RegistryError("too many target response fields")
     if kind == "observation":
-        fields = [data["target"]["fields"]] + [call[key] for call in data.get("calls", [])
+        fields = [(data["target"] or {}).get("fields", {})] + [call[key] for call in data.get("calls", [])
                                                for key in ("requestFields", "responseFields")]
+        fields.extend(check[key].get("fields", {}) for check in data.get("checks", [])
+                      for key in ("actual", "expected") if key in check)
         if any(isinstance(value, float) and not math.isfinite(value)
                for values in fields for value in values.values()):
             raise RegistryError("invalid HTTP observation numeric field")

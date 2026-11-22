@@ -130,7 +130,10 @@ class HTTPObservationTests(unittest.TestCase):
                     "--registry", registry, "--profile", "local", "--scenario", self.project / "scenario.json")
             matching = self.cli(*args, "--output", self.project / "matching")
             self.assertEqual(matching.returncode, 0, matching.stderr)
-            self.assertEqual(json.loads(matching.stdout)["verdict"], "PASS")
+            report = json.loads(matching.stdout)
+            self.assertEqual(report["verdict"], "PASS")
+            self.assertEqual(json.loads(Path(report["report"]).read_bytes()), report)
+            self.assertIn({"node": "orders", "phase": "ready"}, report["runs"]["candidate"]["events"])
 
             service = candidate / "service.py"
             content = service.read_text(encoding="utf-8").replace('os.environ["DEMO_WAREHOUSE"]', '"busan"')
@@ -146,6 +149,17 @@ class HTTPObservationTests(unittest.TestCase):
             after = json.loads(Path(report["artifacts"]["candidate"]).read_bytes())
             self.assertEqual(before["scenarioDigest"], after["scenarioDigest"])
             self.assertEqual(before["target"], after["target"])
+
+            service.write_text("raise SystemExit(3)\n", encoding="utf-8")
+            failed = self.cli(*args, "--output", self.project / "startup-failed")
+            self.assertEqual(failed.returncode, 2, failed.stderr)
+            report = json.loads(failed.stdout)
+            self.assertEqual(json.loads(Path(report["report"]).read_bytes()), report)
+            self.assertEqual(report["verdict"], "INCONCLUSIVE")
+            self.assertEqual(set(report["artifacts"]), {"baseline"})
+            self.assertEqual(report["runs"]["candidate"]["status"], "failed")
+            self.assertIn("exited before readiness", report["runs"]["candidate"]["reason"])
+            self.assertFalse((runtime_directory(candidate, registry) / "session.json").exists())
 
     def test_worktree_comparison_protects_existing_output_and_candidate_session(self):
         with TemporaryDirectory() as folder:

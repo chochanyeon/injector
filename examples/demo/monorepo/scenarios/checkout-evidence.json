@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "name": "checkout-evidence",
+  "targetEndpoint": "http",
+  "request": {
+    "method": "POST",
+    "path": "/checkout",
+    "json": {"id": "trace-order", "sku": "sample", "quantity": 2}
+  },
+  "expect": {"status": 201, "fields": {"/id": "trace-order", "/totalCents": 1998}},
+  "stateChecks": [
+    {"id": "initial-stock", "when": "before", "node": "inventory", "endpoint": "http",
+     "path": "/stock/sample", "expect": {"status": 200, "fields": {"/available": 10}}},
+    {"id": "initial-order", "when": "before", "node": "orders", "endpoint": "http",
+     "path": "/orders/trace-order", "expect": {"status": 404}},
+    {"id": "final-stock", "when": "after", "node": "inventory", "endpoint": "http",
+     "path": "/stock/sample", "expect": {"status": 200, "fields": {"/available": 8}}},
+    {"id": "stored-order", "when": "after", "node": "orders", "endpoint": "http",
+     "path": "/orders/trace-order",
+     "expect": {"status": 200, "fields": {"/sku": "sample", "/quantity": 2, "/totalCents": 1998}}},
+    {"id": "delivery", "when": "after", "node": "notifications", "endpoint": "http",
+     "path": "/deliveries/trace-order", "timeoutSeconds": 10,
+     "expect": {"status": 200, "fields": {"/status": "delivered", "/order/id": "trace-order"}}}
+  ],
+  "trace": {
+    "node": "loki",
+    "endpoint": "http",
+    "app": "injector-shop",
+    "timeoutSeconds": 15,
+    "requiredEvents": [
+      {"service": "storefront", "event": "http_request"},
+      {"service": "storefront", "event": "http_dependency", "dependency": "orders"},
+      {"service": "orders", "event": "http_dependency", "dependency": "catalog"},
+      {"service": "orders", "event": "http_dependency", "dependency": "inventory"},
+      {"service": "catalog", "event": "http_dependency", "dependency": "pricing"},
+      {"service": "orders", "event": "kafka_publish"},
+      {"service": "notifications", "event": "kafka_consume"}
+    ]
+  }
+}

@@ -47,6 +47,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-320](work-items/T-320.md) | Check registry execution requirements from the CLI | Complete | Complete | Windows CLI and live Compose configuration verified |
 | [T-330](work-items/T-330.md) | Compare a correlated HTTP and Kafka trace | Complete | Complete | Live PASS, downstream change and missing consumer verified |
 | [T-340](work-items/T-340.md) | Search for dependency evidence during registration | Complete | Complete | Shop, scoped fixture, and installed copy verified |
+| [T-350](work-items/T-350.md) | Verify a fix with reproducible checkout evidence | Complete for one scenario | Complete | Windows Docker and JVM fix verification complete |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 
@@ -63,7 +64,7 @@ Keep decisions and evidence under the same T-ID. Link larger supporting document
 
 ## 3. Resume development
 
-The next verification is using the paired command on a work monorepo and checking the imported External Tool configuration on macOS. [T-310](work-items/T-310.md) · [T-120](work-items/T-120.md)
+The next development item is to run related regression scenarios in the same report as a verified fix. Recheck the paired command on a work monorepo and the imported External Tool configuration on macOS. [T-350](work-items/T-350.md) · [T-120](work-items/T-120.md)
 
 1. Check `git status --short --branch` and recent commits. Identify the context of any uncommitted changes.
 2. Choose a T-ID and read it from design through the resume point. Consult the shared references as needed.

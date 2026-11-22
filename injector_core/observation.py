@@ -248,12 +248,9 @@ class HTTPObservation:
             "target": {"status": status, "fields": fields}}, "observation")
 
 
-def _record_http(project, target, profile, observation, destination, registry):
-    if destination.exists() or destination.is_symlink():
-        raise RegistryError("observation output already exists")
-    result = prepare(project, target, profile, registry=registry, observation=observation)
+def _write_artifact(destination, result, *, limit=None):
     payload = (json.dumps(result, ensure_ascii=False, allow_nan=False, indent=2) + "\n").encode("utf-8")
-    if len(payload) > MAX_OBSERVATION_BYTES:
+    if limit is not None and len(payload) > limit:
         raise RegistryError("HTTP observation exceeds the 2 MiB file limit")
     destination.parent.mkdir(parents=True, exist_ok=True)
     handle = destination.open("xb")
@@ -263,6 +260,13 @@ def _record_http(project, target, profile, observation, destination, registry):
     except OSError:
         destination.unlink(missing_ok=True)
         raise
+
+
+def _record_http(project, target, profile, observation, destination, registry, emit=lambda event: None):
+    if destination.exists() or destination.is_symlink():
+        raise RegistryError("observation output already exists")
+    result = prepare(project, target, profile, emit=emit, registry=registry, observation=observation)
+    _write_artifact(destination, result, limit=MAX_OBSERVATION_BYTES)
     captured = "events" if "events" in result else "calls"
     return {"output": str(destination), "coverage": result["coverage"], captured: len(result[captured])}
 
@@ -280,7 +284,7 @@ def observe_http(project, target, profile, scenario_path, output, *, registry=No
 
 
 def compare_worktrees(project, candidate, target, profile, scenario_path, output, *, registry=None,
-                      emit=lambda side: None):
+                      emit=lambda side: None, prove_fix=None):
     from verifier.compare_observations import compare_files
 
     baseline, candidate = Path(project).resolve(), Path(candidate).resolve()
@@ -292,6 +296,12 @@ def compare_worktrees(project, candidate, target, profile, scenario_path, output
     if destination.exists() or destination.is_symlink():
         raise RegistryError("comparison output directory already exists")
     scenario = read_document(Path(scenario_path), "scenario")
+    if prove_fix is not None:
+        checks = {check["id"] for check in scenario.get("stateChecks", []) if check["when"] == "after"}
+        if "expect" in scenario:
+            checks.add("response")
+        if prove_fix not in checks:
+            raise RegistryError("the fix check must name 'response' or a configured after check")
     checkouts = {"baseline": baseline, "candidate": candidate}
     observations = {}
     for side, checkout in checkouts.items():
@@ -308,12 +318,27 @@ def compare_worktrees(project, candidate, target, profile, scenario_path, output
         destination.mkdir(parents=True)
     except FileExistsError as error:
         raise RegistryError("comparison output directory already exists") from error
-    artifacts = {side: destination / f"{side}.json" for side in checkouts}
+    runs = {side: {"project": str(checkout), "status": "not-run", "events": []}
+            for side, checkout in checkouts.items()}
+    artifacts = {}
     for side, checkout in checkouts.items():
+        run = runs[side]
+        artifact = destination / f"{side}.json"
         try:
             emit(side)
-            _record_http(checkout, target, profile, observations[side], artifacts[side], registry)
+            _record_http(checkout, target, profile, observations[side], artifact, registry, run["events"].append)
         except RegistryError as error:
-            raise RegistryError(f"{side}: {error}") from error
-    report = compare_files(artifacts["baseline"], artifacts["candidate"])
-    return {**report, "artifacts": {side: str(path) for side, path in artifacts.items()}}
+            run.update(status="failed", reason=str(error))
+            report = {"verdict": "INCONCLUSIVE", "reason": f"{side} run did not complete"}
+            break
+        run["status"] = "recorded"
+        artifacts[side] = str(artifact)
+    else:
+        report = compare_files(artifacts["baseline"], artifacts["candidate"], prove_fix=prove_fix)
+    report_path = destination / "report.json"
+    report.update(scenario=scenario["name"], scenarioDigest=observations["baseline"].digest,
+                  profile=profile, targetApp=target, runs=runs, artifacts=artifacts, report=str(report_path))
+    if prove_fix is not None:
+        report["fixCheck"] = prove_fix
+    _write_artifact(report_path, report)
+    return report

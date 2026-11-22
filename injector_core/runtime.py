@@ -698,6 +698,7 @@ def prepare(project, target, profile=None, mode=None, emit=lambda event: None, *
                     raise RegistryError(f"{node}: {error}{log}") from error
                 emit({"node": node, "phase": "ready"})
             if observation is not None:
+                emit({"phase": "observing"})
                 recording = observation.capture(plan)
                 _stop(directory, emit)
                 return recording

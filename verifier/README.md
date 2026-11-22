@@ -8,6 +8,16 @@ Use `python injector.py compare-http <baseline.json> --candidate <current.json>`
 
 Both commands also compare version 2 HTTP and Kafka traces collected through Loki. [Shop checkout trace](../examples/demo/monorepo/README.md#compare-a-checkout-trace)
 
+## Verify a local bug fix
+
+Write a reviewed version 2 scenario with `expect` for the main response and `stateChecks` for read-only GET requests to endpoints in the selected dependency graph. A `before` check protects the starting state. An `after` check can use `timeoutSeconds` to wait for an asynchronous result. Declare only fields safe to keep in the evidence files.
+
+- Run `compare-worktrees` for normal parity. Each checkout must satisfy the declared behavior. The recorded behavior must match.
+- Add `--prove-fix CHECK_ID` to require a confirmed failure on the baseline and a complete, passing candidate. Use `response` for the main response or the ID of an `after` check. You can use the same flag with `compare-http` to verify existing recordings.
+- Open `report.json` in the worktree comparison output folder. It contains the verdict, startup events, and available recordings. An incorrectly prepared fixture or unavailable observation can yield `INCONCLUSIVE`.
+
+[Shop checkout fix](../examples/demo/monorepo/README.md#verify-a-checkout-fix)
+
 ## Verify an application
 
 ```bash
