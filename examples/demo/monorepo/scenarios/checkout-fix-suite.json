@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "name": "checkout-fix-and-regression",
+  "target": "storefront",
+  "profile": "mock",
+  "cases": [
+    {"scenario": "checkout-evidence.json", "proveFix": "response"},
+    {"scenario": "checkout-invalid-quantity.json"}
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 2,
+  "name": "checkout-invalid-quantity",
+  "targetEndpoint": "http",
+  "request": {
+    "method": "POST",
+    "path": "/checkout",
+    "json": {"id": "trace-order", "sku": "sample", "quantity": 0}
+  },
+  "expect": {"status": 400},
+  "stateChecks": [
+    {"id": "initial-stock", "when": "before", "node": "inventory", "endpoint": "http",
+     "path": "/stock/sample", "expect": {"status": 200, "fields": {"/available": 10}}},
+    {"id": "initial-order", "when": "before", "node": "orders", "endpoint": "http",
+     "path": "/orders/trace-order", "expect": {"status": 404}},
+    {"id": "unchanged-stock", "when": "after", "node": "inventory", "endpoint": "http",
+     "path": "/stock/sample", "expect": {"status": 200, "fields": {"/available": 10}}},
+    {"id": "no-order", "when": "after", "node": "orders", "endpoint": "http",
+     "path": "/orders/trace-order", "expect": {"status": 404}},
+    {"id": "no-delivery", "when": "after", "node": "notifications", "endpoint": "http",
+     "path": "/deliveries/trace-order", "expect": {"status": 404}}
+  ],
+  "trace": {
+    "node": "loki",
+    "endpoint": "http",
+    "app": "injector-shop",
+    "timeoutSeconds": 15,
+    "requiredEvents": [
+      {"service": "storefront", "event": "http_request"},
+      {"service": "storefront", "event": "http_dependency", "dependency": "orders"},
+      {"service": "orders", "event": "http_request"}
+    ]
+  }
+}

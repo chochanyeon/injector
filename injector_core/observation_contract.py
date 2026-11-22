@@ -11,13 +11,17 @@ _SCHEMA = json.loads(SCHEMA_PATH.with_name("http-observation-v1.schema.json").re
 _VALIDATOR = Draft202012Validator(_SCHEMA)
 
 
+def _document_name(kind):
+    return "verification suite" if kind == "suite" else f"HTTP {kind}"
+
+
 def validate_document(data, kind):
     trace = isinstance(data, dict) and data.get("schemaVersion") == 2
     definition = "trace" + kind.capitalize() if trace and kind in ("scenario", "observation") else kind
     error = next(_VALIDATOR.descend(data, _SCHEMA["$defs"][definition]), None)
     if error:
         location = "/".join(map(str, error.path)) or "document"
-        raise RegistryError(f"invalid HTTP {kind} at {location}")
+        raise RegistryError(f"invalid {_document_name(kind)} at {location}")
     if kind == "scenario" and trace:
         identifiers = [check["id"] for check in data.get("stateChecks", [])]
         if "response" in identifiers or len(set(identifiers)) != len(identifiers):
@@ -44,17 +48,17 @@ def validate_document(data, kind):
 
 def decode_document(content, kind):
     if not isinstance(content, str):
-        raise RegistryError(f"HTTP {kind} must be JSON text")
+        raise RegistryError(f"{_document_name(kind)} must be JSON text")
     if len(content.encode("utf-8")) > MAX_OBSERVATION_BYTES:
-        raise RegistryError(f"HTTP {kind} exceeds the 2 MiB file limit")
+        raise RegistryError(f"{_document_name(kind)} exceeds the 2 MiB file limit")
     return validate_document(_parse_json(content), kind)
 
 
 def read_document(path, kind):
     if not path.is_file():
-        raise RegistryError(f"select an existing HTTP {kind} file")
+        raise RegistryError(f"select an existing {_document_name(kind)} file")
     with path.open("rb") as stream:
         content = stream.read(MAX_OBSERVATION_BYTES + 1)
     if len(content) > MAX_OBSERVATION_BYTES:
-        raise RegistryError(f"HTTP {kind} exceeds the 2 MiB file limit")
+        raise RegistryError(f"{_document_name(kind)} exceeds the 2 MiB file limit")
     return decode_document(content.decode("utf-8"), kind)

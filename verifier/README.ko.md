@@ -16,6 +16,18 @@ Injector에서 기록한 HTTP 파일 두 개는 루트에서 `python injector.py
 
 [쇼핑몰 주문 수정 검증](../examples/demo/monorepo/README.ko.md#주문-버그-수정-검증)
 
+## 스위트 실행
+
+`verify-suite`로 같은 대상과 프로필의 여러 시나리오를 실행한다. 버전 1 스위트는 `target`, `profile`, `cases`를 지정한다. 각 시나리오 경로는 스위트 파일이 있는 폴더 기준으로 작성한다. 기준 버전에 특정 실패를 재현하는 항목에는 `proveFix`를 지정한다. 나머지는 회귀 비교로 실행한다. 시나리오는 한 번씩 지정한다.
+
+```text
+python injector.py verify-suite examples/demo/monorepo/scenarios/checkout-fix-suite.json --project path/to/baseline --candidate-project path/to/candidate --output .local/checkout-suite
+```
+
+서비스를 시작하기 전에 모든 항목을 검사한다. 워크트리와 시나리오마다 새 세션을 열며, 데이터를 보존하는 의존성은 초기 상태를 확인하거나 임시 저장소를 사용한다. 동작 차이가 확인돼도 다음 비교를 계속한다. 기동이나 정리에 실패하면 스위트를 중단하고 남은 항목을 `NOT_RUN`으로 표시한다. 실패가 하나라도 확인되면 전체 `FAIL`이다. 확인된 실패가 없고 증거가 부족하면 `INCONCLUSIVE`다.
+
+검토할 때는 `summary.md`를, 자동화에서는 `report.json`을 사용한다. 각 항목은 두 워크트리의 상세 보고서와 기록으로 연결된다. `compare-worktrees`와 같은 `--registry` 옵션도 사용할 수 있다.
+
 의존성 업그레이드 전 **HEAD**와 변경 후 **현재 작업 디렉터리**에서 같은 검증 코드를 실행하는 로컬 POC다. 특정 라이브러리의 API를 하드코딩하지 않는다. 검증 항목이 모두 같으면 `PASS` / exit 0, 하나라도 다르거나 실행을 완료하지 못하면 `FAIL` / exit 1이다. stdout에는 판정 한 줄만 출력하며 Gradle 로그와 실패 원인은 stderr / JUnit 리포트에 남긴다.
 
 Gradle 검증은 **Java 17 이상, Spring Boot 3.x, Spring MVC, Jackson 2, Gradle Java 플러그인**을 사용하는 서비스가 대상이다. 데모는 Boot 3.5.7이다. 대상 저장소는 Groovy / Kotlin DSL 모두 가능하며, 대상의 Gradle Wrapper와 JDK 호환성은 해당 프로젝트 설정을 따른다. 이 도구 자체의 Wrapper(Gradle 9.3.1)는 데모 실행용이다. Gradle 검증 소스는 `src/test`에 있다.

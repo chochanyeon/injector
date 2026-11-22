@@ -283,26 +283,22 @@ def observe_http(project, target, profile, scenario_path, output, *, registry=No
     return _record_http(project, target, profile, _observation_for(scenario), Path(output), registry)
 
 
-def compare_worktrees(project, candidate, target, profile, scenario_path, output, *, registry=None,
-                      emit=lambda side: None, prove_fix=None):
-    from verifier.compare_observations import compare_files
-
+def _comparison_projects(project, candidate):
     baseline, candidate = Path(project).resolve(), Path(candidate).resolve()
     if not baseline.is_dir() or not candidate.is_dir():
         raise RegistryError("baseline and candidate must be existing project directories")
     if baseline.samefile(candidate):
         raise RegistryError("baseline and candidate must be different project directories")
-    destination = Path(output)
-    if destination.exists() or destination.is_symlink():
-        raise RegistryError("comparison output directory already exists")
-    scenario = read_document(Path(scenario_path), "scenario")
+    return {"baseline": baseline, "candidate": candidate}
+
+
+def _plan_comparison(checkouts, target, profile, scenario, registry, prove_fix):
     if prove_fix is not None:
         checks = {check["id"] for check in scenario.get("stateChecks", []) if check["when"] == "after"}
         if "expect" in scenario:
             checks.add("response")
         if prove_fix not in checks:
             raise RegistryError("the fix check must name 'response' or a configured after check")
-    checkouts = {"baseline": baseline, "candidate": candidate}
     observations = {}
     for side, checkout in checkouts.items():
         try:
@@ -313,6 +309,11 @@ def compare_worktrees(project, candidate, target, profile, scenario_path, output
             observations[side] = observation
         except RegistryError as error:
             raise RegistryError(f"{side}: {error}") from error
+    return observations
+
+
+def _run_comparison(checkouts, target, profile, observations, destination, *, registry, prove_fix, emit):
+    from verifier.compare_observations import compare_files
 
     try:
         destination.mkdir(parents=True)
@@ -321,6 +322,7 @@ def compare_worktrees(project, candidate, target, profile, scenario_path, output
     runs = {side: {"project": str(checkout), "status": "not-run", "events": []}
             for side, checkout in checkouts.items()}
     artifacts = {}
+    interruption = None
     for side, checkout in checkouts.items():
         run = runs[side]
         artifact = destination / f"{side}.json"
@@ -331,14 +333,34 @@ def compare_worktrees(project, candidate, target, profile, scenario_path, output
             run.update(status="failed", reason=str(error))
             report = {"verdict": "INCONCLUSIVE", "reason": f"{side} run did not complete"}
             break
+        except KeyboardInterrupt as error:
+            interruption = error
+            run.update(status="interrupted", reason="execution interrupted")
+            report = {"verdict": "INCONCLUSIVE", "reason": f"{side} run was interrupted"}
+            break
         run["status"] = "recorded"
         artifacts[side] = str(artifact)
     else:
         report = compare_files(artifacts["baseline"], artifacts["candidate"], prove_fix=prove_fix)
     report_path = destination / "report.json"
-    report.update(scenario=scenario["name"], scenarioDigest=observations["baseline"].digest,
+    baseline_observation = observations["baseline"]
+    report.update(scenario=baseline_observation.scenario["name"], scenarioDigest=baseline_observation.digest,
                   profile=profile, targetApp=target, runs=runs, artifacts=artifacts, report=str(report_path))
     if prove_fix is not None:
         report["fixCheck"] = prove_fix
     _write_artifact(report_path, report)
+    if interruption is not None:
+        raise interruption
     return report
+
+
+def compare_worktrees(project, candidate, target, profile, scenario_path, output, *, registry=None,
+                      emit=lambda side: None, prove_fix=None):
+    checkouts = _comparison_projects(project, candidate)
+    destination = Path(output)
+    if destination.exists() or destination.is_symlink():
+        raise RegistryError("comparison output directory already exists")
+    scenario = read_document(Path(scenario_path), "scenario")
+    observations = _plan_comparison(checkouts, target, profile, scenario, registry, prove_fix)
+    return _run_comparison(checkouts, target, profile, observations, destination, registry=registry,
+                           prove_fix=prove_fix, emit=emit)

@@ -122,3 +122,11 @@ python injector.py compare-worktrees storefront --project "path/to/baseline-shop
 ```
 
 To reproduce this fix, set `mockUnitCents` to `998` in the baseline copy of `infra/vault/mappings/pricing.json` and keep `999` in the candidate. The `response` check fails on the baseline with 1,996 cents. The candidate must pass every check and record the required trace. For a regression comparison, run the same scenario without `--prove-fix`. Use a new output directory for each run.
+
+Run the fix and the invalid-quantity regression in one suite with the same two copies.
+
+```text
+python injector.py verify-suite examples/demo/monorepo/scenarios/checkout-fix-suite.json --project "path/to/baseline-shop" --candidate-project "path/to/candidate-shop" --output .local/checkout-suite
+```
+
+The regression uses the same order ID as the first case. It requires a fresh fixture with 10 items and no existing order. It expects a `400` response, 10 items in stock, and no order or delivery. Open `summary.md` to review both results.

@@ -122,3 +122,11 @@ python injector.py compare-worktrees storefront --project "path/to/baseline-shop
 ```
 
 이 예제를 재현하려면 기준 복사본의 `infra/vault/mappings/pricing.json`에서 `mockUnitCents`를 `998`로 설정하고 후보에서는 `999`를 유지한다. 기준 버전은 1,996센트를 반환하므로 `response` 검사에서 실패한다. 후보는 모든 검사를 통과하고 필수 이벤트를 기록해야 한다. 회귀 검증에는 같은 시나리오를 `--prove-fix` 없이 실행한다. 매번 새 출력 폴더를 지정한다.
+
+같은 두 복사본에서 수정 검증과 잘못된 수량 요청의 회귀 검사를 함께 실행한다.
+
+```text
+python injector.py verify-suite examples/demo/monorepo/scenarios/checkout-fix-suite.json --project "path/to/baseline-shop" --candidate-project "path/to/candidate-shop" --output .local/checkout-suite
+```
+
+회귀 검사는 첫 시나리오와 같은 주문 ID를 사용한다. 초기 재고가 10개이고 기존 주문이 없어야 시작한다. HTTP `400`, 최종 재고 10개, 주문·배송 기록 없음을 확인한다. 두 결과는 `summary.md`에서 검토할 수 있다.

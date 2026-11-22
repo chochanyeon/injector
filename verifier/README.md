@@ -18,6 +18,18 @@ Write a reviewed version 2 scenario with `expect` for the main response and `sta
 
 [Shop checkout fix](../examples/demo/monorepo/README.md#verify-a-checkout-fix)
 
+## Run a suite
+
+Use `verify-suite` to run reviewed scenarios for one target and profile. A version 1 suite lists its `target`, `profile`, and `cases`. Each case points to a scenario file relative to the suite file. Use `proveFix` for a case that must reproduce a named failure on the baseline. Other cases check parity. Declare each scenario once.
+
+```text
+python injector.py verify-suite examples/demo/monorepo/scenarios/checkout-fix-suite.json --project path/to/baseline --candidate-project path/to/candidate --output .local/checkout-suite
+```
+
+The command validates all cases before starting any service. It starts a fresh session per checkout and case. Use temporary storage or verify the initial state for dependencies that retain data. A completed difference does not stop later cases. A runtime failure stops the suite and marks pending cases `NOT_RUN`. The overall verdict is `FAIL` when any case confirms a failure. It is `INCONCLUSIVE` when evidence is incomplete and no case confirms a failure.
+
+Open `summary.md` for review or `report.json` for automation. Each case links to its paired report and the available recordings. Use the same optional `--registry` as for `compare-worktrees`.
+
 ## Verify an application
 
 ```bash

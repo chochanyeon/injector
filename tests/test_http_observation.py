@@ -13,6 +13,7 @@ from injector_core.registry import RegistryError, runtime_directory
 from injector_core.runtime import prepare, stop
 from test_runtime import free_port
 from verifier.compare_observations import compare_observations
+from verifier.worktree_suite import verify_suite
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -197,3 +198,70 @@ class HTTPObservationTests(unittest.TestCase):
                          [{"path": "/calls/0/requestFields/~1optional", "kind": "added"}])
         candidate["variants"]["catalog"] = "mock"
         self.assertEqual(compare_observations(artifact(), candidate)["verdict"], "INCONCLUSIVE")
+
+    def suite(self, *, second_case=None):
+        first = json.loads((DEMO / "scenario.json").read_bytes())
+        first["targetFields"].append("/requests")
+        (self.project / "scenario.json").write_text(json.dumps(first), encoding="utf-8")
+        second = {**first, "name": "order-regression", "request": {**first["request"], "json": {"product": "extra"}}}
+        (self.project / "second scenario.json").write_text(json.dumps(second), encoding="utf-8")
+        suite = self.project / "suite.json"
+        suite.write_text(json.dumps({"schemaVersion": 1, "name": "orders-suite", "target": "orders", "profile": "local",
+                                     "cases": [{"scenario": "scenario.json"},
+                                               second_case or {"scenario": "second scenario.json"}]}), encoding="utf-8")
+        return suite
+
+    def test_suite_continues_after_behavior_difference_and_starts_clean(self):
+        suite = self.suite()
+        service = self.project / "service.py"
+        source = service.read_text(encoding="utf-8").replace("def reply(self, status, value):",
+            "requests = 0\n\n    def reply(self, status, value):").replace('self.reply(201, {"accepted": True})',
+            'type(self).requests += 1\n            self.reply(201, {"accepted": True, "requests": self.requests})')
+        service.write_text(source, encoding="utf-8")
+        with TemporaryDirectory() as folder:
+            candidate = Path(folder) / "candidate"
+            shutil.copytree(self.project, candidate)
+            (candidate / "service.py").write_text(source.replace('os.environ["DEMO_WAREHOUSE"]',
+                '"busan" if value["product"] == "sample" else os.environ["DEMO_WAREHOUSE"]'), encoding="utf-8")
+            output = self.project / "evidence"
+            result = self.cli("verify-suite", suite, "--project", self.project, "--candidate-project", candidate,
+                              "--output", output)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual(json.loads((output / "report.json").read_bytes()), report)
+            summary = (output / "summary.md").read_text(encoding="utf-8")
+            self.assertIn("[Case report](02/report.json)", summary)
+            self.assertIn("[Baseline](02/baseline.json)", summary)
+            self.assertEqual(report["verdict"], "FAIL")
+            self.assertEqual(report["counts"], {"PASS": 1, "FAIL": 1, "INCONCLUSIVE": 0, "NOT_RUN": 0})
+            for verdict, entry in zip(("FAIL", "PASS"), report["cases"]):
+                case_report = json.loads((output / entry["report"]).read_bytes())
+                self.assertEqual(case_report["verdict"], verdict)
+                for side in ("baseline", "candidate"):
+                    self.assertEqual(case_report[side]["target"]["fields"]["/requests"], 1)
+            for checkout in (self.project, candidate):
+                self.assertFalse((runtime_directory(checkout) / "session.json").exists())
+
+    def test_suite_preflights_later_cases_and_reports_remaining_cases_after_abort(self):
+        invalid = self.suite(second_case={"scenario": "second scenario.json", "proveFix": "unknown"})
+        with TemporaryDirectory() as folder:
+            candidate = Path(folder) / "candidate"
+            shutil.copytree(self.project, candidate)
+            output = self.project / "suite-output"
+            with self.assertRaisesRegex(RegistryError, "suite case 2: the fix check"):
+                verify_suite(invalid, self.project, candidate, output)
+            self.assertFalse(output.exists())
+            self.assertFalse(runtime_directory(self.project).exists())
+            suite = self.suite()
+            with patch("injector_core.observation._record_http", side_effect=RegistryError("runner could not start")):
+                report = verify_suite(suite, self.project, candidate, output)
+            self.assertEqual(report["verdict"], "INCONCLUSIVE")
+            self.assertEqual([case["verdict"] for case in report["cases"]], ["INCONCLUSIVE", "NOT_RUN"])
+            with patch("injector_core.observation._record_http", side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    verify_suite(suite, self.project, candidate, self.project / "interrupted")
+            interrupted_root = self.project / "interrupted"
+            summary = json.loads((interrupted_root / "report.json").read_bytes())
+            run = json.loads((interrupted_root / summary["cases"][0]["report"]).read_bytes())
+            self.assertEqual(run["runs"]["baseline"]["status"], "interrupted")
+            self.assertEqual(summary["cases"][1]["verdict"], "NOT_RUN")
