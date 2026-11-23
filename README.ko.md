@@ -55,6 +55,8 @@ python -m venv .venv
 
 두 OS 모두 `http://127.0.0.1:18770`을 사용하고 이미 실행 중이면 같은 서버를 연다. 화면을 사용하는 동안 macOS의 서버 Terminal 창을 열어 둔다. ZIP으로 받아 실행 권한이 빠졌다면 macOS에서 `chmod +x Start-Injector.command`를 한 번 실행한다.
 
+대시보드 상단의 **서버 종료**를 누르면 로컬 웹 서버가 종료된다. Injector가 실행한 컨테이너와 로컬 프로세스는 계속 실행된다. 이 자원도 정리하려면 먼저 **의존성 종료**를 누르고 완료될 때까지 기다린다.
+
 1. **프로젝트 폴더**에서 소스 또는 워크트리를 선택한다. **Registry 파일** 옆의 **파일 선택**에서는 Injector 스키마에 맞는 JSON 파일을 고른다. 파일명과 확장자는 자유다. 경로를 직접 입력했다면 **불러오기**를 누른다. 폴더 경로를 지정하면 그 안의 `registry.json`을 읽는다. 입력란을 비우면 소스 폴더의 `registry.json`을 읽는다.
 2. 프로필(`dummy` 또는 `real`)과 `platform-service`를 선택한다.
 3. 실행 순서를 확인하고 **실행 환경 준비**를 누른다. Catalog보다 Redis가 먼저 준비되고, `real`에서는 PostgreSQL도 Catalog 전에 준비된다.

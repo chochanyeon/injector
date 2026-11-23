@@ -60,6 +60,28 @@ class WebTests(unittest.TestCase):
                 self.assertEqual(server.server_name, '127.0.0.1')
                 self.assertGreater(server.server_port, 0)
 
+    def test_server_shutdown_requires_local_control_and_releases_port(self):
+        endpoint = '/api/shutdown'
+        token = json.loads(self.request('/api/info')[1])['token']
+        headers = {'X-Injector-Token': token}
+        self.assertEqual(self.request(endpoint)[0], 404)
+        self.assertEqual(self.request(endpoint, {})[0], 403)
+        self.assertEqual(self.request(endpoint, {}, {**headers, 'Origin': 'https://foreign.test'})[0], 403)
+        picker_attempts = []
+        with patch('injector_core.web.choose_project_folder',
+                   side_effect=lambda _: picker_attempts.append(self.request(endpoint, {}, headers))):
+            self.assertEqual(self.request('/api/project/pick', {}, headers)[0], 200)
+        self.assertEqual(picker_attempts[0][0], 409)
+        with patch('injector_core.web.stop') as stop:
+            status, body = self.request(endpoint, {}, headers)
+            self.assertEqual((status, json.loads(body)), (200, {'status': 'shutting-down'}))
+            self.thread.join(3)
+            self.assertFalse(self.thread.is_alive())
+            stop.assert_not_called()
+        self.server.server_close()
+        with make_server(self.temporary.name, self.port) as restarted:
+            self.assertEqual(restarted.server_port, self.port)
+
     def test_dependency_graph_shows_all_selected_apps_and_shared_nodes(self):
         path = Path(self.temporary.name) / 'registry.json'
         data = json.loads(path.read_bytes())
@@ -593,6 +615,9 @@ class WebTests(unittest.TestCase):
             try:
                 self.assertEqual(self.request('/api/stop', {}, headers)[0], 202)
                 self.assertEqual(self.request('/api/stop', {}, headers)[0], 400)
+                status, response = self.request('/api/shutdown', {}, headers)
+                self.assertEqual(status, 409)
+                self.assertIn('실행 중인 작업', json.loads(response)['error'])
             finally:
                 gate.set()
                 self.assertTrue(finished.wait(3))

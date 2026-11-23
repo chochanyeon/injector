@@ -55,6 +55,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-400](work-items/T-400.md) | Run and inspect local work in the web dashboard | Complete | Complete | Windows Chrome desktop and narrow layouts verified |
 | [T-410](work-items/T-410.md) | Reopen saved verification evidence from the dashboard | Complete | Complete | Complete |
 | [T-420](work-items/T-420.md) | Registry editor autocomplete | Complete | Complete | Windows desktop verified |
+| [T-430](work-items/T-430.md) | Shut down the web server from the dashboard | Complete | Complete | Windows VBS and Chrome verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 

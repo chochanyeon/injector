@@ -47,6 +47,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Non-interactive agent workflow | Partially implemented | `check-suite` and `verify-suite` share a read-only preflight with structured diagnostics. The full target-project workflow is open. | T-380 |
 | Full test environment | Verified on Windows | A clean checkout passed all 13 stages, including 150 unskipped Python tests, the live shop suite and the JVM verifier. | T-390 |
 | Web dashboard | Verified in Windows Chrome | Project selection, execution, the dependency graph, and worktree verification share the local browser workflow. | T-400 |
+| Web server shutdown | Implemented | The dashboard exits the local server after confirmation and prevents shutdown during active work. | T-430 |
 | Saved verification evidence | Implemented | Reopens project-scoped web runs from disk and shows case verdicts, differences, and recordings. | T-410 |
 | Shop monorepo demo | Implemented | Six Gradle JVM modules run with shared infrastructure and replaceable pricing. | T-270 |
 | Shop demo Vault and logs | Implemented | All six apps read their own Vault path, including both Pricing variants. One Loki query finds related checkout HTTP and Kafka events by request ID. | T-280, T-290 |

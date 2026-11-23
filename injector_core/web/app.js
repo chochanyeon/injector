@@ -4,6 +4,7 @@ let editor, completion, editorBusy = false, pickerBusy = false;
 let variants = {}, planReady = false, planRequest = 0, loadRequest = 0;
 let checking = false, suiteChecking = false, activeAction, selectionWarning = '';
 let historyRequest = 0, savedSuite;
+let serverStopped = false;
 const phases = {starting:'시작 중', waiting:'준비 확인 중', ready:'준비 완료', 'debug-ready':'Debug 가능', stopping:'종료 중'};
 const runners = {process:'로컬 프로세스', compose:'Docker Compose', intellij:'IntelliJ', external:'외부 서비스'};
 const sides = {baseline:'기준', candidate:'후보'};
@@ -44,8 +45,30 @@ function badge(id, message, state = '') {
   $(id).className = `badge ${state}`.trim();
 }
 function connection(online) {
+  if (serverStopped) return;
   $('connection').dataset.state = online ? 'online' : 'offline';
   $('connection').textContent = online ? '로컬 연결됨' : '연결 확인 필요';
+}
+
+async function shutdownServer() {
+  const draft = draftChanged() ? '\n저장하지 않은 Registry 초안이 있습니다.' : '';
+  if (!window.confirm(`Injector 웹 서버를 종료할까요? 실행 중인 의존성은 계속 실행됩니다.${draft}`)) return;
+  const button = $('shutdown-server');
+  button.disabled = true;
+  feedback('shutdown-feedback', '서버를 종료하는 중…', 'pending');
+  try {
+    await api('/api/shutdown', {});
+    serverStopped = true;
+    clearTimeout(timer);
+    feedback('shutdown-feedback', '');
+    $('dashboard').inert = true;
+    $('connection').dataset.state = 'offline';
+    $('connection').textContent = '서버 종료됨';
+  } catch (e) {
+    feedback('shutdown-feedback', e.message, 'error');
+    button.disabled = false;
+    button.focus();
+  }
 }
 function error(message) { feedback('result', message, 'error'); badge('badge', '확인 필요', 'failed'); }
 function suiteSelection() {
@@ -237,11 +260,13 @@ async function pickPath(kind, inEditor = false, field = kind, buttonId = inEdito
   await load(true);
 }
 async function poll(restore = false) {
+  if (serverStopped) return;
   let job;
   try {
     job = await api('/api/job');
     connection(true);
   } catch(e) {
+    if (serverStopped) return;
     connection(false);
     feedback(activeAction === 'suite' ? 'suite-result' : 'result', `${e.message} 작업 상태를 다시 확인합니다…`, 'error');
     timer = setTimeout(() => poll(restore), 1500);
@@ -846,6 +871,7 @@ $('project').oninput=$('registry').oninput=() => {
 $('check').onclick=checkRequirements;
 $('prepare').onclick=() => run('prepare');
 $('stop').onclick=() => run('stop');
+$('shutdown-server').onclick = shutdownServer;
 $('suite-pick-candidate').onclick = () => pickPath('project', false, 'suite-candidate', 'suite-pick-candidate');
 $('suite-pick-file').onclick = () => pickPath('suite', false, 'suite-file', 'suite-pick-file');
 $('suite-candidate').oninput = $('suite-file').oninput = suiteChanged;
@@ -882,7 +908,7 @@ $('completion-variant').onchange = $('completion-field').onchange = showCompleti
 $('completion-source').onchange = $('completion-endpoint').onchange = $('completion-context').onchange = completionSourceChoices;
 $('completion-runner').onchange = completionRunnerFields;
 window.addEventListener('beforeunload', event => {
-  if (!draftChanged()) return;
+  if (serverStopped || !draftChanged()) return;
   event.preventDefault();
   event.returnValue = true;
 });
@@ -891,6 +917,7 @@ window.addEventListener('beforeunload', event => {
     const info=await api('/api/info');
     connection(true);
     token=info.token;
+    $('shutdown-server').disabled = false;
     $('project').value=info.project;
     $('registry').value=info.registry;
     $('registries').replaceChildren(...info.registries.map(path => new Option(path, path)));

@@ -6,11 +6,15 @@
   <div class="topbar-inner">
     <a class="brand" href="/" aria-label="Injector 홈"><span class="brand-mark" aria-hidden="true"></span>Injector</a>
     <nav aria-label="대시보드"><a href="#execution">실행</a><a href="#dependency-graph">의존성</a><a href="#verification">검증</a></nav>
-    <span id="connection" class="connection" data-state="pending">연결 확인 중</span>
+    <span id="connection" class="connection" role="status" data-state="pending">연결 확인 중</span>
   </div>
 </header>
-<main>
-  <h1 class="page-title">실행 환경</h1>
+<main id="dashboard">
+  <div class="card-heading page-heading">
+    <h1 class="page-title">실행 환경</h1>
+    <button id="shutdown-server" class="secondary stop" type="button" disabled>서버 종료</button>
+  </div>
+  <p id="shutdown-feedback" class="feedback" role="status"></p>
   <form id="project-form" class="card project-card" aria-labelledby="project-title">
     <div class="card-heading">
       <h2 id="project-title">프로젝트</h2>

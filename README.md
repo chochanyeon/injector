@@ -53,6 +53,8 @@ python -m venv .venv
 
 Both use `http://127.0.0.1:18770` and reuse a running Injector server. Keep the server's Terminal window open on macOS. If a ZIP download lost the executable bit, run `chmod +x Start-Injector.command` once.
 
+Click **Server shutdown** (**서버 종료**) at the top of the dashboard to exit the local web server. Managed containers and local processes keep running. To stop those resources as well, click **Stop dependencies** (**의존성 종료**) first and wait for it to finish.
+
 1. Under **Project folder** (**프로젝트 폴더**), choose the source checkout or worktree. Under **Registry file** (**Registry 파일**), use **Choose file** (**파일 선택**) to select any valid Injector registry JSON. The filename and extension are unrestricted. Click **Load** (**불러오기**) after typing either path by hand. A directory path uses the `registry.json` inside it. Leave the field empty to load `registry.json` from the source folder.
 2. Select `dummy` or `real` and choose `platform-service`.
 3. Review the execution order and click **Prepare environment** (**실행 환경 준비**). Redis starts before Catalog. With `real`, PostgreSQL also starts before Catalog.

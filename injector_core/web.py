@@ -44,6 +44,20 @@ class Control:
         self.lock = threading.Lock()
         self.picker_lock = threading.Lock()
         self.job = {"status": "idle", "events": []}
+        self.shutting_down = False
+
+    def _require_running_server(self):
+        if self.shutting_down:
+            raise RegistryConflict("Injector 서버를 종료하는 중입니다.")
+
+    def request_shutdown(self):
+        with self.lock:
+            self._require_running_server()
+            if self.job["status"] == "running":
+                raise RegistryConflict("실행 중인 작업이 끝난 뒤 서버를 종료하세요.")
+            if self.picker_lock.locked():
+                raise RegistryConflict("파일 또는 폴더 선택 창을 닫은 뒤 서버를 종료하세요.")
+            self.shutting_down = True
 
     def snapshot(self):
         with self.lock:
@@ -55,6 +69,7 @@ class Control:
             raise RegistryError("project path is required")
         result = project_info(project, registry=self.registry_for(body))
         with self.lock:
+            self._require_running_server()
             self.selection = {key: result[key] for key in ("project", "registry")}
             if self.selection_file is not None:
                 try:
@@ -71,8 +86,10 @@ class Control:
         kind = body.get("kind", "project")
         if kind not in ("project", "registry", "suite"):
             raise RegistryError("unknown picker kind")
-        if not self.picker_lock.acquire(blocking=False):
-            raise RegistryConflict("선택 창이 이미 열려 있습니다.")
+        with self.lock:
+            self._require_running_server()
+            if not self.picker_lock.acquire(blocking=False):
+                raise RegistryConflict("선택 창이 이미 열려 있습니다.")
         try:
             default = self.selection["project"]
             if kind == "registry":
@@ -123,6 +140,7 @@ class Control:
         if not isinstance(revision, str):
             raise RegistryError("open the registry before saving")
         with self.lock:
+            self._require_running_server()
             if self.job["status"] == "running":
                 raise RegistryConflict("wait for the running job before saving")
             return save_registry(project, text, revision, filename, registry=registry)
@@ -150,6 +168,7 @@ class Control:
         elif action == "suite":
             context.update(suite=body["suite"].strip(), candidate=body["candidate"].strip())
         with self.lock:
+            self._require_running_server()
             if self.job["status"] == "running":
                 raise RegistryError("a job is already running")
             self.job = {"status": "running", "action": action, "context": context, "events": []}
@@ -255,7 +274,7 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
                 return
             editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save", "/api/registry/complete")
             comparison = self.path == "/api/observations/compare"
-            if not editor and not comparison and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop",
+            if not editor and not comparison and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop", "/api/shutdown",
                                                                     "/api/suite/check", "/api/suite/run", "/api/suite/history"):
                 return self.respond(404, {"error": "not found"})
             try:
@@ -279,6 +298,16 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
                             report[key] = json.dumps(report[key], ensure_ascii=False, indent=2)
                     return self.respond(200, report)
                 action = self.path.rsplit("/", 1)[1]
+                if action == "shutdown":
+                    control.request_shutdown()
+                    try:
+                        self.respond(200, {"status": "shutting-down"})
+                    except ConnectionError:
+                        pass
+                    finally:
+                        # This request runs in a worker, separate from serve_forever().
+                        self.server.shutdown()
+                    return
                 if action == "pick":
                     return self.respond(200, control.pick_project(body))
                 if action == "project":
