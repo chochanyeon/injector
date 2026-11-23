@@ -118,6 +118,8 @@ Open **Verification** (**검증**). The active project is the baseline. Select a
 
 Reloading the page restores the latest suite inputs and result for the same project while the same server is running. Expand **HTTP·Kafka 관측 비교** to compare two existing observation JSON files. [Verifier suite format](verifier/README.md#run-a-suite)
 
+Open **Saved verification history** (**저장된 검증 기록**) to revisit up to 20 recent web runs for the loaded baseline project, including after a server restart. Select a scenario to see its verdict, changed values, and baseline and candidate recordings. The history reads the web server's `.local/verification/` folder.
+
 ## Use local hostnames
 
 Specify a name such as `catalog.local.test.com` in an endpoint's `addresses.host.host` and register the same name in `nameMappings`.

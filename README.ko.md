@@ -123,6 +123,8 @@ python injector.py serve --open
 
 같은 서버에서 같은 프로젝트로 페이지를 새로고침하면 최근 스위트 입력과 결과를 다시 볼 수 있다. **HTTP·Kafka 관측 비교**에서 기존 관측 JSON 파일 두 개를 비교할 수 있다. [Verifier 스위트 형식](verifier/README.ko.md#스위트-실행)
 
+**저장된 검증 기록**에는 기준 프로젝트의 최근 웹 실행을 최대 20개까지 표시한다. 서버를 다시 시작한 뒤에도 열 수 있다. 시나리오를 선택하면 판정, 달라진 값, 기준과 후보의 관측 기록을 확인할 수 있다. 기록은 웹 서버의 `.local/verification/` 폴더에서 읽는다.
+
 ## 로컬 호스트 이름 사용하기
 
 registry의 접속점 `addresses.host.host`에 `catalog.local.test.com` 같은 이름을 사용하고, 같은 이름을 `nameMappings`에 등록한다.

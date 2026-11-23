@@ -449,6 +449,49 @@ class WebTests(unittest.TestCase):
             self.assertEqual(job['context']['candidate'], body['candidate'])
             runner.assert_called_once()
 
+    def test_saved_suite_history_survives_restart_and_limits_report_reads(self):
+        root = Path(self.temporary.name).resolve()
+        evidence = root / 'evidence'
+        case = {'scenario': 'checkout', 'verdict': 'FAIL', 'report': '01/report.json'}
+        report = {'schemaVersion': 1, 'suite': 'shop', 'targetApp': 'orders', 'profile': 'local',
+                  'verdict': 'FAIL', 'cases': [case, {'scenario': 'skipped', 'verdict': 'NOT_RUN'}]}
+        projects = {'baseline': str(root), 'candidate': str(root / 'candidate')}
+        comparison = {'verdict': 'FAIL', 'baseline': {'order/id': [9007199254740993]},
+                      'candidate': {'order/id': [9007199254740992]},
+                      'changes': [{'kind': 'changed', 'path': '/order~1id/0'}],
+                      'runs': {side: {'project': path} for side, path in projects.items()}}
+
+        def write(run, suite):
+            folder = evidence / run
+            (folder / '01').mkdir(parents=True)
+            (folder / 'report.json').write_text(json.dumps(suite), encoding='utf-8')
+            (folder / '01' / 'report.json').write_text(json.dumps(comparison), encoding='utf-8')
+
+        write('a' * 16, {**report, 'worktrees': projects})
+        write('b' * 16, report)
+        write('c' * 16, {**report, 'worktrees': {**projects, 'baseline': str(root / 'different')}})
+
+        with patch('injector_core.web.VERIFICATION_RUNS', evidence):
+            self.stop_server()
+            self.start_server()
+            token = json.loads(self.request('/api/info')[1])['token']
+            headers = {'X-Injector-Token': token}
+            path, selection = '/api/suite/history', {'project': str(root)}
+            self.assertEqual(self.request(path, selection)[0], 403)
+            status, content = self.request(path, selection, headers)
+            self.assertEqual(status, 200)
+            self.assertEqual({run['id'] for run in json.loads(content)['runs']}, {'a' * 16, 'b' * 16})
+            status, content = self.request(path, {**selection, 'run': 'b' * 16}, headers)
+            self.assertEqual(status, 200)
+            self.assertEqual(json.loads(content)['worktrees'], projects)
+            status, content = self.request(path, {**selection, 'run': 'a' * 16, 'case': 1}, headers)
+            self.assertEqual(status, 200)
+            self.assertIn('9007199254740993', json.loads(content)['baseline'])
+            change = json.loads(content)['changes'][0]
+            self.assertEqual((change['baseline'], change['candidate']), ('9007199254740993', '9007199254740992'))
+            for input_body in ({'run': '../evidence'}, {'run': 'c' * 16}, {'run': 'a' * 16, 'case': 2}):
+                self.assertEqual(self.request(path, {**selection, **input_body}, headers)[0], 400)
+
     def test_errors_do_not_expose_unexpected_exception_values(self):
         token = json.loads(self.request('/api/info')[1])['token']
         with patch('injector_core.web.stop', side_effect=OSError('secret-value')):

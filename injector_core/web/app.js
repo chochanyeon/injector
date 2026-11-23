@@ -3,10 +3,12 @@ let token, catalog, busy = false, timer;
 let editor, editorBusy = false, pickerBusy = false;
 let variants = {}, planReady = false, planRequest = 0, loadRequest = 0;
 let checking = false, suiteChecking = false, activeAction, selectionWarning = '';
+let historyRequest = 0, savedSuite;
 const phases = {starting:'시작 중', waiting:'준비 확인 중', ready:'준비 완료', 'debug-ready':'Debug 가능', stopping:'종료 중'};
 const runners = {process:'로컬 프로세스', compose:'Docker Compose', intellij:'IntelliJ', external:'외부 서비스'};
 const sides = {baseline:'기준', candidate:'후보'};
 const verdicts = {PASS:'통과', FAIL:'실패', INCONCLUSIVE:'판정 보류', NOT_RUN:'미실행'};
+const changeTypes = {added:'추가', removed:'삭제', changed:'변경'};
 async function api(path, body) {
   const endpoint = path.split('?')[0];
   let response, result;
@@ -170,6 +172,7 @@ async function load(remember = false) {
   selectionWarning = '';
   feedback('check-result', '');
   suiteChanged();
+  resetHistory();
   try {
     const paths = selection();
     let result;
@@ -193,6 +196,7 @@ async function load(remember = false) {
     feedback('result', selectionWarning || '실행 환경을 준비할 수 있습니다.', selectionWarning ? 'pending' : '');
     $('suite-baseline').textContent = `기준 워크트리 · ${catalog.project}`;
     buttons(); await targets($('profile').value === profile ? target : undefined);
+    if ($('suite-history').open) await loadSuiteHistory();
   } catch(e) {
     if (generation !== loadRequest) return;
     dependencyGraph.reset();
@@ -253,7 +257,10 @@ async function poll(restore = false) {
   activeAction = job.action;
   if (matchesJob(job)) {
     if (job.action === 'suite') {
-      if (job.status === 'succeeded') showSuiteResult(job.result);
+      if (job.status === 'succeeded') {
+        showSuiteResult(job.result);
+        if (job.result.report && $('suite-history').open) await loadSuiteHistory();
+      }
       else if (job.status === 'failed') {
         badge('suite-badge', '실행 실패', 'failed');
         feedback('suite-result', job.error, 'error');
@@ -380,6 +387,103 @@ async function copySuiteReport() {
     selected.removeAllRanges();
     selected.addRange(range);
     $('suite-copy').textContent = '경로 선택됨';
+  }
+}
+
+function resetHistory() {
+  historyRequest++;
+  savedSuite = null;
+  $('history-run').replaceChildren();
+  $('history-run').disabled = $('history-cases').hidden = true;
+  feedback('history-status', '먼저 기준 프로젝트를 불러오세요.');
+}
+
+async function loadSuiteHistory() {
+  const previous = $('history-run').value;
+  resetHistory();
+  if (!catalog) return;
+  const generation = historyRequest;
+  feedback('history-status', '저장된 검증 기록을 읽는 중…', 'pending');
+  try {
+    const {runs} = await api('/api/suite/history', {project:catalog.project});
+    if (generation !== historyRequest) return;
+    if (!runs.length) {
+      feedback('history-status', '이 프로젝트의 저장된 검증 기록이 없습니다.');
+      return;
+    }
+    $('history-run').replaceChildren(...runs.map(run => new Option(
+      `${verdicts[run.verdict]} · ${run.suite} · ${new Date(run.modified * 1000).toLocaleString()}`, run.id)));
+    if (runs.some(run => run.id === previous)) $('history-run').value = previous;
+    $('history-run').disabled = false;
+    await openSavedSuite();
+  } catch (e) {
+    if (generation === historyRequest) feedback('history-status', e.message, 'error');
+  }
+}
+
+async function openSavedSuite() {
+  const generation = ++historyRequest;
+  const run = $('history-run').value;
+  $('history-cases').hidden = true;
+  savedSuite = null;
+  feedback('history-status', '보고서를 읽는 중…', 'pending');
+  try {
+    const report = await api('/api/suite/history', {project:catalog.project, run});
+    if (generation !== historyRequest) return;
+    savedSuite = report;
+    feedback('history-status', `${verdicts[report.verdict]} · ${report.targetApp} · ${report.profile}`,
+             report.verdict === 'PASS' ? 'success' : report.verdict === 'FAIL' ? 'error' : 'pending');
+    const cases = report.cases;
+    $('history-case').replaceChildren(...cases.map((entry, index) => new Option(
+      `${entry.scenario} · ${verdicts[entry.verdict]}`, String(index + 1))));
+    const failed = cases.findIndex(entry => entry.verdict !== 'PASS' && entry.report);
+    if (failed >= 0) $('history-case').value = String(failed + 1);
+    $('history-cases').hidden = false;
+    await openSavedCase();
+  } catch (e) {
+    if (generation === historyRequest) feedback('history-status', e.message, 'error');
+  }
+}
+
+async function openSavedCase() {
+  const generation = ++historyRequest;
+  const index = Number($('history-case').value);
+  const entry = savedSuite?.cases[index - 1];
+  const changes = $('history-changes');
+  $('history-detail').hidden = changes.hidden = true;
+  if (!entry?.report) {
+    feedback('history-case-status', '이 시나리오에는 저장된 증거가 없습니다.');
+    return;
+  }
+  feedback('history-case-status', '시나리오 증거를 읽는 중…', 'pending');
+  try {
+    const report = await api('/api/suite/history', {project:catalog.project, run:$('history-run').value, case:index});
+    if (generation !== historyRequest) return;
+    const statuses = {recorded:'기록 완료', failed:'실행 실패', interrupted:'중단', 'not-run':'미실행'};
+    feedback('history-case-status', [verdicts[report.verdict], report.reason].filter(Boolean).join(' · '),
+             report.verdict === 'PASS' ? 'success' : report.verdict === 'FAIL' ? 'error' : 'pending');
+    for (const [side, label] of Object.entries(sides)) {
+      const run = report.runs?.[side];
+      const status = statuses[run?.status];
+      $(`history-${side}-title`).textContent = status ? `${label} · ${status}` : label;
+      const reason = $(`history-${side}-reason`);
+      reason.textContent = run?.reason || '';
+      reason.hidden = !reason.textContent;
+      $(`history-${side}-details`).textContent = report[side] || '관측 기록 없음';
+    }
+    changes.replaceChildren(...(report.changes || []).map(({path, kind, baseline, candidate}) => {
+      const item = document.createElement('li');
+      item.textContent = `${changeTypes[kind]} · ${path}`;
+      const values = document.createElement('p');
+      values.className = 'hint';
+      values.textContent = `기준 ${baseline ?? '없음'} → 후보 ${candidate ?? '없음'}`;
+      item.append(values);
+      return item;
+    }));
+    changes.hidden = !changes.children.length;
+    $('history-detail').hidden = false;
+  } catch (e) {
+    if (generation === historyRequest) feedback('history-case-status', e.message, 'error');
   }
 }
 async function checkSuite() {
@@ -557,7 +661,7 @@ async function compareObservations() {
     const entries = report.changes || [];
     changes.replaceChildren(...entries.map(({path, kind}) => {
       const item = document.createElement('li');
-      item.textContent = `${{added:'추가', removed:'삭제', changed:'변경'}[kind]} · ${path}`;
+      item.textContent = `${changeTypes[kind]} · ${path}`;
       return item;
     }));
     changes.hidden = !changes.children.length;
@@ -587,6 +691,7 @@ $('project').oninput=$('registry').oninput=() => {
   $('target').replaceChildren(new Option('프로젝트를 불러오세요', ''));
   $('suite-baseline').textContent = '기준 워크트리는 위에서 선택한 프로젝트입니다.';
   clearPlan('실행 대상을 선택하세요.'); dependencyGraph.reset(); suiteChanged();
+  resetHistory();
 };
 $('check').onclick=checkRequirements;
 $('prepare').onclick=() => run('prepare');
@@ -597,6 +702,10 @@ $('suite-candidate').oninput = $('suite-file').oninput = suiteChanged;
 $('suite-check').onclick = checkSuite;
 $('suite-run').onclick = () => run('suite');
 $('suite-copy').onclick = copySuiteReport;
+$('suite-history').addEventListener('toggle', () => { if ($('suite-history').open) loadSuiteHistory(); });
+$('history-refresh').onclick = loadSuiteHistory;
+$('history-run').onchange = openSavedSuite;
+$('history-case').onchange = openSavedCase;
 $('edit-registry').onclick = () => openEditor($('project').value.trim());
 $('registry-pick-project').onclick = () => pickPath('project', true);
 $('registry-file').onchange = () => openEditor(editor.project, {filename:$('registry-file').value, registry:editor.registry});

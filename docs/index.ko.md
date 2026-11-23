@@ -24,7 +24,7 @@
 | [T-150](work-items/T-150.ko.md) | 클릭으로 실행 환경 준비 | 완료 | 완료 | 부분 검증(브라우저 수동 확인 남음) |
 | [T-070](work-items/T-070.ko.md) | 사용자 정의 호스트 이름 연결 | 완료(macOS·Windows hosts) | 완료 | 부분 검증(관리자 적용 남음) |
 | [T-160](work-items/T-160.ko.md) | macOS와 Windows 실행 환경 지원 | 완료 | 완료 | 부분 검증(Finder·IDE 수동 확인 남음) |
-| [T-170](work-items/T-170.ko.md) | 로컬 registry.json 편집기 | 완료 | 완료 | 부분 검증(macOS 폴더 선택 창·휴대폰 원격 미리보기 확인 남음) |
+| [T-170](work-items/T-170.ko.md) | 로컬 registry.json 편집기 | 완료 | 완료 | macOS 폴더 선택 창 검증 대기 |
 | [T-180](work-items/T-180.ko.md) | registry 기반 의존성 그래프 | 완료 | 완료 | 부분 검증(작은 화면·대형 그래프 확인 남음) |
 | [T-190](work-items/T-190.ko.md) | 앱별 실행·주입 설정 파일 | 완료 | 완료 | 완료(호환성·편집·프로세스) |
 | [T-200](work-items/T-200.ko.md) | 워크트리와 registry 보관 위치 분리 | 완료 | 완료 | 부분 검증(OS 선택 창·IDE 가져오기 남음) |
@@ -53,6 +53,7 @@
 | [T-380](work-items/T-380.ko.md) | 입력 대기 없는 등록·검증 자동화 | 사전 점검 설계 | 부분 구현 | 공통 사전 점검과 CLI의 Windows 검증 |
 | [T-390](work-items/T-390.ko.md) | 전체 테스트 환경 준비 및 실행 | 완료 | 완료 | Windows에서 13단계 통과. macOS 실실행 대기 |
 | [T-400](work-items/T-400.ko.md) | 웹에서 실행·검증 및 결과 확인 | 완료 | 완료 | Windows Chrome 데스크톱·좁은 화면 검증 |
+| [T-410](work-items/T-410.ko.md) | 웹에서 저장된 검증 증거 다시 열기 | 완료 | 완료 | 완료 |
 
 완료 표시는 해당 작업에 명시한 범위에 한정된다. POC 완료가 일반화된 앱 등록·DFS 실행까지 완료되었다는 뜻은 아니다. 후속 작업의 설계 초안은 범위·완료 기준을 정한 수준이며 상세 설계 완료가 아니다.
 

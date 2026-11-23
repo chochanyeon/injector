@@ -24,7 +24,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-150](work-items/T-150.md) | Browser environment preparation | Complete | Complete | Manual browser verification pending |
 | [T-070](work-items/T-070.md) | Custom hostnames | Complete for hosts on macOS and Windows | Complete | System changes with elevation pending |
 | [T-160](work-items/T-160.md) | macOS and Windows launch support | Complete | Complete | Finder and IDE checks pending |
-| [T-170](work-items/T-170.md) | Local registry.json editor | Complete | Complete | macOS picker and mobile remote preview pending |
+| [T-170](work-items/T-170.md) | Local registry.json editor | Complete | Complete | macOS picker pending |
 | [T-180](work-items/T-180.md) | Registry dependency graph | Complete | Complete | Small viewport and large graph checks pending |
 | [T-190](work-items/T-190.md) | Per-app execution and settings files | Complete | Complete | Compatibility, editor, and processes verified |
 | [T-200](work-items/T-200.md) | Separate registry storage from source worktrees | Complete | Complete | Native picker and IDE import checks pending |
@@ -53,6 +53,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-380](work-items/T-380.md) | Run registration and verification without manual prompts | Preflight defined | Partial | Shared suite preflight and CLI verified on Windows |
 | [T-390](work-items/T-390.md) | Build and run the full test environment | Complete | Complete | All 13 stages passed on Windows. Native macOS run pending |
 | [T-400](work-items/T-400.md) | Run and inspect local work in the web dashboard | Complete | Complete | Windows Chrome desktop and narrow layouts verified |
+| [T-410](work-items/T-410.md) | Reopen saved verification evidence from the dashboard | Complete | Complete | Complete |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 

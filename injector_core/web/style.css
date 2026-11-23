@@ -270,6 +270,7 @@ pre {
 .report-path { margin: 0; flex: 1 1 15rem; font: 12px/1.55 ui-monospace, Consolas, monospace; color: var(--muted); overflow-wrap: anywhere; user-select: all; }
 .observation-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 8px 0 12px; }
 .observation-columns pre { margin-top: 4px; max-height: 26rem; }
+.observation-columns > section { min-width: 0; }
 #observation-changes { padding-left: 20px; overflow-wrap: anywhere; }
 
 .registry-editor {

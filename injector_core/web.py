@@ -250,7 +250,7 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
             editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save")
             comparison = self.path == "/api/observations/compare"
             if not editor and not comparison and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop",
-                                                                    "/api/suite/check", "/api/suite/run"):
+                                                                    "/api/suite/check", "/api/suite/run", "/api/suite/history"):
                 return self.respond(404, {"error": "not found"})
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -283,6 +283,14 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
                     from verifier.worktree_suite import check_suite
                     inputs = control.suite_inputs(body)
                     return self.respond(200, check_suite(*inputs, registry=control.registry_for(body)))
+                if self.path == "/api/suite/history":
+                    from verifier.suite_evidence import saved_run, saved_runs
+                    project = body.get("project")
+                    if not isinstance(project, str) or not project.strip() or "\x00" in project:
+                        raise RegistryError("먼저 기준 프로젝트를 불러오세요.")
+                    if "run" in body:
+                        return self.respond(200, saved_run(VERIFICATION_RUNS, project, body["run"], body.get("case")))
+                    return self.respond(200, {"runs": saved_runs(VERIFICATION_RUNS, project)})
                 if action == "check":
                     keys = ("project", "target", "profile")
                     if not all(isinstance(body.get(key), str) and body[key].strip() for key in keys):

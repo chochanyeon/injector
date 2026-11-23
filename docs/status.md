@@ -31,7 +31,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Execution and readiness | Complete for initial scope | Process, Compose, and external runners. HTTP, TCP, and container healthchecks. Owned resources are cleaned up. | T-050 |
 | Prepare target | Partially verified | Prepares dependencies and generates Debug configuration. New IDE flow still needs a direct check. | T-060 |
 | Browser preparation | Partially verified | Double-click launchers, loopback API, and UI. Manual browser checks remain. | T-150 |
-| Registry editor | Partially verified | Opens, validates, and saves files, detects external edits, and uses OS pickers. macOS and mobile remote preview remain. | T-170 |
+| Registry editor | Partially verified | Opens, validates, and saves files, detects external edits, and uses OS pickers. The macOS picker remains to be verified. | T-170 |
 | Per-app files | Implemented | Combines `nodeFiles` and edits individual files in the browser. | T-190 |
 | Central registry storage | Partially verified | Select a registry file separately from the source folder. Shares settings from Injector's `registries/` and isolates runtime state per file and worktree. | T-200 |
 | Web selection persistence | Implemented | Normal launches restore the last successfully loaded project and registry paths. | T-240 |
@@ -46,6 +46,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Non-interactive agent workflow | Partially implemented | `check-suite` and `verify-suite` share a read-only preflight with structured diagnostics. The full target-project workflow is open. | T-380 |
 | Full test environment | Verified on Windows | A clean checkout passed all 13 stages, including 150 unskipped Python tests, the live shop suite and the JVM verifier. | T-390 |
 | Web dashboard | Verified in Windows Chrome | Project selection, execution, the dependency graph, and worktree verification share the local browser workflow. | T-400 |
+| Saved verification evidence | Implemented | Reopens project-scoped web runs from disk and shows case verdicts, differences, and recordings. | T-410 |
 | Shop monorepo demo | Implemented | Six Gradle JVM modules run with shared infrastructure and replaceable pricing. | T-270 |
 | Shop demo Vault and logs | Implemented | All six apps read their own Vault path, including both Pricing variants. One Loki query finds related checkout HTTP and Kafka events by request ID. | T-280, T-290 |
 | Execution and comparison review fixes | Implemented | Default registry session identity, Compose port validation, local process diagnostics, selected HTTP query values, and original array indexes for Verifier exclusions. | T-300 |

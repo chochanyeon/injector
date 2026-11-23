@@ -187,6 +187,7 @@ def verify_suite(suite_path, project, candidate, output, *, registry=None, emit=
             counts[entry["verdict"]] += 1
         verdict = "FAIL" if counts["FAIL"] else "PASS" if counts["PASS"] == len(cases) else "INCONCLUSIVE"
         report = {"schemaVersion": 1, "suite": preflight["suite"], "targetApp": target, "profile": profile,
+                  "worktrees": {side: str(checkout) for side, checkout in checkouts.items()},
                   "verdict": verdict, "counts": counts, "cases": cases, "report": str(report_path),
                   "summary": str(summary_path)}
         _write_artifact(report_path, report)
