@@ -161,6 +161,44 @@
       <p id="registry-path" class="registry-path"></p>
       <button id="registry-pick-project" class="secondary" disabled>폴더 변경</button>
     </div>
+    <details id="registry-completion" hidden>
+      <summary>자동완성</summary>
+      <fieldset id="completion-controls">
+        <div class="completion-toolbar">
+          <p id="completion-status" class="hint" role="status"></p>
+          <button id="completion-reload" type="button" class="secondary">후보 다시 읽기</button>
+        </div>
+        <div id="completion-path" hidden>
+          <label for="completion-file">등록할 노드 파일</label>
+          <input id="completion-file" list="completion-files" placeholder="상대 경로로 검색" autocomplete="off">
+          <datalist id="completion-files"></datalist>
+        </div>
+        <div id="completion-node" hidden>
+          <div class="completion-fields">
+            <label>Variant<select id="completion-variant"></select></label>
+            <label>편집 항목<select id="completion-field">
+              <option value="dependencies">의존 서비스</option>
+              <option value="injections">주입 규칙</option>
+              <option value="execution">실행 방식</option>
+            </select></label>
+          </div>
+          <label id="completion-dependency-field">추가할 서비스<select id="completion-dependency"></select></label>
+          <div id="completion-injection" class="completion-fields" hidden>
+            <label>의존 서비스<select id="completion-source"></select></label>
+            <label>엔드포인트<select id="completion-endpoint"></select></label>
+            <label>주소 구분<select id="completion-context"></select></label>
+            <label>가져올 값<select id="completion-component"></select></label>
+            <label>주입 방식<select id="completion-channel"></select></label>
+            <label>설정 키<input id="completion-key" autocomplete="off" required></label>
+          </div>
+          <div id="completion-execution" hidden>
+            <label>실행 방식<select id="completion-runner"></select></label>
+            <div id="completion-runner-fields" class="completion-fields"></div>
+          </div>
+        </div>
+        <button id="completion-apply" type="button" class="secondary" hidden>초안에 반영</button>
+      </fieldset>
+    </details>
     <textarea id="registry-text" aria-label="JSON 설정 편집" aria-describedby="registry-path registry-status"
               rows="22" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" disabled></textarea>
     <div class="registry-actions">

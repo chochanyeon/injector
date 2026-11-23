@@ -94,9 +94,11 @@ Dependencies can use process, Compose, or external runners. Targets can use Inte
 
 ## Edit registry files
 
-1. Select the source folder and the registry file and click **Edit registry** (**Registry 편집**). The editor can open existing files with JSON syntax errors. **Change folder** (**폴더 변경**) opens another worktree. For a split registry, choose the root or a node file from **Configuration file** (**설정 파일**). Create new node files in the registry directory and add them to `nodeFiles`.
+1. Select the source folder and the registry file and click **Edit registry** (**Registry 편집**). The editor can open existing files with JSON syntax errors. **Change folder** (**폴더 변경**) opens another worktree. For a split registry, choose the root or a node file from **Configuration file** (**설정 파일**).
 2. **Validate** (**검증**) checks JSON syntax, schema, references, and cycles in the profile plans. Syntax errors show the line and column.
 3. **Save** (**저장**) validates again before writing and refreshes the application and profile lists.
+
+Expand **Autocomplete** (**자동완성**) in the root file to search for unregistered node JSON files by path and apply a choice to `nodeFiles`. In a declared node file, select a variant and use the forms to add a dependency, add an injection rule, or edit execution settings. The injection form offers endpoint and address choices supported by the dependency variants selected for that caller variant. **Apply to draft** (**초안에 반영**) updates the JSON in the editor. Click **Save** to write the selected file.
 
 **Collapse** (**접기**) keeps the draft, and reopening the editor for the same selection restores it. **Close** (**닫기**) and Esc ask before discarding unsaved edits. If the file changed on disk, use **Reload file** (**파일 다시 읽기**) to review the newer version.
 

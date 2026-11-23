@@ -385,6 +385,82 @@ class WebTests(unittest.TestCase):
                 self.assertEqual(status, 400)
                 self.assertIn(pattern, result['error'])
 
+    def test_registry_completion_lists_and_adds_paths_in_the_selected_registry(self):
+        source = Path(self.temporary.name)
+        storage = source / 'settings'
+        nodes = storage / 'nodes'
+        nodes.mkdir(parents=True)
+        registry = storage / 'my-registry.json'
+        data = json.loads((source / 'registry.json').read_bytes())
+        candidate = {**data['nodes'][1], 'id': 'warehouse'}
+        text = json.dumps(data, indent=2) + '\n'
+        registry.write_text(text, encoding='utf-8')
+        path = 'nodes/local warehouse.JSON'
+        node_file = storage / path
+        node_file.write_text(json.dumps(candidate), encoding='utf-8')
+        (nodes / 'duplicate.json').write_text(json.dumps(data['nodes'][0]), encoding='utf-8')
+        (nodes / 'not-a-node.json').write_text('{}', encoding='utf-8')
+        (source / 'outside.json').write_text(json.dumps(candidate), encoding='utf-8')
+        params = {'registry': str(registry), 'text': text}
+        self.assertEqual(self.request('/api/registry/complete', {'project': str(source), **params})[0], 403)
+        self.assertEqual(self.registry_request('complete', **params), (200, {
+            'paths': [{'path': path, 'id': 'warehouse'}], 'limited': False}))
+        self.assertEqual(self.registry_request('complete', **params, edit={'path': '../outside.json'})[0], 400)
+        status, result = self.registry_request('complete', **params, edit={'path': path})
+        self.assertEqual(status, 200)
+        self.assertTrue(result['text'].startswith(text.rstrip()[:-2]))
+        self.assertEqual(json.loads(result['text']), {**data, 'nodeFiles': [path]})
+        self.assertEqual(registry.read_text(encoding='utf-8'), text)
+        updated = {**params, 'text': result['text']}
+        self.assertEqual(self.registry_request('complete', **updated)[1]['paths'], [])
+        self.assertEqual(self.registry_request('complete', **updated, edit={'path': path})[0], 400)
+        _, opened = self.registry_request('open', registry=str(registry))
+        self.assertEqual(self.registry_request('save', **updated, revision=opened['revision'])[0], 200)
+        self.assertEqual(json.loads(registry.read_bytes())['nodeFiles'], [path])
+        self.assertEqual(json.loads(node_file.read_bytes()), candidate)
+
+    def test_registry_completion_uses_node_variants_and_preserves_unrelated_json(self):
+        root = Path(self.temporary.name)
+        registry = root / 'registry.json'
+        data = json.loads(registry.read_bytes())
+        data['schemaVersion'] = '1.1'
+        node = data['nodes'].pop(0)
+        original = node['variants']['local']
+        original['springProperties'] = {'app.id': 9007199254740993, 'app.rate': 1e-10}
+        data['nodeFiles'] = ['main.json']
+        data['nodes'].append({**data['nodes'][0], 'id': 'redis'})
+        data['profiles']['dummy']['selections']['redis'] = 'local'
+        registry.write_text(json.dumps(data), encoding='utf-8')
+        text = json.dumps(node, indent=2).replace('1e-10', '1.0000e-10') + '\n'
+        path = root / 'main.json'
+        path.write_text(text, encoding='utf-8')
+        params = {'file': path.name, 'text': text}
+        status, choices = self.registry_request('complete', **params)
+        self.assertEqual(status, 200)
+        variant = choices['variants'][0]
+        self.assertEqual(variant['dependencies'], ['redis'])
+        self.assertEqual(variant['sources'], [{'id': 'dependency', 'endpoints': [{'id': 'http', 'contexts': [
+            {'id': 'host', 'components': ['url', 'host', 'port']}]}]}])
+        self.assertIn('springProperty', choices['channels'])
+        for field, value in (
+            ('dependencies', 'redis'),
+            ('injections', {'channel': 'springProperty', 'key': 'app.redis', 'source': {
+                'node': 'redis', 'endpoint': 'http', 'context': 'host', 'component': 'url'}}),
+            ('execution', {'type': 'intellij', 'projectPath': '.', 'module': 'local', 'mainClass': 'example.Main'}),
+        ):
+            status, result = self.registry_request('complete', **params,
+                                                   edit={'variant': 'local', 'field': field, 'value': value})
+            self.assertEqual(status, 200, result)
+            self.assertIn('9007199254740993', result['text'])
+            self.assertIn('1.0000e-10', result['text'])
+            params['text'] = result['text']
+        self.assertEqual(path.read_text(encoding='utf-8'), text)
+        self.assertEqual(self.registry_request('validate', **params)[0], 200)
+        updated = json.loads(params['text'])['variants']['local']
+        self.assertEqual(updated['dependencies'], ['dependency', 'redis'])
+        self.assertEqual(updated['injections'][0]['key'], 'app.redis')
+        self.assertEqual(updated['execution']['type'], 'intellij')
+
     def test_registry_editor_protects_raw_reads_and_concurrent_edits(self):
         self.assertEqual(self.request('/api/registry/open', {'project': self.temporary.name})[0], 403)
         token = json.loads(self.request('/api/info')[1])['token']

@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 let token, catalog, busy = false, timer;
-let editor, editorBusy = false, pickerBusy = false;
+let editor, completion, editorBusy = false, pickerBusy = false;
 let variants = {}, planReady = false, planRequest = 0, loadRequest = 0;
 let checking = false, suiteChecking = false, activeAction, selectionWarning = '';
 let historyRequest = 0, savedSuite;
@@ -518,6 +518,7 @@ function editorButtons() {
   $('registry-pick-project').disabled = busy || locked || !token;
   $('registry-file').disabled = locked;
   $('registry-text').disabled = locked || !editor;
+  $('completion-controls').disabled = locked || !editor;
   $('registry-fold').disabled = $('registry-close').disabled = locked;
   for (const id of ['registry-reload', 'registry-validate']) $(id).disabled = locked || !editor;
   $('registry-save').disabled = busy || locked || !draftChanged();
@@ -530,6 +531,150 @@ function registryStatus(message, state = '') {
 
 function discardDraft() {
   return !draftChanged() || window.confirm('저장하지 않은 변경을 버릴까요?');
+}
+
+function resetCompletion(message = '') {
+  completion = null;
+  $('completion-path').hidden = $('completion-node').hidden = $('completion-apply').hidden = true;
+  $('completion-status').textContent = message;
+}
+
+function completionOptions(id, options) {
+  const select = $(id), previous = select.value;
+  select.replaceChildren(...options.map(value => new Option(value, value)));
+  if (options.includes(previous)) select.value = previous;
+}
+
+function completionVariant() {
+  return completion.variants.find(variant => variant.id === $('completion-variant').value);
+}
+
+function completionSourceChoices() {
+  const sources = completionVariant().sources;
+  completionOptions('completion-source', sources.map(item => item.id));
+  const endpoints = sources.find(item => item.id === $('completion-source').value)?.endpoints || [];
+  completionOptions('completion-endpoint', endpoints.map(item => item.id));
+  const contexts = endpoints.find(item => item.id === $('completion-endpoint').value)?.contexts || [];
+  completionOptions('completion-context', contexts.map(item => item.id));
+  completionOptions('completion-component', contexts.find(item => item.id === $('completion-context').value)?.components || []);
+  $('completion-apply').disabled = !$('completion-component').value;
+}
+
+function completionRunnerFields() {
+  const runner = completion.runners.find(item => item.id === $('completion-runner').value);
+  const existing = completionVariant().execution;
+  $('completion-runner-fields').replaceChildren(...runner.fields.map(({name, array}) => {
+    const label = document.createElement('label');
+    const input = document.createElement(array ? 'textarea' : 'input');
+    label.textContent = name;
+    input.name = name;
+    input.required = true;
+    if (array) {
+      input.rows = 2;
+      input.placeholder = '["java", "-jar", "app.jar"]';
+    }
+    if (existing.type === runner.id) input.value = array ? JSON.stringify(existing[name]) : existing[name];
+    label.append(input);
+    return label;
+  }));
+}
+
+function showCompletionFields() {
+  const variant = completionVariant(), field = $('completion-field').value;
+  const status = $('completion-status');
+  status.textContent = '선택한 variant의 초안을 편집합니다.';
+  $('completion-dependency-field').hidden = field !== 'dependencies';
+  $('completion-injection').hidden = field !== 'injections';
+  $('completion-execution').hidden = field !== 'execution';
+  if (field === 'dependencies') {
+    completionOptions('completion-dependency', variant.dependencies);
+    $('completion-apply').disabled = !variant.dependencies.length;
+    if (!variant.dependencies.length) status.textContent = '추가할 등록 서비스가 없습니다.';
+  } else if (field === 'injections') {
+    completionSourceChoices();
+    if (!variant.sources.length) status.textContent = '주입에 사용할 의존 서비스의 엔드포인트가 없습니다.';
+  } else {
+    if (variant.execution.type) $('completion-runner').value = variant.execution.type;
+    completionRunnerFields();
+    $('completion-apply').disabled = false;
+  }
+}
+
+async function loadCompletion(edit) {
+  if (!editor || editorBusy) return;
+  editorBusy = true;
+  editorButtons();
+  const request = {project:editor.project, registry:editor.registry, file:editor.file, text:$('registry-text').value};
+  const status = $('completion-status');
+  status.textContent = '후보를 읽는 중…';
+  try {
+    if (edit) {
+      const draft = await api('/api/registry/complete', {...request, edit});
+      $('registry-text').value = request.text = draft.text;
+      registryStatus('초안에 반영했습니다.');
+    }
+    resetCompletion('후보를 읽는 중…');
+    completion = await api('/api/registry/complete', request);
+    if (editor.file) {
+      $('completion-node').hidden = false;
+      completionOptions('completion-variant', completion.variants.map(item => item.id));
+      completionOptions('completion-runner', completion.runners.map(item => item.id));
+      completionOptions('completion-channel', completion.channels);
+      if (edit?.field === 'injections') $('completion-key').value = '';
+      showCompletionFields();
+      $('completion-apply').hidden = false;
+    } else {
+      $('completion-path').hidden = $('completion-apply').hidden = !completion.paths.length;
+      $('completion-apply').disabled = false;
+      $('completion-file').value = '';
+      $('completion-files').replaceChildren(...completion.paths.map(item => {
+        const option = new Option(item.id, item.path);
+        option.label = item.id;
+        return option;
+      }));
+      const description = completion.paths.length ? `미등록 노드 파일 ${completion.paths.length}개` : '등록할 노드 파일이 없습니다.';
+      status.textContent = completion.limited ? `${description} · 검색 범위 한도에 도달했습니다.` : description;
+    }
+  } catch (e) {
+    status.textContent = e.message;
+  } finally {
+    editorBusy = false;
+    editorButtons();
+  }
+}
+
+async function applyCompletion() {
+  if (!completion) return;
+  if (!editor.file) {
+    const path = $('completion-file').value;
+    if (!completion.paths.some(item => item.path === path)) {
+      $('completion-status').textContent = '목록에 있는 노드 파일을 선택하세요.';
+      return;
+    }
+    return loadCompletion({path});
+  }
+  const field = $('completion-field').value;
+  let value;
+  if (field === 'dependencies') {
+    value = $('completion-dependency').value;
+  } else if (field === 'injections') {
+    value = {channel:$('completion-channel').value, key:$('completion-key').value.trim(), source:{
+      node:$('completion-source').value, endpoint:$('completion-endpoint').value,
+      context:$('completion-context').value, component:$('completion-component').value}};
+    if (!$('completion-key').reportValidity()) return;
+  } else {
+    value = {type:$('completion-runner').value};
+    for (const input of $('completion-runner-fields').querySelectorAll('input, textarea')) {
+      if (!input.reportValidity()) return;
+      try {
+        value[input.name] = input.tagName === 'TEXTAREA' ? JSON.parse(input.value) : input.value;
+      } catch {
+        $('completion-status').textContent = 'command를 JSON 문자열 배열로 입력하세요.';
+        return;
+      }
+    }
+  }
+  return loadCompletion({field, value, variant:$('completion-variant').value});
 }
 
 function updateEditorFiles() {
@@ -567,6 +712,9 @@ async function openEditor(project, {filename, reload = false, registry = selecti
     $('registry-text').value = result.text;
     editor = {project:result.project, registry:result.registry, source, sourceRegistry, file, files:result.files,
               revision:result.revision, savedText:$('registry-text').value};
+    $('registry-completion').open = false;
+    $('registry-completion').hidden = false;
+    resetCompletion();
     registryStatus('파일을 불러왔습니다.');
   } catch (e) {
     registryStatus(e.message, 'error');
@@ -582,6 +730,8 @@ function hideEditor(discard) {
   if (editorBusy || pickerBusy || (discard && !discardDraft())) return;
   if (discard) {
     editor = null;
+    $('registry-completion').hidden = true;
+    resetCompletion();
     $('registry-text').value = '';
     $('registry-path').textContent = '';
     updateEditorFiles();
@@ -720,8 +870,17 @@ registryDialog.addEventListener('cancel', event => {
 });
 $('registry-text').oninput = () => {
   registryStatus(draftChanged() ? '저장하지 않은 변경이 있습니다.' : '저장된 내용과 같습니다.');
+  resetCompletion('JSON을 수정했습니다. 후보를 다시 읽으세요.');
   editorButtons();
 };
+$('registry-completion').addEventListener('toggle', () => {
+  if ($('registry-completion').open && !completion) loadCompletion();
+});
+$('completion-reload').onclick = () => loadCompletion();
+$('completion-apply').onclick = applyCompletion;
+$('completion-variant').onchange = $('completion-field').onchange = showCompletionFields;
+$('completion-source').onchange = $('completion-endpoint').onchange = $('completion-context').onchange = completionSourceChoices;
+$('completion-runner').onchange = completionRunnerFields;
 window.addEventListener('beforeunload', event => {
   if (!draftChanged()) return;
   event.preventDefault();

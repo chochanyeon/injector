@@ -54,6 +54,7 @@ Follow the order below. T-130, T-131, and T-140 were prioritized after T-040 at 
 | [T-390](work-items/T-390.md) | Build and run the full test environment | Complete | Complete | All 13 stages passed on Windows. Native macOS run pending |
 | [T-400](work-items/T-400.md) | Run and inspect local work in the web dashboard | Complete | Complete | Windows Chrome desktop and narrow layouts verified |
 | [T-410](work-items/T-410.md) | Reopen saved verification evidence from the dashboard | Complete | Complete | Complete |
+| [T-420](work-items/T-420.md) | Registry editor autocomplete | Complete | Complete | Windows desktop verified |
 
 Completion applies to the scope documented in each row. Drafts define scope and acceptance criteria. Detailed designs follow.
 

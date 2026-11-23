@@ -12,6 +12,7 @@ from .folder_picker import choose_project_folder, choose_registry_file, choose_s
 from .loopback import LoopbackHTTPServer
 from .observation_contract import MAX_OBSERVATION_BYTES, decode_document
 from .registry import RegistryError, _parse_json, registry_path
+from .registry_completion import complete_registry
 from .registry_editor import MAX_BYTES, RegistryConflict, open_registry, save_registry, validate_registry
 from .rendering import _artifact_path, _replace_file
 from .runtime import check_requirements, parse_variants, prepare, project_info, select_plan, stop
@@ -111,6 +112,11 @@ class Control:
         text = body.get("text")
         if not isinstance(text, str):
             raise RegistryError("registry text is required")
+        if action == "complete":
+            edit = body.get("edit")
+            if edit is not None and not isinstance(edit, dict):
+                raise RegistryError("select a registry completion")
+            return complete_registry(project, text, filename, edit, registry=registry)
         if action == "validate":
             return validate_registry(project, text, filename, registry=registry)
         revision = body.get("revision")
@@ -247,7 +253,7 @@ def make_server(project, port=18770, *, registry=None, selection_file=None, rest
         def do_POST(self):
             if not self.allowed(mutation=True):
                 return
-            editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save")
+            editor = self.path in ("/api/registry/open", "/api/registry/validate", "/api/registry/save", "/api/registry/complete")
             comparison = self.path == "/api/observations/compare"
             if not editor and not comparison and self.path not in ("/api/project", "/api/project/pick", "/api/check", "/api/prepare", "/api/stop",
                                                                     "/api/suite/check", "/api/suite/run", "/api/suite/history"):

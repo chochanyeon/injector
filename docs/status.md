@@ -33,6 +33,7 @@ Develop Injector at the repository root. The Java and Vault demos live at `examp
 | Browser preparation | Partially verified | Double-click launchers, loopback API, and UI. Manual browser checks remain. | T-150 |
 | Registry editor | Partially verified | Opens, validates, and saves files, detects external edits, and uses OS pickers. The macOS picker remains to be verified. | T-170 |
 | Per-app files | Implemented | Combines `nodeFiles` and edits individual files in the browser. | T-190 |
+| Registry autocomplete | Verified in Windows Chrome | Suggests node file paths, dependencies, injection endpoints, and execution fields. | T-420 |
 | Central registry storage | Partially verified | Select a registry file separately from the source folder. Shares settings from Injector's `registries/` and isolates runtime state per file and worktree. | T-200 |
 | Web selection persistence | Implemented | Normal launches restore the last successfully loaded project and registry paths. | T-240 |
 | Registry execution check | Implemented | Browser and CLI check declared settings and runner requirements. Both report the IntelliJ module and main class for IDE confirmation. | T-220, T-230, T-320 |
