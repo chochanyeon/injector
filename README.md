@@ -102,6 +102,8 @@ Dependencies can use process, Compose, or external runners. Targets can use Inte
 
 Expand **Autocomplete** (**자동완성**) in the root file to search for unregistered node JSON files by path and apply a choice to `nodeFiles`. In a declared node file, select a variant and use the forms to add a dependency, add an injection rule, or edit execution settings. The injection form offers endpoint and address choices supported by the dependency variants selected for that caller variant. **Apply to draft** (**초안에 반영**) updates the JSON in the editor. Click **Save** to write the selected file.
 
+Under **Injection rules** (**주입 규칙**), select an existing rule to edit its key, channel or source, or remove it from the draft. Validation identifies a conflicting key and its settings layer in the affected profile.
+
 **Collapse** (**접기**) keeps the draft, and reopening the editor for the same selection restores it. **Close** (**닫기**) and Esc ask before discarding unsaved edits. If the file changed on disk, use **Reload file** (**파일 다시 읽기**) to review the newer version.
 
 The native file and folder dialogs open on the desktop running Injector. When using a remote preview, type the path if the host desktop is inaccessible. Restart an existing Injector server after installing an update to use its new API.

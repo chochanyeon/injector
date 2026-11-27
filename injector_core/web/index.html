@@ -188,12 +188,14 @@
           </div>
           <label id="completion-dependency-field">추가할 서비스<select id="completion-dependency"></select></label>
           <div id="completion-injection" class="completion-fields" hidden>
+            <label>편집할 규칙<select id="completion-rule"></select></label>
             <label>의존 서비스<select id="completion-source"></select></label>
             <label>엔드포인트<select id="completion-endpoint"></select></label>
             <label>주소 구분<select id="completion-context"></select></label>
             <label>가져올 값<select id="completion-component"></select></label>
             <label>주입 방식<select id="completion-channel"></select></label>
             <label>설정 키<input id="completion-key" autocomplete="off" required></label>
+            <button id="completion-remove-rule" type="button" class="quiet stop" hidden>초안에서 규칙 삭제</button>
           </div>
           <div id="completion-execution" hidden>
             <label>실행 방식<select id="completion-runner"></select></label>

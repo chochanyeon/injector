@@ -120,6 +120,32 @@ def _spring_leaves(value, prefix):
     return [prefix]
 
 
+_CHANNELS = {"environment": "env", "vmProperty": "vmProperties", "springProperty": "springProperties"}
+
+
+def settings_layers(data, profile_name, node, name):
+    node_id = node["id"]
+    return [
+        (data.get("defaults", {}), "defaults"),
+        (node["variants"][name], f"nodes/{node_id}/variants/{name}"),
+        (node.get("profileOverrides", {}).get(profile_name, {}), f"nodes/{node_id}/profileOverrides/{profile_name}"),
+        (data["profiles"][profile_name].get("overrides", {}).get(node_id, {}), f"profiles/{profile_name}/overrides/{node_id}"),
+    ]
+
+
+def validate_injection_keys(node_id, variant, layers):
+    seen = {}
+    for index, rule in enumerate(variant.get("injections", [])):
+        channel, key = _CHANNELS[rule["channel"]], rule["key"]
+        if channel != "env":
+            _property_key(key)
+        origin = seen.get((channel, key)) or next(
+            (location for settings, location in reversed(layers) if key in settings.get(channel, {})), None)
+        if origin:
+            raise RegistryError(f"{node_id}: injection conflicts with an existing {channel} key: {key} ({origin})")
+        seen[channel, key] = f"injections/{index}"
+
+
 def resolve_node(data, profile_name, node_id, environ=None, defer_spring_env=False, *, injection_urls=None):
     """Accept a validated registry and return actual values plus provenance."""
     if profile_name not in data["profiles"]:
@@ -130,11 +156,8 @@ def resolve_node(data, profile_name, node_id, environ=None, defer_spring_env=Fal
     origins = {"env": {}, "vmProperties": {}, "springProperties": {}, "vmOptions": []}
     maps = {"env": {}, "vmProperties": {}, "springProperties": {}}
     options = []
-    layers = [(data.get("defaults", {}), "defaults"),
-              (variant, f"nodes/{node_id}/variants/{name}"),
-              (nodes[node_id].get("profileOverrides", {}).get(profile_name, {}),
-               f"nodes/{node_id}/profileOverrides/{profile_name}"),
-              (profile.get("overrides", {}).get(node_id, {}), f"profiles/{profile_name}/overrides/{node_id}")]
+    layers = settings_layers(data, profile_name, nodes[node_id], name)
+    validate_injection_keys(node_id, variant, layers)
     for layer, location in layers:
         for channel in maps:
             for key, value in layer.get(channel, {}).items():
@@ -149,12 +172,8 @@ def resolve_node(data, profile_name, node_id, environ=None, defer_spring_env=Fal
             origins["vmOptions"].append(f"{location}/vmOptions/{index}")
 
     for index, rule in enumerate(variant.get("injections", [])):
-        channel = {"environment": "env", "vmProperty": "vmProperties", "springProperty": "springProperties"}[rule["channel"]]
+        channel = _CHANNELS[rule["channel"]]
         key = rule["key"]
-        if channel in ("vmProperties", "springProperties"):
-            _property_key(key)
-        if key in maps[channel]:
-            raise RegistryError(f"{node_id}: injection conflicts with an existing {channel} key")
         source = rule["source"]
         _, dependency = selected_variant(nodes, profile, source["node"])
         endpoint = dependency["endpoints"].get(source["endpoint"])

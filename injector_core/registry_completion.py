@@ -6,6 +6,7 @@ import re
 
 from jsonschema import Draft202012Validator
 
+from .planning import build_plan
 from .registry import RegistryError, SCHEMA_PATHS, _check_schema, _parse_json, node_file_path, registry_path
 from .registry_editor import MAX_BYTES, _document, _read, _require_regular_file
 from .resolution import _address_value
@@ -118,11 +119,22 @@ def _endpoint_choices(node, variants, source, source_schema):
 
 
 def _variants(node, peers, profiles, source_schema):
+    data = {"nodes": [*peers.values(), node], "profiles": profiles}
+    caller_profiles = []
+    for profile_name, profile in profiles.items():
+        if node["id"] not in profile["selections"]:
+            continue
+        try:
+            if node["id"] not in build_plan(data, profile_name)["order"]:
+                continue
+        except RegistryError:
+            # Keep the editor available while a draft's graph is incomplete.
+            pass
+        caller_profiles.append(profile["selections"])
     result = []
     for name, variant in node["variants"].items():
         dependencies = set(variant.get("dependencies", []))
-        selections = [profile["selections"] for profile in profiles.values()
-                      if profile["selections"].get(node["id"]) == name]
+        selections = [selection for selection in caller_profiles if selection[node["id"]] == name]
         sources = []
         for source in sorted(dependencies & peers.keys()):
             peer = peers[source]
@@ -131,7 +143,7 @@ def _variants(node, peers, profiles, source_schema):
                 choice = _endpoint_choices(peer, sorted(selected), source, source_schema)
                 if choice["endpoints"]:
                     sources.append(choice)
-        result.append({"id": name, "execution": variant.get("execution", {}),
+        result.append({"id": name, "execution": variant.get("execution", {}), "injections": variant.get("injections", []),
                        "dependencies": sorted(peers.keys() - dependencies - {node["id"]}), "sources": sources})
     return result
 
@@ -192,7 +204,16 @@ def complete_registry(project, text, filename, edit=None, *, registry=None):
         _check_schema(validator.descend(value, definitions[field]))
     elif field == "dependencies" and value in variant["dependencies"]:
         value = [*current[field], value]
-    elif field == "injections":
+    elif field in ("injections", "removeInjection"):
+        existing = list(current.get("injections", []))
+        index = edit.get("index")
+        if "index" in edit or field == "removeInjection":
+            if type(index) is not int or not 0 <= index < len(existing):
+                raise RegistryError("select an existing injection rule")
+            existing.pop(index)
+        path = ["variants", variant["id"], "injections"]
+        if field == "removeInjection":
+            return {"text": _set_field(text, path, existing)}
         _check_schema(validator.descend(value, definitions["injection"]))
         source = value["source"]
         allowed = any(node["id"] == source["node"] and endpoint["id"] == source["endpoint"]
@@ -200,10 +221,10 @@ def complete_registry(project, text, filename, edit=None, *, registry=None):
                       for node in variant["sources"] for endpoint in node["endpoints"] for context in endpoint["contexts"])
         if not allowed:
             raise RegistryError("select an available dependency endpoint")
-        existing = current.get(field, [])
         if any(rule["channel"] == value["channel"] and rule["key"] == value["key"] for rule in existing):
             raise RegistryError("this injection key is already defined for the channel")
-        value = [*existing, value]
+        existing.insert(len(existing) if index is None else index, value)
+        value = existing
     else:
         raise RegistryError("select an available completion")
     return {"text": _set_field(text, ["variants", variant["id"], field], value)}

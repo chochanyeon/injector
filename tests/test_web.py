@@ -498,6 +498,48 @@ class WebTests(unittest.TestCase):
         self.assertIn('changed on disk', reason['error'])
         self.assertEqual(path.read_bytes(), edited)
 
+    def test_conflicting_injection_can_be_repaired_in_node_draft(self):
+        root = Path(self.temporary.name)
+        registry = root / 'registry.json'
+        data = json.loads(registry.read_bytes())
+        node = data['nodes'].pop(0)
+        source = {'node': 'dependency', 'endpoint': 'http', 'context': 'host', 'component': 'url'}
+        rules = [{'channel': 'environment', 'key': key, 'source': source} for key in ('API_URL', 'SECOND_URL')]
+        node['variants']['local']['injections'] = rules
+        data['nodeFiles'] = ['node.json']
+        data['profiles']['dummy']['overrides'] = {'main': {'env': {'API_URL': {'fromEnv': 'UNSET_AT_EDIT_TIME'}}}}
+        data['nodes'].append({**data['nodes'][0], 'kind': 'application', 'id': 'other'})
+        data['profiles']['inactive'] = {'targets': ['other'], 'selections': {'main': 'local', 'other': 'local'}}
+        registry.write_text(json.dumps(data), encoding='utf-8')
+        path = root / 'node.json'
+        original = json.dumps(node)
+        path.write_text(original, encoding='utf-8')
+        _, opened = self.registry_request('open', file=path.name)
+        args = {'file': path.name, 'text': original}
+        status, response = self.registry_request('save', **args, revision=opened['revision'])
+        self.assertEqual(status, 400)
+        self.assertIn('profiles/dummy: main: injection conflicts with an existing env key: API_URL', response['error'])
+        self.assertIn('profiles/dummy/overrides/main', response['error'])
+        self.assertNotIn('UNSET_AT_EDIT_TIME', response['error'])
+        status, options = self.registry_request('complete', **args)
+        self.assertEqual(options['variants'][0]['injections'], rules)
+        self.assertEqual([peer['id'] for peer in options['variants'][0]['sources']], ['dependency'])
+        edit = {'variant': 'local', 'field': 'injections', 'index': 0, 'value': rules[1]}
+        self.assertEqual(self.registry_request('complete', **args, edit=edit)[0], 400)
+        edit['value'] = {**rules[0], 'key': 'NEW_URL'}
+        status, draft = self.registry_request('complete', **args, edit=edit)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(draft['text'])['variants']['local']['injections'], [edit['value'], rules[1]])
+        args.update(draft)
+        removal = {'variant': 'local', 'field': 'removeInjection'}
+        for index in (None, -1, 2, False):
+            self.assertEqual(self.registry_request('complete', **args, edit={**removal, 'index': index})[0], 400)
+        status, draft = self.registry_request('complete', **args, edit={**removal, 'index': 1})
+        self.assertEqual(status, 200)
+        self.assertEqual(path.read_text(encoding='utf-8'), original)
+        self.assertEqual(self.registry_request('save', file=path.name, **draft, revision=opened['revision'])[0], 200)
+        self.assertEqual(json.loads(path.read_bytes())['variants']['local']['injections'], [edit['value']])
+
     def test_job_uses_runtime_and_reports_progress(self):
         token = json.loads(self.request('/api/info')[1])['token']
         def fake(project, target, profile, emit, variants, registry):

@@ -574,15 +574,28 @@ function completionVariant() {
   return completion.variants.find(variant => variant.id === $('completion-variant').value);
 }
 
-function completionSourceChoices() {
+function completionSourceChoices(source = {}) {
   const sources = completionVariant().sources;
   completionOptions('completion-source', sources.map(item => item.id));
+  if (source.node) $('completion-source').value = source.node;
   const endpoints = sources.find(item => item.id === $('completion-source').value)?.endpoints || [];
   completionOptions('completion-endpoint', endpoints.map(item => item.id));
+  if (source.endpoint) $('completion-endpoint').value = source.endpoint;
   const contexts = endpoints.find(item => item.id === $('completion-endpoint').value)?.contexts || [];
   completionOptions('completion-context', contexts.map(item => item.id));
+  if (source.context) $('completion-context').value = source.context;
   completionOptions('completion-component', contexts.find(item => item.id === $('completion-context').value)?.components || []);
+  if (source.component) $('completion-component').value = source.component;
   $('completion-apply').disabled = !$('completion-component').value;
+}
+
+function showInjectionRule() {
+  const index = $('completion-rule').value;
+  const rule = index === '' ? null : completionVariant().injections[Number(index)];
+  $('completion-remove-rule').hidden = !rule;
+  $('completion-key').value = rule?.key || '';
+  if (rule) $('completion-channel').value = rule.channel;
+  completionSourceChoices(rule?.source);
 }
 
 function completionRunnerFields() {
@@ -616,7 +629,9 @@ function showCompletionFields() {
     $('completion-apply').disabled = !variant.dependencies.length;
     if (!variant.dependencies.length) status.textContent = '추가할 등록 서비스가 없습니다.';
   } else if (field === 'injections') {
-    completionSourceChoices();
+    $('completion-rule').replaceChildren(new Option('새 규칙 추가', ''), ...variant.injections.map((rule, index) =>
+      new Option(`${rule.channel} · ${rule.key} ← ${rule.source.node}/${rule.source.endpoint}`, String(index))));
+    showInjectionRule();
     if (!variant.sources.length) status.textContent = '주입에 사용할 의존 서비스의 엔드포인트가 없습니다.';
   } else {
     if (variant.execution.type) $('completion-runner').value = variant.execution.type;
@@ -645,8 +660,11 @@ async function loadCompletion(edit) {
       completionOptions('completion-variant', completion.variants.map(item => item.id));
       completionOptions('completion-runner', completion.runners.map(item => item.id));
       completionOptions('completion-channel', completion.channels);
-      if (edit?.field === 'injections') $('completion-key').value = '';
       showCompletionFields();
+      if (edit?.field === 'injections' && Number.isInteger(edit.index)) {
+        $('completion-rule').value = String(edit.index);
+        showInjectionRule();
+      }
       $('completion-apply').hidden = false;
     } else {
       $('completion-path').hidden = $('completion-apply').hidden = !completion.paths.length;
@@ -699,7 +717,9 @@ async function applyCompletion() {
       }
     }
   }
-  return loadCompletion({field, value, variant:$('completion-variant').value});
+  const edit = {field, value, variant:$('completion-variant').value};
+  if (field === 'injections' && $('completion-rule').value !== '') edit.index = Number($('completion-rule').value);
+  return loadCompletion(edit);
 }
 
 function updateEditorFiles() {
@@ -907,6 +927,9 @@ $('completion-apply').onclick = applyCompletion;
 $('completion-variant').onchange = $('completion-field').onchange = showCompletionFields;
 $('completion-source').onchange = $('completion-endpoint').onchange = $('completion-context').onchange = completionSourceChoices;
 $('completion-runner').onchange = completionRunnerFields;
+$('completion-rule').onchange = showInjectionRule;
+$('completion-remove-rule').onclick = () => loadCompletion({field:'removeInjection',
+  variant:$('completion-variant').value, index:Number($('completion-rule').value)});
 window.addEventListener('beforeunload', event => {
   if (serverStopped || !draftChanged()) return;
   event.preventDefault();

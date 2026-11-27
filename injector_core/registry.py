@@ -53,6 +53,8 @@ def node_file_path(registry, filename):
 
 
 def _validate_references(data, root, profile):
+    from .resolution import settings_layers, validate_injection_keys
+
     nodes = {}
     for node in data["nodes"]:
         if node["id"] in nodes:
@@ -117,6 +119,11 @@ def _validate_references(data, root, profile):
             if node_id not in selections:
                 raise RegistryError(f"profiles/{name}: missing selection for {node_id}")
             variant = nodes[node_id]["variants"][selections[node_id]]
+            if variant.get("injections"):
+                try:
+                    validate_injection_keys(node_id, variant, settings_layers(data, name, nodes[node_id], selections[node_id]))
+                except RegistryError as error:
+                    raise RegistryError(f"profiles/{name}: {error}") from error
             pending.extend(variant["dependencies"])
             for rule in variant.get("injections", []):
                 source = rule["source"]
